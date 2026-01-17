@@ -9,6 +9,10 @@ interface AppState {
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
 
+  toast: string | null;
+  showToast: (message: string) => void;
+  hideToast: () => void;
+
   currentUrl: string;
   setUrl: (url: string) => void;
   chapterContent: {
@@ -45,6 +49,10 @@ export const useAppStore = create<AppState>((set) => ({
   theme: 'dark',
   setTheme: (theme) => set({ theme }),
   toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+
+  toast: null,
+  showToast: (message) => set({ toast: message }),
+  hideToast: () => set({ toast: null }),
 
   currentUrl: '',
   setUrl: (url) => set({ currentUrl: url }),

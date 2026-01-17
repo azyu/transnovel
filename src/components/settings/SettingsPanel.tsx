@@ -16,7 +16,7 @@ interface SettingsHandle {
 export const SettingsPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('llm');
   const [isSaving, setIsSaving] = useState(false);
-  const { theme } = useAppStore();
+  const { theme, showToast } = useAppStore();
 
   const llmRef = useRef<SettingsHandle>(null);
   const translationRef = useRef<SettingsHandle>(null);
@@ -38,6 +38,7 @@ export const SettingsPanel: React.FC = () => {
         translationRef.current?.save(),
         viewRef.current?.save()
       ]);
+      showToast('설정이 저장되었습니다.');
     } catch (error) {
       console.error('Failed to save settings:', error);
     } finally {
