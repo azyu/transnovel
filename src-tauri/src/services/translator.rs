@@ -59,6 +59,7 @@ pub struct TranslatorService {
     system_prompt: String,
     translation_note: String,
     substitution: SubstitutionService,
+    use_streaming: bool,
 }
 
 struct TranslatorSettings {
@@ -70,6 +71,7 @@ struct TranslatorSettings {
     openrouter_model: Option<String>,
     antigravity_model: Option<String>,
     antigravity_url: Option<String>,
+    use_streaming: bool,
 }
 
 impl TranslatorService {
@@ -105,6 +107,7 @@ impl TranslatorService {
             system_prompt: settings.system_prompt,
             translation_note: settings.translation_note,
             substitution: SubstitutionService::from_config(&settings.substitutions),
+            use_streaming: settings.use_streaming,
         })
     }
 
@@ -124,6 +127,7 @@ impl TranslatorService {
             openrouter_model: get_setting("openrouter_model"),
             antigravity_model: get_setting("antigravity_model"),
             antigravity_url: get_setting("antigravity_proxy_url"),
+            use_streaming: get_setting("use_streaming").map(|v| v == "true").unwrap_or(true),
         }
     }
 
@@ -277,22 +281,52 @@ impl TranslatorService {
                         eprintln!("[Translator] Chunk {} retry {}/{}", chunk_idx + 1, retry, MAX_RETRIES - 1);
                     }
 
-                    let translate_result = match &mut self.client {
-                        ApiClient::Gemini(client) => {
-                            client
-                                .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
-                                .await
+                    let translate_result = if self.use_streaming {
+                        match &mut self.client {
+                            ApiClient::Gemini(client) => {
+                                client
+                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                    .await
+                            }
+                            ApiClient::OpenRouter(client) => {
+                                client
+                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                    .await
+                            }
+                            ApiClient::Antigravity(client) => {
+                                client
+                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                    .await
+                            }
                         }
-                        ApiClient::OpenRouter(client) => {
-                            client
-                                .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
-                                .await
+                    } else {
+                        let result = match &mut self.client {
+                            ApiClient::Gemini(client) => {
+                                client.translate(chunk_paragraphs, &prompt).await
+                            }
+                            ApiClient::OpenRouter(client) => {
+                                client.translate(chunk_paragraphs, &prompt).await
+                            }
+                            ApiClient::Antigravity(client) => {
+                                client.translate(chunk_paragraphs, &prompt).await
+                            }
+                        };
+                        
+                        if let Ok(ref translated) = result {
+                            for (local_idx, &orig_idx) in chunk_indices.iter().enumerate() {
+                                if local_idx < translated.len() {
+                                    let _ = app_handle.emit(
+                                        "translation-chunk",
+                                        TranslationChunk {
+                                            paragraph_id: encode_paragraph_id(orig_idx),
+                                            text: translated[local_idx].clone(),
+                                            is_complete: true,
+                                        },
+                                    );
+                                }
+                            }
                         }
-                        ApiClient::Antigravity(client) => {
-                            client
-                                .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
-                                .await
-                        }
+                        result
                     };
 
                     match translate_result {

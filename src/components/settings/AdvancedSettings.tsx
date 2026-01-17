@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { ask, message } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { useAppStore } from '../../stores/appStore';
 
@@ -30,16 +31,21 @@ export const AdvancedSettings: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (isClearing) return; // Prevent double-click
-    if (!confirm('번역 캐시를 모두 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
+    if (isClearing) return;
+    
+    const confirmed = await ask('번역 캐시를 모두 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.', {
+      title: '캐시 초기화',
+      kind: 'warning',
+    });
+    if (!confirmed) return;
     
     setIsClearing(true);
     try {
       const deleted = await invoke<number>('clear_cache');
-      alert(`${deleted}개의 캐시가 삭제되었습니다.`);
+      await message(`${deleted}개의 캐시가 삭제되었습니다.`, { title: '완료' });
       await loadCacheStats();
     } catch (error) {
-      alert(`캐시 삭제 실패: ${error}`);
+      await message(`캐시 삭제 실패: ${error}`, { title: '오류', kind: 'error' });
     } finally {
       setIsClearing(false);
     }
@@ -50,17 +56,27 @@ export const AdvancedSettings: React.FC = () => {
     e.stopPropagation();
     
     if (isResetting) return;
-    if (!confirm('정말로 모든 데이터를 초기화하시겠습니까?\n\n다음 항목이 삭제됩니다:\n- 번역 캐시\n- 모든 설정\n- API 키\n\n이 작업은 되돌릴 수 없습니다.')) return;
-    if (!confirm('다시 한번 확인합니다. 모든 데이터가 삭제됩니다. 계속하시겠습니까?')) return;
+    
+    const confirmed1 = await ask('정말로 모든 데이터를 초기화하시겠습니까?\n\n다음 항목이 삭제됩니다:\n- 번역 캐시\n- 모든 설정\n- API 키\n\n이 작업은 되돌릴 수 없습니다.', {
+      title: '전체 초기화',
+      kind: 'warning',
+    });
+    if (!confirmed1) return;
+    
+    const confirmed2 = await ask('다시 한번 확인합니다. 모든 데이터가 삭제됩니다. 계속하시겠습니까?', {
+      title: '최종 확인',
+      kind: 'warning',
+    });
+    if (!confirmed2) return;
     
     setIsResetting(true);
     try {
       await invoke('reset_all');
       localStorage.clear();
-      alert('초기화가 완료되었습니다. 앱을 다시 시작해주세요.');
+      await message('초기화가 완료되었습니다. 앱을 다시 시작해주세요.', { title: '완료' });
       window.location.reload();
     } catch (error) {
-      alert(`초기화 실패: ${error}`);
+      await message(`초기화 실패: ${error}`, { title: '오류', kind: 'error' });
     } finally {
       setIsResetting(false);
     }

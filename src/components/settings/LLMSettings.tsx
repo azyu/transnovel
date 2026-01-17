@@ -77,6 +77,7 @@ export const LLMSettings = forwardRef((_, ref) => {
   const [antigravityStatus, setAntigravityStatus] = useState<AntigravityStatus | null>(null);
   const [checkingAntigravity, setCheckingAntigravity] = useState(false);
   const [proxyUrl, setProxyUrl] = useState(DEFAULT_PROXY_URL);
+  const [useStreaming, setUseStreaming] = useState(true);
 
   useImperativeHandle(ref, () => ({
     save: handleSaveAll
@@ -201,6 +202,9 @@ export const LLMSettings = forwardRef((_, ref) => {
       
       const proxyUrlSetting = settings.find(s => s.key === 'antigravity_proxy_url');
       if (proxyUrlSetting?.value) setProxyUrl(proxyUrlSetting.value);
+      
+      const useStreamingSetting = settings.find(s => s.key === 'use_streaming');
+      if (useStreamingSetting?.value) setUseStreaming(useStreamingSetting.value === 'true');
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -225,24 +229,6 @@ export const LLMSettings = forwardRef((_, ref) => {
     };
     init();
   }, [fetchGeminiModels, fetchOpenrouterModels]);
-
-  useEffect(() => {
-    const saveSettings = async () => {
-      try {
-        await Promise.all([
-          invoke('set_setting', { key: 'active_provider', value: activeProvider }),
-          invoke('set_setting', { key: 'gemini_model', value: geminiModel }),
-          invoke('set_setting', { key: 'openrouter_model', value: openrouterModel }),
-          invoke('set_setting', { key: 'antigravity_model', value: antigravityModel }),
-          invoke('set_setting', { key: 'antigravity_proxy_url', value: proxyUrl }),
-        ]);
-        window.dispatchEvent(new Event('settings-changed'));
-      } catch (error) {
-        console.error('Failed to auto-save settings:', error);
-      }
-    };
-    saveSettings();
-  }, [activeProvider, geminiModel, openrouterModel, antigravityModel, proxyUrl]);
 
   const handleAddGeminiKey = async () => {
     if (!newGeminiKey.trim()) return;
@@ -281,7 +267,9 @@ export const LLMSettings = forwardRef((_, ref) => {
         invoke('set_setting', { key: 'openrouter_model', value: openrouterModel }),
         invoke('set_setting', { key: 'antigravity_model', value: antigravityModel }),
         invoke('set_setting', { key: 'antigravity_proxy_url', value: proxyUrl }),
+        invoke('set_setting', { key: 'use_streaming', value: useStreaming ? 'true' : 'false' }),
       ]);
+      window.dispatchEvent(new Event('settings-changed'));
     } catch (error) {
       console.error('Failed to save settings:', error);
     }
@@ -357,6 +345,27 @@ export const LLMSettings = forwardRef((_, ref) => {
       <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
         <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>LLM 설정</h2>
         <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사용할 API와 모델을 선택합니다. 하나만 활성화할 수 있습니다.</p>
+      </div>
+
+      <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>스트리밍 모드</h3>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              번역 결과를 실시간으로 표시합니다. 끄면 전체 완료 후 한번에 표시됩니다.
+            </p>
+          </div>
+          <button
+            onClick={() => setUseStreaming(!useStreaming)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              useStreaming ? 'bg-blue-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
+            }`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+              useStreaming ? 'translate-x-7' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
       </div>
 
       <div className={`p-6 rounded-xl border ${
