@@ -70,6 +70,10 @@ Tauri 2.0 desktop app translating Japanese web novels → Korean. React frontend
 | Remove `#![cfg_attr(...)]` in main.rs | Causes console window on Windows |
 | `as any`, `@ts-ignore` | Type safety violations |
 
+## Workflow
+- Commit after completing feature implementation or bug fix
+- Use conventional commit messages (feat:, fix:, refactor:, etc.)
+
 ## Commands
 ```bash
 pnpm install              # Install deps
