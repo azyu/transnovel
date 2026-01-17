@@ -95,10 +95,6 @@ impl GeminiClient {
         }
     }
 
-    pub fn set_model(&mut self, model: &str) {
-        self.model = model.to_string();
-    }
-
     fn get_next_api_key(&mut self) -> Result<&str, String> {
         if self.api_keys.is_empty() {
             return Err("API 키가 설정되지 않았습니다.".to_string());
@@ -198,7 +194,7 @@ impl GeminiClient {
     pub async fn translate_streaming<R: tauri::Runtime>(
         &mut self,
         paragraphs: &[String],
-        original_texts: &[String],
+        original_indices: &[usize],
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
@@ -211,8 +207,8 @@ impl GeminiClient {
 
         let numbered_text = paragraphs
             .iter()
-            .enumerate()
-            .map(|(i, p)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(i), p))
+            .zip(original_indices.iter())
+            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx), p))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -263,9 +259,11 @@ impl GeminiClient {
                                 if !emitted_ids.contains(&chunk.paragraph_id) {
                                     emitted_ids.insert(chunk.paragraph_id.clone());
                                     
-                                    if let Some(idx) = decode_paragraph_id(&chunk.paragraph_id) {
-                                        if idx < original_texts.len() {
-                                            let _ = cache_translation(&original_texts[idx], &chunk.text).await;
+                                    if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id) {
+                                        if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
+                                            if pos < paragraphs.len() {
+                                                let _ = cache_translation(&paragraphs[pos], &chunk.text).await;
+                                            }
                                         }
                                     }
                                     

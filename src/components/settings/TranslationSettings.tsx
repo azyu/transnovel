@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 
@@ -25,12 +25,15 @@ const DEFAULT_SYSTEM_PROMPT = `<|im_start|>system
 <main id="번역">
 <|im_end|>`;
 
-export const TranslationSettings: React.FC = () => {
+export const TranslationSettings = forwardRef((_, ref) => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translationNote, setTranslationNote] = useState('');
   const [substitutions, setSubstitutions] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    save: handleSave
+  }));
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -51,7 +54,6 @@ export const TranslationSettings: React.FC = () => {
   }, []);
 
   const handleSave = async () => {
-    setIsLoading(true);
     try {
       await Promise.all([
         invoke('set_setting', { key: 'system_prompt', value: systemPrompt }),
@@ -60,8 +62,6 @@ export const TranslationSettings: React.FC = () => {
       ]);
     } catch (error) {
       console.error('Failed to save settings:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -145,13 +145,9 @@ export const TranslationSettings: React.FC = () => {
             줄 단위로 <code className="text-blue-400">원본/치환</code> 형식. 정규식 사용 가능.
           </p>
         </div>
-
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSave} isLoading={isLoading}>
-            설정 저장
-          </Button>
-        </div>
       </div>
     </div>
   );
-};
+});
+
+TranslationSettings.displayName = 'TranslationSettings';

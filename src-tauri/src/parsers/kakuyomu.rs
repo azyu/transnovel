@@ -34,10 +34,6 @@ impl KakuyomuParser {
 
 #[async_trait]
 impl NovelParser for KakuyomuParser {
-    fn site_id(&self) -> &'static str {
-        "kakuyomu"
-    }
-
     fn matches_url(&self, url: &str) -> bool {
         self.url_pattern.is_match(url)
     }

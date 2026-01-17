@@ -31,10 +31,6 @@ impl HamelnParser {
 
 #[async_trait]
 impl NovelParser for HamelnParser {
-    fn site_id(&self) -> &'static str {
-        "hameln"
-    }
-
     fn matches_url(&self, url: &str) -> bool {
         self.url_pattern.is_match(url)
     }

@@ -31,10 +31,6 @@ impl NocturneParser {
 
 #[async_trait]
 impl NovelParser for NocturneParser {
-    fn site_id(&self) -> &'static str {
-        "nocturne"
-    }
-
     fn matches_url(&self, url: &str) -> bool {
         self.url_pattern.is_match(url)
     }

@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter};
 
 use super::cache::cache_translation;
 
-pub const ANTIGRAVITY_BASE: &str = "http://localhost:8045";
+pub const ANTIGRAVITY_BASE: &str = "http://127.0.0.1:8045";
 
 #[derive(Debug, Serialize)]
 struct AntigravityRequest {
@@ -50,6 +50,7 @@ struct StreamEvent {
 #[derive(Debug, Deserialize)]
 struct StreamDelta {
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     delta_type: Option<String>,
     text: Option<String>,
 }
@@ -72,11 +73,6 @@ impl AntigravityClient {
             client: Client::new(),
             model: "claude-sonnet-4-5-thinking".to_string(),
         }
-    }
-
-    pub fn with_model(mut self, model: &str) -> Self {
-        self.model = model.to_string();
-        self
     }
 
     pub async fn check_health(&self) -> bool {
@@ -160,7 +156,7 @@ impl AntigravityClient {
     pub async fn translate_streaming<R: tauri::Runtime>(
         &self,
         paragraphs: &[String],
-        original_texts: &[String],
+        original_indices: &[usize],
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
@@ -168,8 +164,8 @@ impl AntigravityClient {
 
         let numbered_text = paragraphs
             .iter()
-            .enumerate()
-            .map(|(i, p)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(i), p))
+            .zip(original_indices.iter())
+            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx), p))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -231,9 +227,11 @@ impl AntigravityClient {
                                         if !emitted_ids.contains(&chunk.paragraph_id) {
                                             emitted_ids.insert(chunk.paragraph_id.clone());
                                             
-                                            if let Some(idx) = decode_paragraph_id(&chunk.paragraph_id) {
-                                                if idx < original_texts.len() {
-                                                    let _ = cache_translation(&original_texts[idx], &chunk.text).await;
+                                            if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id) {
+                                                if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
+                                                    if pos < paragraphs.len() {
+                                                        let _ = cache_translation(&paragraphs[pos], &chunk.text).await;
+                                                    }
                                                 }
                                             }
                                             
@@ -294,7 +292,7 @@ fn encode_paragraph_id(n: usize) -> String {
     }
 }
 
-fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
+fn parse_translated_paragraphs(text: &str, _expected_count: usize) -> Result<Vec<String>, String> {
     let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
 
     let mut results: Vec<(usize, String)> = Vec::new();
@@ -326,16 +324,14 @@ fn decode_paragraph_id(id: &str) -> Option<usize> {
         return None;
     }
 
-    let mut result = 0usize;
-
     let first = chars[0];
-    if first.is_ascii_uppercase() {
-        result = (first as usize) - 65;
+    let mut result = if first.is_ascii_uppercase() {
+        (first as usize) - 65
     } else if first.is_ascii_lowercase() {
-        result = (first as usize) - 71;
+        (first as usize) - 71
     } else {
         return None;
-    }
+    };
 
     for &c in &chars[1..] {
         result = result.checked_mul(52)?.checked_add(1)?;

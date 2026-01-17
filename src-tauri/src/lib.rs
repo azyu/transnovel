@@ -27,6 +27,7 @@ pub fn run() {
             commands::series::stop_translation,
             commands::series::get_translation_progress,
             commands::export::export_novel,
+            commands::export::save_chapter,
             commands::settings::get_settings,
             commands::settings::set_setting,
             commands::settings::get_api_keys,

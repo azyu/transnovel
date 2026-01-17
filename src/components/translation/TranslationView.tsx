@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { UrlInput } from './UrlInput';
 import { ParagraphList } from './ParagraphList';
@@ -48,6 +48,25 @@ export const TranslationView: React.FC = () => {
     await parseAndTranslate(chapterContent.next_url);
   };
 
+  const handleSave = async () => {
+    if (!chapterContent) return;
+    try {
+      const path = await invoke<string>('save_chapter', {
+        request: {
+          title: chapterContent.title,
+          subtitle: chapterContent.subtitle,
+          paragraphs: chapterContent.paragraphs.map(p => ({
+            original: p.original,
+            translated: p.translated,
+          })),
+        },
+      });
+      alert(`저장 완료: ${path}`);
+    } catch (err) {
+      alert(`저장 실패: ${err}`);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto w-full">
       {apiConfigured === false && (
@@ -91,16 +110,21 @@ export const TranslationView: React.FC = () => {
       </div>
 
       {chapterContent && (
-        <div className="p-4 border-t border-slate-700 bg-slate-900/80 backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-end gap-4">
-          {isTranslating ? (
-            <Button variant="danger" onClick={handleStop}>
-              번역 중지
-            </Button>
-          ) : chapterContent.next_url ? (
-            <Button onClick={handleNextChapter}>
-              다음 화
-            </Button>
-          ) : null}
+        <div className="p-4 border-t border-slate-700 bg-slate-900/80 backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center">
+          <Button variant="secondary" onClick={handleSave} disabled={isTranslating}>
+            저장
+          </Button>
+          <div className="flex gap-4">
+            {isTranslating ? (
+              <Button variant="danger" onClick={handleStop}>
+                번역 중지
+              </Button>
+            ) : chapterContent.next_url ? (
+              <Button onClick={handleNextChapter}>
+                다음 화
+              </Button>
+            ) : null}
+          </div>
         </div>
       )}
     </div>

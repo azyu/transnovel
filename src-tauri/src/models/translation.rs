@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslationRequest {
     pub paragraphs: Vec<String>,
@@ -14,6 +15,7 @@ pub struct TranslationResult {
     pub model_used: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Paragraph {
     pub id: String,
@@ -21,6 +23,7 @@ pub struct Paragraph {
     pub translated: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslationCache {
     pub text_hash: String,

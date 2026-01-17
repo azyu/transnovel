@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -33,14 +33,13 @@ const FALLBACK_ANTIGRAVITY_MODELS: AntigravityModel[] = [
   { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5', provider: 'anthropic' },
 ];
 
-export const LLMSettings: React.FC = () => {
+export const LLMSettings = forwardRef((_, ref) => {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [newKey, setNewKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [antigravityStatus, setAntigravityStatus] = useState<AntigravityStatus | null>(null);
   const [checkingAntigravity, setCheckingAntigravity] = useState(false);
   const [model, setModel] = useState('gemini-2.5-flash-preview-05-20');
-  const [isSavingModel, setIsSavingModel] = useState(false);
   
   const [geminiModels, setGeminiModels] = useState<GeminiModel[]>(FALLBACK_GEMINI_MODELS);
   const [antigravityModels, setAntigravityModels] = useState<AntigravityModel[]>(FALLBACK_ANTIGRAVITY_MODELS);
@@ -48,6 +47,10 @@ export const LLMSettings: React.FC = () => {
   const [loadingAntigravityModels, setLoadingAntigravityModels] = useState(false);
   const [geminiModelsError, setGeminiModelsError] = useState<string | null>(null);
   const [antigravityModelsError, setAntigravityModelsError] = useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    save: handleSaveModel
+  }));
 
   const fetchKeys = async () => {
     try {
@@ -192,13 +195,10 @@ export const LLMSettings: React.FC = () => {
   };
 
   const handleSaveModel = async () => {
-    setIsSavingModel(true);
     try {
       await invoke('set_setting', { key: 'selected_model', value: model });
     } catch (error) {
       console.error('Failed to save model:', error);
-    } finally {
-      setIsSavingModel(false);
     }
   };
 
@@ -291,11 +291,6 @@ export const LLMSettings: React.FC = () => {
             <p className="mt-2 text-xs text-slate-500">
               Gemini 모델은 API 키가 필요하고, Antigravity 모델은 프록시 인증이 필요합니다.
             </p>
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={handleSaveModel} isLoading={isSavingModel} size="sm">
-              모델 저장
-            </Button>
           </div>
         </div>
       </div>
@@ -431,4 +426,6 @@ export const LLMSettings: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+
+LLMSettings.displayName = 'LLMSettings';

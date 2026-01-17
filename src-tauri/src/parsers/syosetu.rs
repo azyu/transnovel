@@ -56,10 +56,6 @@ impl SyosetuParser {
 
 #[async_trait]
 impl NovelParser for SyosetuParser {
-    fn site_id(&self) -> &'static str {
-        "syosetu"
-    }
-
     fn matches_url(&self, url: &str) -> bool {
         self.url_pattern.is_match(url)
     }

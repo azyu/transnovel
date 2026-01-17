@@ -140,20 +140,6 @@ pub async fn get_active_api_key(key_type: &str) -> Result<Option<String>, String
     Ok(row.map(|r| r.get("api_key")))
 }
 
-pub async fn increment_api_usage(id: i64) -> Result<(), String> {
-    let pool = get_pool()?;
-    
-    sqlx::query(
-        "UPDATE api_keys SET daily_usage = daily_usage + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = ?"
-    )
-    .bind(id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-    
-    Ok(())
-}
-
 #[derive(Debug, Serialize)]
 pub struct AntigravityStatus {
     pub running: bool,
@@ -303,6 +289,7 @@ struct AntigravityModelsResponse {
 #[derive(Debug, Deserialize)]
 struct AntigravityModelInfo {
     id: String,
+    #[allow(dead_code)]
     object: Option<String>,
     owned_by: Option<String>,
 }

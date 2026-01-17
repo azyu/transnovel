@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Novel {
     pub id: Option<i64>,
@@ -10,6 +11,7 @@ pub struct Novel {
     pub total_chapters: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chapter {
     pub id: Option<i64>,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -41,9 +41,12 @@ const COLOR_PRESETS = [
   { name: '아몰레드', text: '#e5e5e5', bg: '#000000' },
 ];
 
-export const ViewSettings: React.FC = () => {
+export const ViewSettings = forwardRef((_, ref) => {
   const [config, setConfig] = useState<ViewConfig>(DEFAULT_CONFIG);
-  const [isLoading, setIsLoading] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    save: handleSave
+  }));
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -61,13 +64,10 @@ export const ViewSettings: React.FC = () => {
   }, []);
 
   const handleSave = async () => {
-    setIsLoading(true);
     try {
       await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
     } catch (error) {
       console.error('Failed to save view settings:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -258,15 +258,14 @@ export const ViewSettings: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex justify-between pt-2">
+        <div className="flex justify-end pt-2">
           <Button variant="secondary" onClick={handleReset}>
             기본값 복원
-          </Button>
-          <Button onClick={handleSave} isLoading={isLoading}>
-            설정 저장
           </Button>
         </div>
       </div>
     </div>
   );
-};
+});
+
+ViewSettings.displayName = 'ViewSettings';

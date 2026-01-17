@@ -1,11 +1,28 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use crate::commands::settings::{get_active_api_key, get_settings};
 use crate::models::translation::TranslationResult;
-use crate::services::antigravity::AntigravityClient;
+use crate::services::antigravity::{AntigravityClient, TranslationChunk};
 use crate::services::cache::{cache_translations, get_cached_translations};
 use crate::services::gemini::GeminiClient;
 use crate::services::substitution::SubstitutionService;
+
+fn encode_paragraph_id(n: usize) -> String {
+    if n < 26 {
+        char::from_u32((n + 65) as u32).unwrap().to_string()
+    } else if n < 52 {
+        char::from_u32((n + 71) as u32).unwrap().to_string()
+    } else {
+        let adjusted = n - 52;
+        let first = adjusted / 52;
+        let second = adjusted % 52;
+        format!(
+            "{}{}",
+            char::from_u32((first + if first < 26 { 65 } else { 71 }) as u32).unwrap(),
+            char::from_u32((second + if second < 26 { 65 } else { 71 }) as u32).unwrap()
+        )
+    }
+}
 
 const DEFAULT_SYSTEM_PROMPT: &str = r#"<|im_start|>system
 [공리]
@@ -193,7 +210,21 @@ impl TranslatorService {
             }
         }
 
-        let mut results: Vec<String> = cached.into_iter().map(|c| c.unwrap_or_default()).collect();
+        let mut results: Vec<String> = cached.iter().map(|c| c.clone().unwrap_or_default()).collect();
+
+        for (i, cached_text) in cached.iter().enumerate() {
+            if let Some(text) = cached_text {
+                let postprocessed = self.substitution.apply_to_paragraphs(&[text.clone()]);
+                let _ = app_handle.emit(
+                    "translation-chunk",
+                    TranslationChunk {
+                        paragraph_id: encode_paragraph_id(i),
+                        text: postprocessed.into_iter().next().unwrap_or_default(),
+                        is_complete: true,
+                    },
+                );
+            }
+        }
 
         if !uncached_paragraphs.is_empty() {
             let mut prompt = self.build_prompt();
@@ -210,12 +241,12 @@ impl TranslatorService {
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => {
                     client
-                        .translate_streaming(&uncached_paragraphs, &uncached_paragraphs, &prompt, app_handle)
+                        .translate_streaming(&uncached_paragraphs, &uncached_indices, &prompt, app_handle)
                         .await?
                 }
                 ApiClient::Antigravity(client) => {
                     client
-                        .translate_streaming(&uncached_paragraphs, &uncached_paragraphs, &prompt, app_handle)
+                        .translate_streaming(&uncached_paragraphs, &uncached_indices, &prompt, app_handle)
                         .await?
                 }
             };

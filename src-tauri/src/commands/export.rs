@@ -154,3 +154,50 @@ fn sanitize_filename(name: &str) -> String {
         .trim()
         .to_string()
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SaveChapterRequest {
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub paragraphs: Vec<SaveParagraph>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SaveParagraph {
+    pub original: String,
+    pub translated: Option<String>,
+}
+
+#[tauri::command]
+pub async fn save_chapter(request: SaveChapterRequest) -> Result<String, String> {
+    let output_dir = dirs::download_dir().unwrap_or_else(|| PathBuf::from("."));
+    fs::create_dir_all(&output_dir).map_err(|e| format!("폴더 생성 실패: {}", e))?;
+
+    let title = if let Some(subtitle) = &request.subtitle {
+        format!("{} - {}", request.title, subtitle)
+    } else {
+        request.title.clone()
+    };
+    
+    let filename = format!("{}.txt", sanitize_filename(&title));
+    let path = output_dir.join(&filename);
+
+    let mut content = String::new();
+    content.push_str(&format!("{}\n", request.title));
+    if let Some(subtitle) = &request.subtitle {
+        content.push_str(&format!("{}\n", subtitle));
+    }
+    content.push_str("\n");
+
+    for para in &request.paragraphs {
+        if let Some(translated) = &para.translated {
+            content.push_str(&format!("{}\n\n", translated));
+        }
+    }
+
+    let mut file = File::create(&path).map_err(|e| format!("파일 생성 실패: {}", e))?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| format!("파일 쓰기 실패: {}", e))?;
+
+    Ok(path.to_string_lossy().to_string())
+}

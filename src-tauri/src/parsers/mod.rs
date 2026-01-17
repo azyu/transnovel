@@ -4,13 +4,11 @@ pub mod nocturne;
 pub mod syosetu;
 
 use async_trait::async_trait;
-use regex::Regex;
 
 use crate::models::novel::{ChapterContent, SeriesInfo};
 
 #[async_trait]
 pub trait NovelParser: Send + Sync {
-    fn site_id(&self) -> &'static str;
     fn matches_url(&self, url: &str) -> bool;
     async fn get_chapter(&self, url: &str) -> Result<ChapterContent, String>;
     async fn get_series_info(&self, url: &str) -> Result<SeriesInfo, String>;

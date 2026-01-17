@@ -5,6 +5,10 @@ interface AppState {
   currentTab: TabType;
   setTab: (tab: TabType) => void;
 
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
+
   currentUrl: string;
   setUrl: (url: string) => void;
   chapterContent: {
@@ -34,6 +38,10 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   currentTab: 'translation',
   setTab: (tab) => set({ currentTab: tab }),
+
+  theme: 'dark',
+  setTheme: (theme) => set({ theme }),
+  toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
 
   currentUrl: '',
   setUrl: (url) => set({ currentUrl: url }),
