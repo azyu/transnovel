@@ -24,7 +24,11 @@ export const AdvancedSettings: React.FC = () => {
     loadCacheStats();
   }, []);
 
-  const handleClearCache = async () => {
+  const handleClearCache = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isClearing) return; // Prevent double-click
     if (!confirm('번역 캐시를 모두 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
     
     setIsClearing(true);
@@ -39,7 +43,11 @@ export const AdvancedSettings: React.FC = () => {
     }
   };
 
-  const handleResetAll = async () => {
+  const handleResetAll = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isResetting) return;
     if (!confirm('정말로 모든 데이터를 초기화하시겠습니까?\n\n다음 항목이 삭제됩니다:\n- 번역 캐시\n- 모든 설정\n- API 키\n\n이 작업은 되돌릴 수 없습니다.')) return;
     if (!confirm('다시 한번 확인합니다. 모든 데이터가 삭제됩니다. 계속하시겠습니까?')) return;
     
