@@ -3,6 +3,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
+use super::cache::cache_translation;
+
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
 
 #[derive(Debug, Serialize)]
@@ -196,6 +198,7 @@ impl GeminiClient {
     pub async fn translate_streaming<R: tauri::Runtime>(
         &mut self,
         paragraphs: &[String],
+        original_texts: &[String],
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
@@ -259,6 +262,13 @@ impl GeminiClient {
                             for chunk in chunks {
                                 if !emitted_ids.contains(&chunk.paragraph_id) {
                                     emitted_ids.insert(chunk.paragraph_id.clone());
+                                    
+                                    if let Some(idx) = decode_paragraph_id(&chunk.paragraph_id) {
+                                        if idx < original_texts.len() {
+                                            let _ = cache_translation(&original_texts[idx], &chunk.text).await;
+                                        }
+                                    }
+                                    
                                     let _ = app_handle.emit("translation-chunk", chunk);
                                 }
                             }

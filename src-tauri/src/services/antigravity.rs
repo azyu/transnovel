@@ -3,6 +3,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
+use super::cache::cache_translation;
+
 pub const ANTIGRAVITY_BASE: &str = "http://localhost:8045";
 
 #[derive(Debug, Serialize)]
@@ -158,6 +160,7 @@ impl AntigravityClient {
     pub async fn translate_streaming<R: tauri::Runtime>(
         &self,
         paragraphs: &[String],
+        original_texts: &[String],
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
@@ -227,6 +230,13 @@ impl AntigravityClient {
                                     for chunk in chunks {
                                         if !emitted_ids.contains(&chunk.paragraph_id) {
                                             emitted_ids.insert(chunk.paragraph_id.clone());
+                                            
+                                            if let Some(idx) = decode_paragraph_id(&chunk.paragraph_id) {
+                                                if idx < original_texts.len() {
+                                                    let _ = cache_translation(&original_texts[idx], &chunk.text).await;
+                                                }
+                                            }
+                                            
                                             let _ = app_handle.emit("translation-chunk", chunk);
                                         }
                                     }

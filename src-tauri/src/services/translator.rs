@@ -210,12 +210,12 @@ impl TranslatorService {
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => {
                     client
-                        .translate_streaming(&uncached_paragraphs, &prompt, app_handle)
+                        .translate_streaming(&uncached_paragraphs, &uncached_paragraphs, &prompt, app_handle)
                         .await?
                 }
                 ApiClient::Antigravity(client) => {
                     client
-                        .translate_streaming(&uncached_paragraphs, &prompt, app_handle)
+                        .translate_streaming(&uncached_paragraphs, &uncached_paragraphs, &prompt, app_handle)
                         .await?
                 }
             };
