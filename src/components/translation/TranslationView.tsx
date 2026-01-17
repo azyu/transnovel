@@ -177,7 +177,7 @@ export const TranslationView: React.FC = () => {
                   번역 중지
                 </Button>
               </>
-            ) : chapterContent.next_url ? (
+            ) : chapterContent.next_url && chapterContent.paragraphs.every(p => p.translated) ? (
               <Button onClick={handleNextChapter}>
                 다음 화
               </Button>

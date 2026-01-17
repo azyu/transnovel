@@ -47,6 +47,10 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history' }
   }, [historyKey]);
 
   useEffect(() => {
+    setLocalUrl(currentUrl);
+  }, [currentUrl]);
+
+  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowDropdown(false);

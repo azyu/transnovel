@@ -37,7 +37,7 @@ interface AppState {
     next_url: string | null;
   } | null;
   setChapterContent: (content: { site: string; novel_id: string; title: string; subtitle: string; translatedTitle?: string; translatedSubtitle?: string; paragraphs: Paragraph[]; prev_url: string | null; next_url: string | null } | null) => void;
-  updateTitleTranslation: (title: string, subtitle?: string) => void;
+  updateTitleTranslation: (title?: string, subtitle?: string) => void;
   updateParagraphTranslation: (id: string, text: string) => void;
   updateAllTranslations: (translations: string[]) => void;
   isTranslating: boolean;
@@ -83,8 +83,8 @@ export const useAppStore = create<AppState>((set) => ({
       return {
         chapterContent: {
           ...state.chapterContent,
-          translatedTitle: title,
-          translatedSubtitle: subtitle,
+          ...(title !== undefined && { translatedTitle: title }),
+          ...(subtitle !== undefined && { translatedSubtitle: subtitle }),
         },
       };
     }),

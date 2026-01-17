@@ -259,14 +259,23 @@ impl TranslatorService {
                 }
             }
 
-            const CHUNK_SIZE: usize = 50;
+            // Dynamic chunk sizing: send all at once if small enough
+            const MAX_SINGLE_BATCH_CHARS: usize = 50_000; // ~50KB threshold
+            const FALLBACK_CHUNK_SIZE: usize = 50;
             const MAX_RETRIES: u32 = 3;
-            let chunk_count = (uncached_paragraphs.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+            
+            let total_chars: usize = uncached_paragraphs.iter().map(|p| p.len()).sum();
+            let chunk_size = if total_chars <= MAX_SINGLE_BATCH_CHARS {
+                uncached_paragraphs.len() // Send all at once
+            } else {
+                FALLBACK_CHUNK_SIZE
+            };
+            let chunk_count = (uncached_paragraphs.len() + chunk_size - 1) / chunk_size;
             let mut failed_indices: Vec<usize> = Vec::new();
             
             for chunk_idx in 0..chunk_count {
-                let start = chunk_idx * CHUNK_SIZE;
-                let end = std::cmp::min(start + CHUNK_SIZE, uncached_paragraphs.len());
+                let start = chunk_idx * chunk_size;
+                let end = std::cmp::min(start + chunk_size, uncached_paragraphs.len());
                 
                 let chunk_paragraphs = &uncached_paragraphs[start..end];
                 let chunk_indices = &uncached_indices[start..end];

@@ -114,36 +114,31 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(true);
 
-      try {
-        const titlesToTranslate = [content.title];
-        if (content.subtitle) titlesToTranslate.push(content.subtitle);
-        
-        const result = await invoke<{ translated: string[] }>('translate_paragraphs', {
-          novelId: content.novel_id,
-          paragraphs: titlesToTranslate,
-        });
-        
-        updateTitleTranslation(
-          result.translated[0] || content.title,
-          content.subtitle ? result.translated[1] : undefined
-        );
-      } catch (e) {
-        console.error('Failed to translate title:', e);
-      }
-
+      const titleOffset = content.subtitle ? 2 : 1;
+      
       const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
         const idx = decodeParagraphId(event.payload.paragraph_id);
-        if (idx !== null) {
-          updateParagraphTranslation(`p-${idx}`, event.payload.text);
+        if (idx === null) return;
+        
+        if (idx === 0) {
+          updateTitleTranslation(event.payload.text, undefined);
+        } else if (idx === 1 && content.subtitle) {
+          updateTitleTranslation(undefined, event.payload.text);
+        } else {
+          const paragraphIdx = idx - titleOffset;
+          updateParagraphTranslation(`p-${paragraphIdx}`, event.payload.text);
         }
       });
 
       const unlistenFailed = await listen<{ failed_indices: number[]; total: number }>('translation-failed-paragraphs', (event) => {
-        setFailedParagraphIndices(event.payload.failed_indices);
-        if (event.payload.failed_indices.length > 0) {
+        const adjustedIndices = event.payload.failed_indices
+          .filter(idx => idx >= titleOffset)
+          .map(idx => idx - titleOffset);
+        setFailedParagraphIndices(adjustedIndices);
+        if (adjustedIndices.length > 0) {
           showError(
             '일부 문단 번역 실패',
-            `${event.payload.failed_indices.length}개 문단 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
+            `${adjustedIndices.length}개 문단 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
           );
         }
       });
@@ -157,10 +152,16 @@ export const useTranslation = () => {
 
       clearFailedParagraphIndices();
 
+      const allTexts = [
+        content.title,
+        ...(content.subtitle ? [content.subtitle] : []),
+        ...content.paragraphs,
+      ];
+
       try {
         await invoke('translate_paragraphs_streaming', { 
           novelId: content.novel_id,
-          paragraphs: content.paragraphs 
+          paragraphs: allTexts 
         });
       } catch (err) {
         unlistenChunk();
@@ -178,7 +179,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
+  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
 
   const translateText = useCallback(async (novelId: string, text: string, note?: string) => {
     try {

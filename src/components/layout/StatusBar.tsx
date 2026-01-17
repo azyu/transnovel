@@ -13,6 +13,7 @@ const PROVIDER_LABELS: Record<Provider, string> = {
 export const StatusBar: React.FC = () => {
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
   const [model, setModel] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const isDark = useAppStore((state) => state.theme) === 'dark';
 
   const loadStatus = useCallback(async () => {
@@ -27,6 +28,9 @@ export const StatusBar: React.FC = () => {
         const modelValue = settings.find(s => s.key === modelKey)?.value;
         setModel(modelValue || '');
       }
+      
+      const streamingSetting = settings.find(s => s.key === 'use_streaming')?.value;
+      setIsStreaming(streamingSetting === 'true');
     } catch (error) {
       console.error('Failed to load status:', error);
     }
@@ -69,6 +73,12 @@ export const StatusBar: React.FC = () => {
       <div className="flex items-center gap-2">
         <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>모델:</span>
         <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatModelName(model)}</span>
+      </div>
+      
+      <div className={isDark ? 'text-slate-600' : 'text-slate-300'}>|</div>
+      
+      <div className={`font-medium ${isStreaming ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-slate-500' : 'text-slate-400')}`}>
+        {isStreaming ? 'Stream' : 'Batch'}
       </div>
     </div>
   );

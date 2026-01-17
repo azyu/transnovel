@@ -71,13 +71,19 @@ impl OpenRouterClient {
     }
 
     fn build_request(&self, prompt: &str, stream: bool) -> OpenRouterRequest {
+        let max_tokens = if self.model.contains(":free") {
+            None
+        } else {
+            Some(65536)
+        };
+        
         OpenRouterRequest {
             model: self.model.clone(),
             messages: vec![Message {
                 role: "user".to_string(),
                 content: prompt.to_string(),
             }],
-            max_tokens: Some(65536),
+            max_tokens,
             temperature: Some(0.7),
             stream: Some(stream),
         }
@@ -109,14 +115,14 @@ impl OpenRouterClient {
             .map_err(|e| format!("API 요청 실패: {}", e))?;
 
         let status = response.status();
+        let response_text = response.text().await.unwrap_or_default();
+        
         if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(format!("API 오류 ({}): {}", status, error_text));
+            eprintln!("[OpenRouter] API error ({}): {}", status, response_text);
+            return Err(format!("API 오류 ({}): {}", status, response_text));
         }
 
-        let openrouter_response: OpenRouterResponse = response
-            .json()
-            .await
+        let openrouter_response: OpenRouterResponse = serde_json::from_str(&response_text)
             .map_err(|e| format!("응답 파싱 실패: {}", e))?;
 
         if let Some(error) = openrouter_response.error {
@@ -168,6 +174,7 @@ impl OpenRouterClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
+            eprintln!("[OpenRouter] Streaming API error ({}): {}", status, error_text);
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 

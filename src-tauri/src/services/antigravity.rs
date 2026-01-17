@@ -26,6 +26,14 @@ struct Message {
 struct AntigravityResponse {
     content: Option<Vec<ContentBlock>>,
     error: Option<AntigravityError>,
+    usage: Option<UsageInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UsageInfo {
+    input_tokens: Option<u32>,
+    #[allow(dead_code)]
+    output_tokens: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -141,9 +149,12 @@ impl AntigravityClient {
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
-        let antigravity_response: AntigravityResponse = response
-            .json()
+        let response_text = response
+            .text()
             .await
+            .map_err(|e| format!("응답 읽기 실패: {}", e))?;
+
+        let antigravity_response: AntigravityResponse = serde_json::from_str(&response_text)
             .map_err(|e| format!("응답 파싱 실패: {}", e))?;
 
         if let Some(error) = antigravity_response.error {
@@ -153,7 +164,18 @@ impl AntigravityClient {
         let content_blocks = antigravity_response.content.unwrap_or_default();
         
         if content_blocks.is_empty() {
-            return Err("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.".to_string());
+            eprintln!("[Antigravity] Empty response: {}", response_text);
+            
+            let is_likely_filtered = antigravity_response
+                .usage
+                .map(|u| u.input_tokens == Some(0))
+                .unwrap_or(false);
+            
+            return if is_likely_filtered {
+                Err("API가 빈 응답을 반환했습니다. (input_tokens: 0 - 콘텐츠 필터링 가능성)".to_string())
+            } else {
+                Err("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.".to_string())
+            };
         }
 
         let text = content_blocks
@@ -263,6 +285,11 @@ impl AntigravityClient {
             }
         }
 
+        if full_text.is_empty() {
+            eprintln!("[Antigravity] Streaming returned empty response");
+            return Err("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.".to_string());
+        }
+        
         parse_translated_paragraphs_by_indices(&full_text, original_indices)
     }
 }
@@ -421,6 +448,7 @@ mod tests {
         let response = AntigravityResponse {
             content: Some(vec![]),
             error: None,
+            usage: None,
         };
         
         let content_blocks = response.content.unwrap_or_default();
@@ -437,6 +465,7 @@ mod tests {
                 }
             ]),
             error: None,
+            usage: None,
         };
         
         let content_blocks = response.content.unwrap_or_default();
