@@ -226,7 +226,7 @@ impl OpenRouterClient {
             }
         }
 
-        parse_translated_paragraphs(&full_text, paragraphs.len())
+        parse_translated_paragraphs_by_indices(&full_text, original_indices)
     }
 }
 
@@ -290,14 +290,32 @@ fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
 }
 
 fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
-    let re = regex::Regex::new(r#"(?s)<p id="[A-Za-z]+">(.*?)</p>"#).unwrap();
-    let mut results: Vec<String> = re
-        .captures_iter(text)
-        .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
-        .collect();
+    let sequential_indices: Vec<usize> = (0..expected_count).collect();
+    parse_translated_paragraphs_by_indices(text, &sequential_indices)
+}
 
-    while results.len() < expected_count {
-        results.push(String::new());
+fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize]) -> Result<Vec<String>, String> {
+    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
+
+    let mut results: Vec<String> = vec![String::new(); original_indices.len()];
+    let mut found_any = false;
+
+    for cap in re.captures_iter(text) {
+        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
+            let id = id_match.as_str();
+            let content = content_match.as_str().to_string();
+
+            if let Some(decoded_index) = decode_paragraph_id(id) {
+                if let Some(pos) = original_indices.iter().position(|&x| x == decoded_index) {
+                    results[pos] = content;
+                    found_any = true;
+                }
+            }
+        }
+    }
+
+    if !found_any {
+        return Ok(vec![text.to_string()]);
     }
 
     Ok(results)

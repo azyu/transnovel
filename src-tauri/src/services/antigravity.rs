@@ -150,15 +150,17 @@ impl AntigravityClient {
             return Err(format!("Antigravity 오류: {}", error.message));
         }
 
-        let text = antigravity_response
-            .content
-            .and_then(|blocks| {
-                blocks
-                    .into_iter()
-                    .find(|b| b.content_type == "text")
-                    .and_then(|b| b.text)
-            })
-            .ok_or("응답에서 텍스트를 찾을 수 없습니다.")?;
+        let content_blocks = antigravity_response.content.unwrap_or_default();
+        
+        if content_blocks.is_empty() {
+            return Err("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.".to_string());
+        }
+
+        let text = content_blocks
+            .into_iter()
+            .find(|b| b.content_type == "text")
+            .and_then(|b| b.text)
+            .ok_or("응답에 텍스트 블록이 없습니다.")?;
 
         parse_translated_paragraphs(&text, paragraphs.len())
     }
@@ -261,7 +263,7 @@ impl AntigravityClient {
             }
         }
 
-        parse_translated_paragraphs(&full_text, paragraphs.len())
+        parse_translated_paragraphs_by_indices(&full_text, original_indices)
     }
 }
 
@@ -306,29 +308,36 @@ fn encode_paragraph_id(n: usize) -> String {
     }
 }
 
-fn parse_translated_paragraphs(text: &str, _expected_count: usize) -> Result<Vec<String>, String> {
+fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
+    let sequential_indices: Vec<usize> = (0..expected_count).collect();
+    parse_translated_paragraphs_by_indices(text, &sequential_indices)
+}
+
+fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize]) -> Result<Vec<String>, String> {
     let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
 
-    let mut results: Vec<(usize, String)> = Vec::new();
+    let mut results: Vec<String> = vec![String::new(); original_indices.len()];
+    let mut found_count = 0;
 
     for cap in re.captures_iter(text) {
         if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
             let id = id_match.as_str();
             let content = content_match.as_str().to_string();
 
-            if let Some(index) = decode_paragraph_id(id) {
-                results.push((index, content));
+            if let Some(decoded_index) = decode_paragraph_id(id) {
+                if let Some(pos) = original_indices.iter().position(|&x| x == decoded_index) {
+                    results[pos] = content;
+                    found_count += 1;
+                }
             }
         }
     }
 
-    results.sort_by_key(|(idx, _)| *idx);
-
-    if results.is_empty() {
+    if found_count == 0 {
         return Ok(vec![text.to_string()]);
     }
 
-    Ok(results.into_iter().map(|(_, content)| content).collect())
+    Ok(results)
 }
 
 fn decode_paragraph_id(id: &str) -> Option<usize> {

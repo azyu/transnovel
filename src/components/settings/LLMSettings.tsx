@@ -356,14 +356,19 @@ export const LLMSettings = forwardRef((_, ref) => {
             </p>
           </div>
           <button
+            type="button"
+            role="switch"
+            aria-checked={useStreaming}
             onClick={() => setUseStreaming(!useStreaming)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
               useStreaming ? 'bg-blue-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
             }`}
           >
-            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              useStreaming ? 'translate-x-7' : 'translate-x-1'
-            }`} />
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
+                useStreaming ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
           </button>
         </div>
       </div>

@@ -277,7 +277,7 @@ impl GeminiClient {
             }
         }
 
-        parse_translated_paragraphs(&full_text, paragraphs.len())
+        parse_translated_paragraphs_by_indices(&full_text, original_indices)
     }
 }
 
@@ -322,29 +322,36 @@ pub fn encode_paragraph_id(n: usize) -> String {
     }
 }
 
-pub fn parse_translated_paragraphs(text: &str, _expected_count: usize) -> Result<Vec<String>, String> {
+pub fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
+    let sequential_indices: Vec<usize> = (0..expected_count).collect();
+    parse_translated_paragraphs_by_indices(text, &sequential_indices)
+}
+
+pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize]) -> Result<Vec<String>, String> {
     let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
 
-    let mut results: Vec<(usize, String)> = Vec::new();
+    let mut results: Vec<String> = vec![String::new(); original_indices.len()];
+    let mut found_count = 0;
 
     for cap in re.captures_iter(text) {
         if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
             let id = id_match.as_str();
             let content = content_match.as_str().to_string();
 
-            if let Some(index) = decode_paragraph_id(id) {
-                results.push((index, content));
+            if let Some(decoded_index) = decode_paragraph_id(id) {
+                if let Some(pos) = original_indices.iter().position(|&x| x == decoded_index) {
+                    results[pos] = content;
+                    found_count += 1;
+                }
             }
         }
     }
 
-    results.sort_by_key(|(idx, _)| *idx);
-
-    if results.is_empty() {
+    if found_count == 0 {
         return Ok(vec![text.to_string()]);
     }
 
-    Ok(results.into_iter().map(|(_, content)| content).collect())
+    Ok(results)
 }
 
 fn decode_paragraph_id(id: &str) -> Option<usize> {
@@ -509,16 +516,66 @@ mod tests {
 
     #[test]
     fn test_parse_out_of_order_paragraphs() {
-        // LLM might return paragraphs out of order
         let text = r#"<p id="C">세 번째</p>
 <p id="A">첫 번째</p>
 <p id="B">두 번째</p>"#;
         
         let result = parse_translated_paragraphs(text, 3).unwrap();
         
-        // Should be sorted by ID
         assert_eq!(result[0], "첫 번째");
         assert_eq!(result[1], "두 번째");
         assert_eq!(result[2], "세 번째");
+    }
+
+    #[test]
+    fn test_parse_with_skipped_paragraphs() {
+        // LLM skips paragraph B (index 1)
+        let text = r#"<p id="A">첫 번째</p>
+<p id="C">세 번째</p>
+<p id="D">네 번째</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 4).unwrap();
+        
+        // Should return 4 items with empty string for skipped paragraph
+        assert_eq!(result.len(), 4, "Should return expected_count items");
+        assert_eq!(result[0], "첫 번째");
+        assert_eq!(result[1], "", "Skipped paragraph should be empty");
+        assert_eq!(result[2], "세 번째");
+        assert_eq!(result[3], "네 번째");
+    }
+
+    #[test]
+    fn test_parse_with_multiple_skipped_paragraphs() {
+        let text = r#"<p id="A">첫 번째</p>
+<p id="C">세 번째</p>
+<p id="E">다섯 번째</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 5).unwrap();
+        
+        assert_eq!(result.len(), 5);
+        assert_eq!(result[0], "첫 번째");
+        assert_eq!(result[1], "");
+        assert_eq!(result[2], "세 번째");
+        assert_eq!(result[3], "");
+        assert_eq!(result[4], "다섯 번째");
+    }
+
+    #[test]
+    fn test_parse_by_indices_non_sequential() {
+        // Streaming case: original_indices might be [5, 6, 7, 8, 9]
+        // IDs will be F, G, H, I, J
+        let text = r#"<p id="F">다섯 번째</p>
+<p id="H">일곱 번째</p>
+<p id="J">아홉 번째</p>"#;
+        
+        let original_indices = vec![5, 6, 7, 8, 9];
+        let result = parse_translated_paragraphs_by_indices(text, &original_indices).unwrap();
+        
+        assert_eq!(result.len(), 5);
+        assert_eq!(result[0], "다섯 번째");
+        assert_eq!(result[1], "");
+        assert_eq!(result[2], "일곱 번째");
+        assert_eq!(result[3], "");
+        assert_eq!(result[4], "아홉 번째");
     }
 }
