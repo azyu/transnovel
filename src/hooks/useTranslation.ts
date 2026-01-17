@@ -1,17 +1,48 @@
 import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useAppStore } from '../stores/appStore';
-import type { ChapterContent, Chapter, ExportOptions } from '../types';
+import type { ChapterContent, Chapter, ExportOptions, TranslationChunk } from '../types';
 
 export const useTranslation = () => {
   const { 
     setChapterContent, 
     setChapterList, 
-    setIsTranslating 
+    setIsTranslating,
+    updateParagraphTranslation,
   } = useAppStore();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const decodeParagraphId = (id: string): number | null => {
+    const chars = id.split('');
+    if (chars.length === 0 || chars.length > 6) return null;
+    
+    const decodeChar = (c: string): number | null => {
+      if (c >= 'A' && c <= 'Z') return c.charCodeAt(0) - 65;
+      if (c >= 'a' && c <= 'z') return c.charCodeAt(0) - 71;
+      return null;
+    };
+    
+    if (chars.length === 1) {
+      return decodeChar(chars[0]);
+    }
+    
+    let result = 0;
+    for (let i = 0; i < chars.length; i++) {
+      const charValue = decodeChar(chars[i]);
+      if (charValue === null) return null;
+      
+      if (i === 0) {
+        result = charValue;
+      } else {
+        result = (result + 1) * 52 + charValue;
+      }
+    }
+    
+    return result;
+  };
 
   const parseChapter = useCallback(async (url: string) => {
     setLoading(true);
@@ -27,6 +58,8 @@ export const useTranslation = () => {
           id: `p-${index}`,
           original: p,
         })),
+        prev_url: content.prev_url,
+        next_url: content.next_url,
       });
 
       try {
@@ -44,6 +77,69 @@ export const useTranslation = () => {
     }
   }, [setChapterContent, setChapterList]);
 
+  const parseAndTranslate = useCallback(async (url: string) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const content = await invoke<ChapterContent>('parse_chapter', { url });
+      const paragraphs = content.paragraphs.map((p, index) => ({
+        id: `p-${index}`,
+        original: p,
+      }));
+      
+      setChapterContent({
+        site: content.site,
+        novel_id: content.novel_id,
+        title: content.title,
+        subtitle: content.subtitle,
+        paragraphs,
+        prev_url: content.prev_url,
+        next_url: content.next_url,
+      });
+
+      try {
+        const list = await invoke<{ chapters: Chapter[] }>('get_chapter_list', { url });
+        setChapterList(list.chapters);
+      } catch (e) {
+        console.log("Could not fetch chapter list", e);
+      }
+
+      setLoading(false);
+      setIsTranslating(true);
+
+      const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
+        const idx = decodeParagraphId(event.payload.paragraph_id);
+        if (idx !== null) {
+          updateParagraphTranslation(`p-${idx}`, event.payload.text);
+        }
+      });
+
+      const unlistenComplete = await listen<boolean>('translation-complete', () => {
+        setIsTranslating(false);
+        unlistenChunk();
+        unlistenComplete();
+      });
+
+      try {
+        await invoke('translate_paragraphs_streaming', { 
+          paragraphs: content.paragraphs 
+        });
+      } catch (err) {
+        unlistenChunk();
+        unlistenComplete();
+        setIsTranslating(false);
+        throw err;
+      }
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      console.error(err);
+      setLoading(false);
+      setIsTranslating(false);
+    }
+  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation]);
+
   const translateText = useCallback(async (text: string, note?: string) => {
     try {
       const result = await invoke<{ translated_text: string }>('translate_text', { text, note });
@@ -60,6 +156,33 @@ export const useTranslation = () => {
       return result.translated;
     } catch (err) {
       console.error("Translation failed:", err);
+      throw err;
+    }
+  }, []);
+
+  const translateParagraphsStreaming = useCallback(async (
+    paragraphs: string[],
+    onChunk: (chunk: TranslationChunk) => void,
+    onComplete: () => void,
+    note?: string
+  ) => {
+    const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
+      onChunk(event.payload);
+    });
+    
+    const unlistenComplete = await listen<boolean>('translation-complete', () => {
+      onComplete();
+      unlistenChunk();
+      unlistenComplete();
+    });
+    
+    try {
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { paragraphs, note });
+      return result.translated;
+    } catch (err) {
+      unlistenChunk();
+      unlistenComplete();
+      console.error("Streaming translation failed:", err);
       throw err;
     }
   }, []);
@@ -120,8 +243,10 @@ export const useTranslation = () => {
     loading,
     error,
     parseChapter,
+    parseAndTranslate,
     translateText,
     translateParagraphs,
+    translateParagraphsStreaming,
     startBatchTranslation,
     stopBatchTranslation,
     pauseBatchTranslation,

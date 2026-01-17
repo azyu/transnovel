@@ -202,3 +202,173 @@ pub async fn open_antigravity_auth() -> Result<(), String> {
     open::that(&auth_url).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
     Ok(())
 }
+
+#[derive(Debug, Serialize)]
+pub struct GeminiModel {
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
+    pub input_token_limit: u32,
+    pub output_token_limit: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiModelsResponse {
+    models: Option<Vec<GeminiModelInfo>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiModelInfo {
+    name: String,
+    #[serde(rename = "displayName")]
+    display_name: Option<String>,
+    description: Option<String>,
+    #[serde(rename = "supportedGenerationMethods")]
+    supported_generation_methods: Option<Vec<String>>,
+    #[serde(rename = "inputTokenLimit")]
+    input_token_limit: Option<u32>,
+    #[serde(rename = "outputTokenLimit")]
+    output_token_limit: Option<u32>,
+}
+
+#[tauri::command]
+pub async fn fetch_gemini_models(api_key: String) -> Result<Vec<GeminiModel>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+        api_key
+    );
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("API 요청 실패: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("API 오류: {}", error_text));
+    }
+
+    let models_response: GeminiModelsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+    let models = models_response
+        .models
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|m| {
+            m.supported_generation_methods
+                .as_ref()
+                .map(|methods| methods.contains(&"generateContent".to_string()))
+                .unwrap_or(false)
+        })
+        .filter(|m| {
+            let name = m.name.to_lowercase();
+            name.contains("gemini") && !name.contains("aqa") && !name.contains("embedding")
+        })
+        .map(|m| {
+            let model_id = m.name.replace("models/", "");
+            GeminiModel {
+                name: model_id.clone(),
+                display_name: m.display_name.unwrap_or(model_id),
+                description: m.description.unwrap_or_default(),
+                input_token_limit: m.input_token_limit.unwrap_or(0),
+                output_token_limit: m.output_token_limit.unwrap_or(0),
+            }
+        })
+        .collect();
+
+    Ok(models)
+}
+
+#[derive(Debug, Serialize)]
+pub struct AntigravityModel {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AntigravityModelsResponse {
+    data: Option<Vec<AntigravityModelInfo>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AntigravityModelInfo {
+    id: String,
+    object: Option<String>,
+    owned_by: Option<String>,
+}
+
+#[tauri::command]
+pub async fn fetch_antigravity_models() -> Result<Vec<AntigravityModel>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let url = format!("{}/v1/models", ANTIGRAVITY_BASE);
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("프록시 연결 실패: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err("프록시 인증이 필요하거나 연결할 수 없습니다.".to_string());
+    }
+
+    let models_response: AntigravityModelsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+    let models = models_response
+        .data
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| {
+            let provider = m.owned_by.clone().unwrap_or_else(|| {
+                if m.id.contains("claude") { "anthropic".to_string() }
+                else if m.id.contains("gemini") { "google".to_string() }
+                else if m.id.contains("gpt") { "openai".to_string() }
+                else { "unknown".to_string() }
+            });
+            let name = format_model_name(&m.id);
+            AntigravityModel {
+                id: m.id,
+                name,
+                provider,
+            }
+        })
+        .collect();
+
+    Ok(models)
+}
+
+fn format_model_name(id: &str) -> String {
+    let name = id
+        .replace("-", " ")
+        .replace("_", " ");
+    
+    let words: Vec<String> = name
+        .split_whitespace()
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().chain(chars).collect(),
+            }
+        })
+        .collect();
+    
+    words.join(" ")
+}

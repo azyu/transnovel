@@ -1,5 +1,7 @@
+use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 
 pub const ANTIGRAVITY_BASE: &str = "http://localhost:8045";
 
@@ -8,6 +10,8 @@ struct AntigravityRequest {
     model: String,
     max_tokens: u32,
     messages: Vec<Message>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -34,6 +38,27 @@ struct AntigravityError {
     message: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct StreamEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+    delta: Option<StreamDelta>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StreamDelta {
+    #[serde(rename = "type")]
+    delta_type: Option<String>,
+    text: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct TranslationChunk {
+    pub paragraph_id: String,
+    pub text: String,
+    pub is_complete: bool,
+}
+
 pub struct AntigravityClient {
     client: Client,
     model: String,
@@ -53,8 +78,13 @@ impl AntigravityClient {
     }
 
     pub async fn check_health(&self) -> bool {
-        self.client
-            .get(format!("{}/health", ANTIGRAVITY_BASE))
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(3))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        
+        client
+            .get(format!("{}/v1/models", ANTIGRAVITY_BASE))
             .send()
             .await
             .map(|r| r.status().is_success())
@@ -84,6 +114,7 @@ impl AntigravityClient {
                 role: "user".to_string(),
                 content: full_prompt,
             }],
+            stream: None,
         };
 
         let response = self
@@ -123,6 +154,110 @@ impl AntigravityClient {
 
         parse_translated_paragraphs(&text, paragraphs.len())
     }
+
+    pub async fn translate_streaming<R: tauri::Runtime>(
+        &self,
+        paragraphs: &[String],
+        system_prompt: &str,
+        app_handle: &AppHandle<R>,
+    ) -> Result<Vec<String>, String> {
+        let url = format!("{}/v1/messages", ANTIGRAVITY_BASE);
+
+        let numbered_text = paragraphs
+            .iter()
+            .enumerate()
+            .map(|(i, p)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(i), p))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let full_prompt = format!("{}\n\n{}", system_prompt, numbered_text);
+
+        let request = AntigravityRequest {
+            model: self.model.clone(),
+            max_tokens: 65536,
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: full_prompt,
+            }],
+            stream: Some(true),
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", "Bearer test")
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| format!("API 요청 실패: {}", e))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(format!("API 오류 ({}): {}", status, error_text));
+        }
+
+        let mut full_text = String::new();
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+        let mut emitted_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
+            let chunk_str = String::from_utf8_lossy(&chunk);
+            buffer.push_str(&chunk_str);
+
+            while let Some(pos) = buffer.find("\n") {
+                let line = buffer[..pos].to_string();
+                buffer = buffer[pos + 1..].to_string();
+
+                if line.starts_with("event:") {
+                    continue;
+                }
+
+                if let Some(data) = line.strip_prefix("data: ") {
+                    if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
+                        if event.event_type == "content_block_delta" {
+                            if let Some(delta) = event.delta {
+                                if let Some(text) = delta.text {
+                                    full_text.push_str(&text);
+
+                                    let chunks = extract_completed_paragraphs(&full_text);
+                                    for chunk in chunks {
+                                        if !emitted_ids.contains(&chunk.paragraph_id) {
+                                            emitted_ids.insert(chunk.paragraph_id.clone());
+                                            let _ = app_handle.emit("translation-chunk", chunk);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let _ = app_handle.emit("translation-complete", true);
+        parse_translated_paragraphs(&full_text, paragraphs.len())
+    }
+}
+
+fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
+    let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
+    let mut chunks = Vec::new();
+
+    for cap in re.captures_iter(text) {
+        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
+            chunks.push(TranslationChunk {
+                paragraph_id: id_match.as_str().to_string(),
+                text: content_match.as_str().to_string(),
+                is_complete: true,
+            });
+        }
+    }
+
+    chunks
 }
 
 fn encode_paragraph_id(n: usize) -> String {

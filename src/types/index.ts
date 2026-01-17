@@ -27,6 +27,8 @@ export interface ChapterContent {
   title: string;
   subtitle: string;
   paragraphs: string[];
+  prev_url: string | null;
+  next_url: string | null;
 }
 
 export interface ApiKey {
@@ -54,4 +56,10 @@ export interface ExportOptions {
   include_original: boolean;
   include_notes: boolean;
   output_dir?: string;
+}
+
+export interface TranslationChunk {
+  paragraph_id: string;
+  text: string;
+  is_complete: boolean;
 }

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
 
 use crate::models::translation::TranslationResult;
 use crate::services::translator::TranslatorService;
@@ -46,5 +47,18 @@ pub async fn translate_paragraphs(
 ) -> Result<TranslateParagraphsResult, String> {
     let mut translator = TranslatorService::new().await?;
     let translated = translator.translate_paragraphs(&paragraphs, note.as_deref()).await?;
+    Ok(TranslateParagraphsResult { translated })
+}
+
+#[tauri::command]
+pub async fn translate_paragraphs_streaming(
+    app: AppHandle,
+    paragraphs: Vec<String>,
+    note: Option<String>,
+) -> Result<TranslateParagraphsResult, String> {
+    let mut translator = TranslatorService::new().await?;
+    let translated = translator
+        .translate_paragraphs_streaming(&paragraphs, note.as_deref(), &app)
+        .await?;
     Ok(TranslateParagraphsResult { translated })
 }

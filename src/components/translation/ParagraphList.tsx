@@ -1,38 +1,95 @@
 import React from 'react';
 import type { Paragraph } from '../../types';
+import { useViewSettings } from '../../hooks/useViewSettings';
 
 interface ParagraphListProps {
   paragraphs: Paragraph[];
 }
 
 export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
-  return (
-    <div className="space-y-6">
-      {paragraphs.map((p) => (
-        <div key={p.id} className="group grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 p-4 rounded-lg hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-700/50">
-          <div className="relative">
-            <div className="absolute -left-3 top-0 text-[10px] font-mono text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
-              {p.id}
-            </div>
-            <div 
-              className="text-slate-300 leading-relaxed break-words text-base whitespace-pre-wrap font-jp"
-              dangerouslySetInnerHTML={{ __html: p.original }} 
-            />
-          </div>
+  const { config, getStyles } = useViewSettings();
+  const styles = getStyles();
 
-          <div className="relative min-h-[1.5em]">
-            {p.translated ? (
-              <div className="text-white leading-relaxed break-words text-base whitespace-pre-wrap font-kr animate-fade-in">
-                {p.translated}
-              </div>
-            ) : (
-              <div className="text-slate-600 text-sm italic opacity-20">
-                번역 대기 중...
+  return (
+    <div 
+      className="rounded-lg"
+      style={{
+        fontFamily: styles.container.fontFamily,
+        fontSize: styles.container.fontSize,
+        fontWeight: styles.container.fontWeight,
+        lineHeight: styles.container.lineHeight,
+      }}
+    >
+      {paragraphs.map((p) => (
+        <div 
+          key={p.id} 
+          className="group p-4 rounded-lg hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-700/50"
+          style={{ marginBottom: styles.paragraph.marginBottom }}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+            {config.showOriginal && (
+              <div className="relative">
+                <div className="absolute -left-3 top-0 text-[10px] font-mono text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {p.id}
+                </div>
+                <div 
+                  className="leading-relaxed break-words whitespace-pre-wrap font-jp"
+                  style={{
+                    opacity: styles.original.opacity,
+                    textIndent: styles.original.textIndent,
+                    color: config.textColor,
+                  }}
+                  dangerouslySetInnerHTML={{ __html: p.original }} 
+                />
               </div>
             )}
+
+            <div className={`relative min-h-[1.5em] ${!config.showOriginal ? 'md:col-span-2' : ''}`}>
+              {p.translated ? (
+                <div 
+                  className="leading-relaxed break-words whitespace-pre-wrap font-kr animate-fade-in"
+                  style={{
+                    textIndent: styles.translated.textIndent,
+                    color: config.textColor,
+                  }}
+                >
+                  {config.forceDialogueBreak 
+                    ? formatDialogue(p.translated)
+                    : p.translated
+                  }
+                </div>
+              ) : (
+                <div className="text-slate-600 text-sm italic opacity-20">
+                  번역 대기 중...
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ))}
     </div>
   );
 };
+
+function formatDialogue(text: string): React.ReactNode {
+  const parts = text.split(/([「」『』""])/);
+  const result: React.ReactNode[] = [];
+  let inQuote = false;
+  
+  parts.forEach((part, i) => {
+    if (part === '「' || part === '『' || part === '"') {
+      if (result.length > 0 && !inQuote) {
+        result.push(<br key={`br-${i}`} />);
+      }
+      inQuote = true;
+      result.push(part);
+    } else if (part === '」' || part === '』' || part === '"') {
+      inQuote = false;
+      result.push(part);
+    } else {
+      result.push(part);
+    }
+  });
+  
+  return <>{result}</>;
+}

@@ -1,6 +1,7 @@
+use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use tauri::{AppHandle, Emitter};
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -49,7 +50,7 @@ struct GeminiResponse {
 struct Candidate {
     content: Option<CandidateContent>,
     #[serde(rename = "finishReason")]
-    finish_reason: Option<String>,
+    _finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,14 +66,21 @@ struct ResponsePart {
 #[derive(Debug, Deserialize)]
 struct GeminiError {
     message: String,
-    status: String,
+    _status: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct TranslationChunk {
+    pub paragraph_id: String,
+    pub text: String,
+    pub is_complete: bool,
 }
 
 pub struct GeminiClient {
     client: Client,
     api_keys: Vec<String>,
     current_key_index: usize,
-    model: String,
+    pub model: String,
 }
 
 impl GeminiClient {
@@ -85,9 +93,8 @@ impl GeminiClient {
         }
     }
 
-    pub fn with_model(mut self, model: &str) -> Self {
+    pub fn set_model(&mut self, model: &str) {
         self.model = model.to_string();
-        self
     }
 
     fn get_next_api_key(&mut self) -> Result<&str, String> {
@@ -115,6 +122,21 @@ impl GeminiClient {
         .collect()
     }
 
+    fn build_request(&self, prompt: &str) -> GeminiRequest {
+        GeminiRequest {
+            contents: vec![Content {
+                role: "user".to_string(),
+                parts: vec![Part { text: prompt.to_string() }],
+            }],
+            generation_config: GenerationConfig {
+                temperature: 1.0,
+                top_p: 0.8,
+                max_output_tokens: 65536,
+            },
+            safety_settings: Self::build_safety_settings(),
+        }
+    }
+
     pub async fn translate(
         &mut self,
         paragraphs: &[String],
@@ -135,19 +157,7 @@ impl GeminiClient {
             .join("\n");
 
         let full_prompt = format!("{}\n\n{}", system_prompt, numbered_text);
-
-        let request = GeminiRequest {
-            contents: vec![Content {
-                role: "user".to_string(),
-                parts: vec![Part { text: full_prompt }],
-            }],
-            generation_config: GenerationConfig {
-                temperature: 1.0,
-                top_p: 0.8,
-                max_output_tokens: 65536,
-            },
-            safety_settings: Self::build_safety_settings(),
-        };
+        let request = self.build_request(&full_prompt);
 
         let response = self
             .client
@@ -182,9 +192,105 @@ impl GeminiClient {
 
         parse_translated_paragraphs(&text, paragraphs.len())
     }
+
+    pub async fn translate_streaming<R: tauri::Runtime>(
+        &mut self,
+        paragraphs: &[String],
+        system_prompt: &str,
+        app_handle: &AppHandle<R>,
+    ) -> Result<Vec<String>, String> {
+        let api_key = self.get_next_api_key()?.to_string();
+
+        let url = format!(
+            "{}/models/{}:streamGenerateContent?alt=sse&key={}",
+            GEMINI_API_BASE, self.model, api_key
+        );
+
+        let numbered_text = paragraphs
+            .iter()
+            .enumerate()
+            .map(|(i, p)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(i), p))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let full_prompt = format!("{}\n\n{}", system_prompt, numbered_text);
+        let request = self.build_request(&full_prompt);
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| format!("API 요청 실패: {}", e))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(format!("API 오류 ({}): {}", status, error_text));
+        }
+
+        let mut full_text = String::new();
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+        let mut emitted_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
+            let chunk_str = String::from_utf8_lossy(&chunk);
+            buffer.push_str(&chunk_str);
+
+            while let Some(pos) = buffer.find("\n\n") {
+                let line = buffer[..pos].to_string();
+                buffer = buffer[pos + 2..].to_string();
+
+                if let Some(data) = line.strip_prefix("data: ") {
+                    if let Ok(response) = serde_json::from_str::<GeminiResponse>(data) {
+                        if let Some(text) = response
+                            .candidates
+                            .and_then(|c| c.into_iter().next())
+                            .and_then(|c| c.content)
+                            .and_then(|c| c.parts.into_iter().next())
+                            .and_then(|p| p.text)
+                        {
+                            full_text.push_str(&text);
+                            
+                            let chunks = extract_completed_paragraphs(&full_text);
+                            for chunk in chunks {
+                                if !emitted_ids.contains(&chunk.paragraph_id) {
+                                    emitted_ids.insert(chunk.paragraph_id.clone());
+                                    let _ = app_handle.emit("translation-chunk", chunk);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let _ = app_handle.emit("translation-complete", true);
+        parse_translated_paragraphs(&full_text, paragraphs.len())
+    }
 }
 
-fn encode_paragraph_id(n: usize) -> String {
+fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
+    let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
+    let mut chunks = Vec::new();
+
+    for cap in re.captures_iter(text) {
+        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
+            chunks.push(TranslationChunk {
+                paragraph_id: id_match.as_str().to_string(),
+                text: content_match.as_str().to_string(),
+                is_complete: true,
+            });
+        }
+    }
+
+    chunks
+}
+
+pub fn encode_paragraph_id(n: usize) -> String {
     if n >= 2756 {
         let adjusted = n - 2756;
         format!(
@@ -208,7 +314,7 @@ fn encode_paragraph_id(n: usize) -> String {
     }
 }
 
-fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
+pub fn parse_translated_paragraphs(text: &str, _expected_count: usize) -> Result<Vec<String>, String> {
     let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
 
     let mut results: Vec<(usize, String)> = Vec::new();
@@ -240,7 +346,7 @@ fn decode_paragraph_id(id: &str) -> Option<usize> {
         return None;
     }
 
-    let mut result = 0usize;
+    let mut result: usize;
 
     let first = chars[0];
     if first.is_ascii_uppercase() {

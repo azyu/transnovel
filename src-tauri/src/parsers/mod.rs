@@ -66,8 +66,18 @@ pub fn get_parser_for_url(url: &str) -> Option<Box<dyn NovelParser>> {
 }
 
 pub async fn fetch_html(url: &str) -> Result<String, String> {
+    let mut headers = reqwest::header::HeaderMap::new();
+    
+    if url.contains("novel18.syosetu.com") {
+        headers.insert(
+            reqwest::header::COOKIE,
+            reqwest::header::HeaderValue::from_static("over18=yes"),
+        );
+    }
+    
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+        .default_headers(headers)
         .build()
         .map_err(|e| e.to_string())?;
 

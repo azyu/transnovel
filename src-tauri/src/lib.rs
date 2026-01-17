@@ -15,6 +15,7 @@ pub fn run() {
             commands::translation::translate_chapter,
             commands::translation::translate_text,
             commands::translation::translate_paragraphs,
+            commands::translation::translate_paragraphs_streaming,
             commands::parser::parse_url,
             commands::parser::parse_chapter,
             commands::parser::get_chapter_content,
@@ -33,6 +34,8 @@ pub fn run() {
             commands::settings::remove_api_key,
             commands::settings::check_antigravity_status,
             commands::settings::open_antigravity_auth,
+            commands::settings::fetch_gemini_models,
+            commands::settings::fetch_antigravity_models,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

@@ -18,6 +18,8 @@ pub struct ParseChapterResult {
     pub title: String,
     pub subtitle: String,
     pub paragraphs: Vec<String>,
+    pub prev_url: Option<String>,
+    pub next_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,6 +66,8 @@ pub async fn parse_chapter(url: String) -> Result<ParseChapterResult, String> {
         title: content.title.unwrap_or_default(),
         subtitle: content.subtitle.unwrap_or_default(),
         paragraphs,
+        prev_url: content.prev_url,
+        next_url: content.next_url,
     })
 }
 

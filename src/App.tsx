@@ -1,4 +1,5 @@
 import { Header } from './components/layout/Header';
+import { StatusBar } from './components/layout/StatusBar';
 import { TranslationView } from './components/translation/TranslationView';
 import { SeriesManager } from './components/series/SeriesManager';
 import { SettingsPanel } from './components/settings/SettingsPanel';
@@ -25,6 +26,8 @@ function App() {
            {currentTab === 'settings' && <SettingsPanel />}
         </div>
       </main>
+      
+      <StatusBar />
     </div>
   );
 }

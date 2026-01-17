@@ -14,8 +14,8 @@ interface AntigravityStatus {
 }
 
 export const TranslationView: React.FC = () => {
-  const { chapterContent, isTranslating, setIsTranslating, updateAllTranslations } = useAppStore();
-  const { translateParagraphs } = useTranslation();
+  const { chapterContent, isTranslating, setIsTranslating, setUrl } = useAppStore();
+  const { parseAndTranslate } = useTranslation();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -38,39 +38,14 @@ export const TranslationView: React.FC = () => {
     checkApiConfig();
   }, []);
 
-  const handleTranslateAll = async () => {
-    if (!chapterContent) return;
-    
-    setIsTranslating(true);
-    
-    try {
-      const untranslatedParagraphs = chapterContent.paragraphs
-        .filter(p => !p.translated)
-        .map(p => p.original);
-      
-      if (untranslatedParagraphs.length === 0) return;
-      
-      const translated = await translateParagraphs(untranslatedParagraphs);
-      
-      const allTranslations = chapterContent.paragraphs.map((p, i) => {
-        if (p.translated) return p.translated;
-        const untranslatedIndex = chapterContent.paragraphs
-          .slice(0, i + 1)
-          .filter(pp => !pp.translated)
-          .length - 1;
-        return translated[untranslatedIndex] || '';
-      });
-      
-      updateAllTranslations(allTranslations);
-    } catch (e) {
-      console.error('Translation failed:', e);
-    } finally {
-      setIsTranslating(false);
-    }
-  };
-
   const handleStop = () => {
     setIsTranslating(false);
+  };
+
+  const handleNextChapter = async () => {
+    if (!chapterContent?.next_url) return;
+    setUrl(chapterContent.next_url);
+    await parseAndTranslate(chapterContent.next_url);
   };
 
   return (
@@ -121,11 +96,11 @@ export const TranslationView: React.FC = () => {
             <Button variant="danger" onClick={handleStop}>
               번역 중지
             </Button>
-          ) : (
-            <Button onClick={handleTranslateAll}>
-              전체 번역 시작
+          ) : chapterContent.next_url ? (
+            <Button onClick={handleNextChapter}>
+              다음 화
             </Button>
-          )}
+          ) : null}
         </div>
       )}
     </div>

@@ -5,15 +5,15 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useAppStore } from '../../stores/appStore';
 
 export const UrlInput: React.FC = () => {
-  const { currentUrl, setUrl } = useAppStore();
-  const { parseChapter, loading } = useTranslation();
+  const { currentUrl, setUrl, isTranslating } = useAppStore();
+  const { parseAndTranslate, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!localUrl) return;
+    if (!localUrl || isTranslating) return;
     setUrl(localUrl);
-    await parseChapter(localUrl);
+    await parseAndTranslate(localUrl);
   };
 
   return (
@@ -25,10 +25,10 @@ export const UrlInput: React.FC = () => {
             value={localUrl}
             onChange={(e) => setLocalUrl(e.target.value)}
             placeholder="https://ncode.syosetu.com/..."
-            disabled={loading}
+            disabled={loading || isTranslating}
           />
         </div>
-        <Button type="submit" isLoading={loading} disabled={!localUrl}>
+        <Button type="submit" isLoading={loading} disabled={!localUrl || isTranslating}>
           불러오기
         </Button>
       </form>

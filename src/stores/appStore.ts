@@ -13,8 +13,10 @@ interface AppState {
     title: string;
     subtitle: string;
     paragraphs: Paragraph[];
+    prev_url: string | null;
+    next_url: string | null;
   } | null;
-  setChapterContent: (content: { site: string; novel_id: string; title: string; subtitle: string; paragraphs: Paragraph[] } | null) => void;
+  setChapterContent: (content: { site: string; novel_id: string; title: string; subtitle: string; paragraphs: Paragraph[]; prev_url: string | null; next_url: string | null } | null) => void;
   updateParagraphTranslation: (id: string, text: string) => void;
   updateAllTranslations: (translations: string[]) => void;
   isTranslating: boolean;
