@@ -2,7 +2,10 @@ import { useEffect, useState, useCallback, forwardRef, useImperativeHandle } fro
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
+import { useAppStore } from '../../stores/appStore';
 import type { ApiKey } from '../../types';
+
+const DEFAULT_PROXY_URL = 'http://127.0.0.1:8045';
 
 interface AntigravityStatus {
   running: boolean;
@@ -34,12 +37,16 @@ const FALLBACK_ANTIGRAVITY_MODELS: AntigravityModel[] = [
 ];
 
 export const LLMSettings = forwardRef((_, ref) => {
+  const { theme } = useAppStore();
+  const isDark = theme === 'dark';
+  
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [newKey, setNewKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [antigravityStatus, setAntigravityStatus] = useState<AntigravityStatus | null>(null);
   const [checkingAntigravity, setCheckingAntigravity] = useState(false);
   const [model, setModel] = useState('gemini-2.5-flash-preview-05-20');
+  const [proxyUrl, setProxyUrl] = useState(DEFAULT_PROXY_URL);
   
   const [geminiModels, setGeminiModels] = useState<GeminiModel[]>(FALLBACK_GEMINI_MODELS);
   const [antigravityModels, setAntigravityModels] = useState<AntigravityModel[]>(FALLBACK_ANTIGRAVITY_MODELS);
@@ -49,7 +56,7 @@ export const LLMSettings = forwardRef((_, ref) => {
   const [antigravityModelsError, setAntigravityModelsError] = useState<string | null>(null);
 
   useImperativeHandle(ref, () => ({
-    save: handleSaveModel
+    save: handleSaveAll
   }));
 
   const fetchKeys = async () => {
@@ -81,11 +88,11 @@ export const LLMSettings = forwardRef((_, ref) => {
     }
   }, []);
 
-  const fetchAntigravityModels = useCallback(async () => {
+  const fetchAntigravityModels = useCallback(async (url?: string) => {
     setLoadingAntigravityModels(true);
     setAntigravityModelsError(null);
     try {
-      const models = await invoke<AntigravityModel[]>('fetch_antigravity_models');
+      const models = await invoke<AntigravityModel[]>('fetch_antigravity_models', { url: url || proxyUrl });
       if (models.length > 0) {
         const sorted = models.sort((a, b) => {
           const providerOrder: Record<string, number> = { anthropic: 3, google: 2, openai: 1 };
@@ -100,7 +107,7 @@ export const LLMSettings = forwardRef((_, ref) => {
     } finally {
       setLoadingAntigravityModels(false);
     }
-  }, []);
+  }, [proxyUrl]);
 
   const getModelScore = (name: string): number => {
     let score = 0;
@@ -113,18 +120,19 @@ export const LLMSettings = forwardRef((_, ref) => {
     return score;
   };
 
-  const checkAntigravity = async () => {
+  const checkAntigravity = async (url?: string) => {
+    const targetUrl = url || proxyUrl;
     setCheckingAntigravity(true);
     try {
-      const status = await invoke<AntigravityStatus>('check_antigravity_status');
+      const status = await invoke<AntigravityStatus>('check_antigravity_status', { url: targetUrl });
       setAntigravityStatus(status);
       
       if (status.running && status.authenticated) {
-        fetchAntigravityModels();
+        fetchAntigravityModels(targetUrl);
       }
     } catch (error) {
       console.error('Failed to check Antigravity status:', error);
-      setAntigravityStatus({ running: false, authenticated: false, url: 'http://localhost:8080' });
+      setAntigravityStatus({ running: false, authenticated: false, url: targetUrl });
     } finally {
       setCheckingAntigravity(false);
     }
@@ -132,8 +140,8 @@ export const LLMSettings = forwardRef((_, ref) => {
 
   const openAntigravityAuth = async () => {
     try {
-      await invoke('open_antigravity_auth');
-      setTimeout(checkAntigravity, 3000);
+      await invoke('open_antigravity_auth', { url: proxyUrl });
+      setTimeout(() => checkAntigravity(), 3000);
     } catch (error) {
       console.error('Failed to open auth:', error);
     }
@@ -144,6 +152,11 @@ export const LLMSettings = forwardRef((_, ref) => {
       const settings = await invoke<{ key: string; value: string }[]>('get_settings');
       const modelSetting = settings.find(s => s.key === 'selected_model');
       if (modelSetting) setModel(modelSetting.value);
+      
+      const proxyUrlSetting = settings.find(s => s.key === 'antigravity_proxy_url');
+      if (proxyUrlSetting && proxyUrlSetting.value) {
+        setProxyUrl(proxyUrlSetting.value);
+      }
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -194,11 +207,14 @@ export const LLMSettings = forwardRef((_, ref) => {
     }
   };
 
-  const handleSaveModel = async () => {
+  const handleSaveAll = async () => {
     try {
-      await invoke('set_setting', { key: 'selected_model', value: model });
+      await Promise.all([
+        invoke('set_setting', { key: 'selected_model', value: model }),
+        invoke('set_setting', { key: 'antigravity_proxy_url', value: proxyUrl }),
+      ]);
     } catch (error) {
-      console.error('Failed to save model:', error);
+      console.error('Failed to save settings:', error);
     }
   };
 
@@ -228,14 +244,14 @@ export const LLMSettings = forwardRef((_, ref) => {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-700 pb-4">
-        <h2 className="text-xl font-semibold text-white">LLM 설정</h2>
-        <p className="text-sm text-slate-400 mt-1">API 키 및 모델을 관리합니다.</p>
+      <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>LLM 설정</h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>API 키 및 모델을 관리합니다.</p>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+      <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-white">사용 모델</h3>
+          <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>사용 모델</h3>
           <div className="flex gap-2">
             {geminiKeys.length > 0 && (
               <Button 
@@ -251,7 +267,7 @@ export const LLMSettings = forwardRef((_, ref) => {
               <Button 
                 variant="secondary" 
                 size="sm" 
-                onClick={fetchAntigravityModels}
+                onClick={() => fetchAntigravityModels()}
                 isLoading={loadingAntigravityModels}
               >
                 Antigravity 새로고침
@@ -264,7 +280,11 @@ export const LLMSettings = forwardRef((_, ref) => {
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              className={`w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${
+                isDark 
+                  ? 'bg-slate-900 border-slate-700 text-white' 
+                  : 'bg-slate-100 border-slate-300 text-slate-900'
+              } border`}
             >
               <optgroup label="Gemini (API 키 필요)">
                 {geminiModels.map((m) => (
@@ -288,16 +308,16 @@ export const LLMSettings = forwardRef((_, ref) => {
                 {geminiModelsError || antigravityModelsError}
               </p>
             )}
-            <p className="mt-2 text-xs text-slate-500">
+            <p className={`mt-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               Gemini 모델은 API 키가 필요하고, Antigravity 모델은 프록시 인증이 필요합니다.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-        <h3 className="text-lg font-medium text-white mb-4">Gemini API 키</h3>
-        <p className="text-sm text-slate-400 mb-4">
+      <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Gemini API 키</h3>
+        <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
             Google AI Studio
           </a>
@@ -320,12 +340,14 @@ export const LLMSettings = forwardRef((_, ref) => {
 
         <div className="space-y-3">
           {geminiKeys.map((key) => (
-            <div key={key.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+            <div key={key.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+              isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
+            }`}>
               <div className="flex items-center gap-3">
                 <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-400">
                   GEMINI
                 </span>
-                <span className="text-sm text-slate-300 font-mono">
+                <span className={`text-sm font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   {key.api_key.substring(0, 12)}...{key.api_key.substring(key.api_key.length - 4)}
                 </span>
               </div>
@@ -335,32 +357,50 @@ export const LLMSettings = forwardRef((_, ref) => {
             </div>
           ))}
           {geminiKeys.length === 0 && (
-            <div className="text-center py-4 text-slate-500 text-sm">
+            <div className={`text-center py-4 text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               등록된 API 키가 없습니다.
             </div>
           )}
         </div>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-        <h3 className="text-lg font-medium text-white mb-4">Antigravity Proxy</h3>
-        <p className="text-sm text-slate-400 mb-4">
+      <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Antigravity Proxy</h3>
+        <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
           API 키 없이 Google OAuth로 번역할 수 있습니다. 아래 도구 중 하나를 설치하세요:
         </p>
-        <ul className="text-sm text-slate-400 mb-4 list-disc list-inside space-y-1">
+        <ul className={`text-sm mb-4 list-disc list-inside space-y-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
           <li>
             <a href="https://github.com/lbjlaq/Antigravity-Manager" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
               Antigravity Manager
             </a>
-            <span className="text-slate-500"> - GUI 앱 (추천, 포트 8045)</span>
+            <span className={isDark ? 'text-slate-500' : 'text-slate-400'}> - GUI 앱 (추천)</span>
           </li>
           <li>
             <a href="https://github.com/badrisnarayanan/antigravity-claude-proxy" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
               antigravity-claude-proxy
             </a>
-            <span className="text-slate-500"> - CLI (포트 8080 → 8045로 변경 필요)</span>
+            <span className={isDark ? 'text-slate-500' : 'text-slate-400'}> - CLI</span>
           </li>
         </ul>
+
+        <div className="flex gap-4 items-end mb-4">
+          <div className="flex-1">
+            <Input
+              label="프록시 URL"
+              value={proxyUrl}
+              onChange={(e) => setProxyUrl(e.target.value)}
+              placeholder="http://127.0.0.1:8045"
+            />
+          </div>
+          <Button 
+            variant="secondary" 
+            onClick={() => checkAntigravity()}
+            isLoading={checkingAntigravity}
+          >
+            상태 확인
+          </Button>
+        </div>
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -371,7 +411,7 @@ export const LLMSettings = forwardRef((_, ref) => {
                   : 'bg-yellow-500'
                 : 'bg-red-500'
             }`} />
-            <span className="text-sm text-slate-300">
+            <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               {antigravityStatus?.running 
                 ? antigravityStatus.authenticated 
                   ? '인증됨' 
@@ -380,15 +420,6 @@ export const LLMSettings = forwardRef((_, ref) => {
             </span>
           </div>
           
-          <Button 
-            variant="secondary" 
-            size="sm" 
-            onClick={checkAntigravity}
-            isLoading={checkingAntigravity}
-          >
-            상태 확인
-          </Button>
-          
           {antigravityStatus?.running && !antigravityStatus.authenticated && (
             <Button size="sm" onClick={openAntigravityAuth}>
               Google 로그인
@@ -396,16 +427,9 @@ export const LLMSettings = forwardRef((_, ref) => {
           )}
         </div>
 
-        {antigravityStatus?.running && (
-          <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
-            <span className="text-sm text-slate-400">프록시 URL: </span>
-            <span className="text-sm text-slate-300 font-mono">{antigravityStatus.url}</span>
-          </div>
-        )}
-
         {antigravityStatus?.authenticated && antigravityModels.length > 0 && (
           <div className="mt-4">
-            <p className="text-sm text-slate-400 mb-2">사용 가능한 모델:</p>
+            <p className={`text-sm mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사용 가능한 모델:</p>
             <div className="flex flex-wrap gap-2">
               {antigravityModels.slice(0, 8).map((m) => (
                 <span
@@ -416,7 +440,7 @@ export const LLMSettings = forwardRef((_, ref) => {
                 </span>
               ))}
               {antigravityModels.length > 8 && (
-                <span className="px-2 py-1 rounded text-xs font-medium bg-slate-700 text-slate-400">
+                <span className={`px-2 py-1 rounded text-xs font-medium ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'}`}>
                   +{antigravityModels.length - 8} more
                 </span>
               )}
