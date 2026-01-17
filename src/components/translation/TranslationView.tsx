@@ -15,10 +15,11 @@ interface AntigravityStatus {
 }
 
 export const TranslationView: React.FC = () => {
-  const { chapterContent, isTranslating, setIsTranslating, setUrl } = useAppStore();
+  const { chapterContent, isTranslating, setIsTranslating, setUrl, theme } = useAppStore();
   const { parseAndTranslate } = useTranslation();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     const checkApiConfig = async () => {
@@ -97,26 +98,26 @@ export const TranslationView: React.FC = () => {
       <div className="flex-1 overflow-auto p-6">
         {chapterContent ? (
           <div className="space-y-8 pb-20">
-            <header className="border-b border-slate-700 pb-6">
+            <header className={`border-b pb-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
               <div className="mb-2">
                 {chapterContent.translatedTitle ? (
                   <>
-                    <p className="text-sm text-slate-500 mb-1">{chapterContent.title}</p>
-                    <h1 className="text-2xl font-bold text-white">{chapterContent.translatedTitle}</h1>
+                    <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapterContent.title}</p>
+                    <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapterContent.translatedTitle}</h1>
                   </>
                 ) : (
-                  <h1 className="text-2xl font-bold text-white">{chapterContent.title}</h1>
+                  <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapterContent.title}</h1>
                 )}
               </div>
               {chapterContent.subtitle && (
                 <div>
                   {chapterContent.translatedSubtitle ? (
                     <>
-                      <p className="text-sm text-slate-500 mb-1">{chapterContent.subtitle}</p>
-                      <h2 className="text-xl text-slate-300">{chapterContent.translatedSubtitle}</h2>
+                      <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapterContent.subtitle}</p>
+                      <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{chapterContent.translatedSubtitle}</h2>
                     </>
                   ) : (
-                    <h2 className="text-xl text-slate-300">{chapterContent.subtitle}</h2>
+                    <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{chapterContent.subtitle}</h2>
                   )}
                 </div>
               )}
@@ -125,7 +126,7 @@ export const TranslationView: React.FC = () => {
             <ParagraphList paragraphs={chapterContent.paragraphs} />
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 opacity-50">
+          <div className={`h-full flex flex-col items-center justify-center space-y-4 opacity-50 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
@@ -135,7 +136,7 @@ export const TranslationView: React.FC = () => {
       </div>
 
       {chapterContent && (
-        <div className="p-4 border-t border-slate-700 bg-slate-900/80 backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center">
+        <div className={`p-4 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
           <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating}>
             저장
           </Button>

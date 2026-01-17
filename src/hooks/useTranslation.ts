@@ -109,6 +109,23 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(true);
 
+      try {
+        const titlesToTranslate = [content.title];
+        if (content.subtitle) titlesToTranslate.push(content.subtitle);
+        
+        const result = await invoke<{ translated: string[] }>('translate_paragraphs', {
+          paragraphs: titlesToTranslate,
+        });
+        
+        updateTitleTranslation(
+          result.translated[0] || content.title,
+          content.subtitle ? result.translated[1] : undefined
+        );
+      } catch (e) {
+        console.error('Failed to translate title:', e);
+      }
+
+      // Then translate body with streaming
       const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
         const idx = decodeParagraphId(event.payload.paragraph_id);
         if (idx !== null) {
@@ -119,23 +136,6 @@ export const useTranslation = () => {
       const unlistenComplete = await listen<boolean>('translation-complete', async () => {
         unlistenChunk();
         unlistenComplete();
-        
-        try {
-          const titlesToTranslate = [content.title];
-          if (content.subtitle) titlesToTranslate.push(content.subtitle);
-          
-          const result = await invoke<{ translated: string[] }>('translate_paragraphs', {
-            paragraphs: titlesToTranslate,
-          });
-          
-          updateTitleTranslation(
-            result.translated[0] || content.title,
-            content.subtitle ? result.translated[1] : undefined
-          );
-        } catch (e) {
-          console.error('Failed to translate title:', e);
-        }
-        
         setIsTranslating(false);
       });
 

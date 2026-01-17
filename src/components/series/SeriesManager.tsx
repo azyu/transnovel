@@ -8,12 +8,13 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 
 export const SeriesManager: React.FC = () => {
-  const { chapterList, batchProgress, isTranslating, currentUrl } = useAppStore();
+  const { chapterList, batchProgress, isTranslating, currentUrl, theme } = useAppStore();
   const { startBatchTranslation, stopBatchTranslation, pauseBatchTranslation, resumeBatchTranslation, exportNovel } = useTranslation();
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'TxtSingle' | 'TxtChapters' | 'Epub'>('TxtSingle');
   const [exporting, setExporting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const isDark = theme === 'dark';
 
   const handleStart = async (start: number, end: number) => {
     const content = useAppStore.getState().chapterContent;
@@ -132,7 +133,7 @@ export const SeriesManager: React.FC = () => {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">파일 형식</label>
+            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>파일 형식</label>
             <div className="grid grid-cols-3 gap-3">
               {(['TxtSingle', 'TxtChapters', 'Epub'] as const).map((fmt) => (
                 <button
@@ -141,7 +142,9 @@ export const SeriesManager: React.FC = () => {
                   className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
                     exportFormat === fmt
                       ? 'bg-blue-600 border-blue-500 text-white'
-                      : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+                      : isDark 
+                        ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+                        : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   {fmt === 'TxtSingle' && 'TXT (통합)'}
@@ -151,7 +154,7 @@ export const SeriesManager: React.FC = () => {
               ))}
             </div>
           </div>
-          <p className="text-sm text-slate-400">
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             * '다운로드' 폴더에 저장됩니다.
           </p>
         </div>

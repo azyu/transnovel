@@ -54,6 +54,7 @@ const COLOR_PRESETS = [
 export const ViewSettings = forwardRef((_, ref) => {
   const [config, setConfig] = useState<ViewConfig>(DEFAULT_CONFIG);
   const bumpViewConfigVersion = useAppStore((state) => state.bumpViewConfigVersion);
+  const isDark = useAppStore((state) => state.theme) === 'dark';
 
   useImperativeHandle(ref, () => ({
     save: handleSave
@@ -103,20 +104,20 @@ export const ViewSettings = forwardRef((_, ref) => {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-700 pb-4">
-        <h2 className="text-xl font-semibold text-white">보기 설정</h2>
-        <p className="text-sm text-slate-400 mt-1">번역 결과의 표시 방식을 설정합니다.</p>
+      <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>보기 설정</h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>번역 결과의 표시 방식을 설정합니다.</p>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-6">
+      <div className={`p-6 rounded-xl border space-y-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div>
-          <h3 className="text-sm font-medium text-slate-300 mb-3">색상 프리셋</h3>
+          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>색상 프리셋</h3>
           <div className="flex flex-wrap gap-2">
             {COLOR_PRESETS.map((preset) => (
               <button
                 key={preset.name}
                 onClick={() => applyPreset(preset)}
-                className="px-3 py-1.5 rounded-lg text-sm border border-slate-600 hover:border-blue-500 transition-colors flex items-center gap-2"
+                className={`px-3 py-1.5 rounded-lg text-sm border hover:border-blue-500 transition-colors flex items-center gap-2 ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
                 style={{ backgroundColor: preset.bg, color: preset.text }}
               >
                 <span className="w-3 h-3 rounded-full border border-current" style={{ backgroundColor: preset.text }} />
@@ -153,18 +154,48 @@ export const ViewSettings = forwardRef((_, ref) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            label="글자 색상"
-            type="color"
-            value={config.textColor}
-            onChange={(e) => updateConfig('textColor', e.target.value)}
-          />
-          <Input
-            label="배경 색상"
-            type="color"
-            value={config.backgroundColor}
-            onChange={(e) => updateConfig('backgroundColor', e.target.value)}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>글자 색상</label>
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-10 h-10 rounded-lg border cursor-pointer relative overflow-hidden ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
+                style={{ backgroundColor: config.textColor }}
+              >
+                <input
+                  type="color"
+                  value={config.textColor}
+                  onChange={(e) => updateConfig('textColor', e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </div>
+              <Input
+                value={config.textColor}
+                onChange={(e) => updateConfig('textColor', e.target.value)}
+                className="flex-1 font-mono"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>배경 색상</label>
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-10 h-10 rounded-lg border cursor-pointer relative overflow-hidden ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
+                style={{ backgroundColor: config.backgroundColor }}
+              >
+                <input
+                  type="color"
+                  value={config.backgroundColor}
+                  onChange={(e) => updateConfig('backgroundColor', e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </div>
+              <Input
+                value={config.backgroundColor}
+                onChange={(e) => updateConfig('backgroundColor', e.target.value)}
+                className="flex-1 font-mono"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -198,7 +229,7 @@ export const ViewSettings = forwardRef((_, ref) => {
             onChange={(e) => updateConfig('horizontalPadding', e.target.value)}
           />
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               원문 투명도 ({config.originalOpacity}%)
             </label>
             <input
@@ -207,9 +238,9 @@ export const ViewSettings = forwardRef((_, ref) => {
               max="100"
               value={config.originalOpacity}
               onChange={(e) => updateConfig('originalOpacity', e.target.value)}
-              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-500 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}
             />
-            <div className="flex justify-between text-xs text-slate-500 mt-1">
+            <div className={`flex justify-between text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               <span>숨김</span>
               <span>반투명</span>
               <span>표시</span>
@@ -217,30 +248,30 @@ export const ViewSettings = forwardRef((_, ref) => {
           </div>
         </div>
 
-        <div className="border-t border-slate-700 pt-4 space-y-4">
+        <div className={`border-t pt-4 space-y-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
           <div className="space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.showOriginal}
                 onChange={(e) => updateConfig('showOriginal', e.target.checked)}
-                className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                className={`w-4 h-4 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-0 ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white'}`}
               />
-              <span className="text-sm text-slate-300">원문 표시</span>
+              <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>원문 표시</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.forceDialogueBreak}
                 onChange={(e) => updateConfig('forceDialogueBreak', e.target.checked)}
-                className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                className={`w-4 h-4 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-0 ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white'}`}
               />
-              <span className="text-sm text-slate-300">대사 강제 개행</span>
+              <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>대사 강제 개행</span>
             </label>
           </div>
 
           <div className={config.showOriginal ? '' : 'opacity-50 pointer-events-none'}>
-            <h3 className="text-sm font-medium text-slate-300 mb-3">레이아웃</h3>
+            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>레이아웃</h3>
             <div className="flex gap-2">
               {LAYOUT_OPTIONS.map((option) => (
                 <button
@@ -250,21 +281,21 @@ export const ViewSettings = forwardRef((_, ref) => {
                   className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
                     config.displayLayout === option.value
                       ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-slate-600 hover:border-slate-500'
+                      : isDark ? 'border-slate-600 hover:border-slate-500' : 'border-slate-300 hover:border-slate-400'
                   }`}
                 >
-                  <span className="block text-sm font-medium text-white">{option.label}</span>
-                  <span className="block text-xs text-slate-400 mt-1">{option.description}</span>
+                  <span className={`block text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{option.label}</span>
+                  <span className={`block text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{option.description}</span>
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="border-t border-slate-700 pt-4">
-          <h3 className="text-sm font-medium text-slate-300 mb-3">미리보기</h3>
+        <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>미리보기</h3>
           <div
-            className="p-4 rounded-lg border border-slate-600 min-h-[120px]"
+            className={`p-4 rounded-lg border min-h-[120px] ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
             style={{
               fontFamily: config.fontFamily,
               fontSize: `${config.fontSize}px`,

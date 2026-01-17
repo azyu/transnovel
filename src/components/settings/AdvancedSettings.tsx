@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
+import { useAppStore } from '../../stores/appStore';
 
 interface CacheStats {
   count: number;
@@ -10,6 +11,7 @@ export const AdvancedSettings: React.FC = () => {
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
   const [isClearing, setIsClearing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const isDark = useAppStore((state) => state.theme) === 'dark';
 
   const loadCacheStats = async () => {
     try {
@@ -66,21 +68,21 @@ export const AdvancedSettings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-700 pb-4">
-        <h2 className="text-xl font-semibold text-white">고급 설정</h2>
-        <p className="text-sm text-slate-400 mt-1">캐시 및 데이터 관리</p>
+      <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>고급 설정</h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>캐시 및 데이터 관리</p>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-6">
+      <div className={`p-6 rounded-xl border space-y-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div>
-          <h3 className="text-lg font-medium text-white mb-2">번역 캐시</h3>
-          <p className="text-sm text-slate-400 mb-4">
+          <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>번역 캐시</h3>
+          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             번역된 문단은 캐시에 저장되어 같은 내용을 다시 번역할 때 API 호출 없이 빠르게 불러옵니다.
           </p>
-          <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-lg border border-slate-700/50">
+          <div className={`flex items-center justify-between p-4 rounded-lg border ${isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
             <div>
-              <p className="text-sm text-slate-300">
-                저장된 캐시: <span className="font-mono text-white">{cacheStats?.count ?? '-'}</span>개
+              <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                저장된 캐시: <span className={`font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{cacheStats?.count ?? '-'}</span>개
               </p>
             </div>
             <Button
@@ -95,9 +97,9 @@ export const AdvancedSettings: React.FC = () => {
           </div>
         </div>
 
-        <div className="border-t border-slate-700 pt-6">
-          <h3 className="text-lg font-medium text-white mb-2">전체 초기화</h3>
-          <p className="text-sm text-slate-400 mb-4">
+        <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>전체 초기화</h3>
+          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             모든 설정, API 키, 번역 캐시를 삭제하고 앱을 초기 상태로 되돌립니다.
           </p>
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">

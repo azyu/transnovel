@@ -23,12 +23,13 @@ const saveUrlHistory = (url: string) => {
 };
 
 export const UrlInput: React.FC = () => {
-  const { currentUrl, setUrl, isTranslating } = useAppStore();
+  const { currentUrl, setUrl, isTranslating, theme } = useAppStore();
   const { parseAndTranslate, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
   const [history, setHistory] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     setHistory(getUrlHistory());
@@ -60,7 +61,7 @@ export const UrlInput: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+    <div className={`p-6 rounded-xl border shadow-lg ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
       <form onSubmit={handleSubmit} className="flex gap-4 items-end">
         <div className="flex-1 relative" ref={containerRef}>
           <Input
@@ -72,13 +73,13 @@ export const UrlInput: React.FC = () => {
             disabled={loading || isTranslating}
           />
           {showDropdown && history.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+            <div className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
               {history.map((url, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => handleSelectHistory(url)}
-                  className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 truncate transition-colors"
+                  className={`w-full px-3 py-2 text-left text-sm truncate transition-colors ${isDark ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-100'}`}
                 >
                   {url}
                 </button>
@@ -90,13 +91,13 @@ export const UrlInput: React.FC = () => {
           불러오기
         </Button>
       </form>
-      <div className="mt-3 text-xs text-slate-500 flex gap-2">
+      <div className={`mt-3 text-xs flex gap-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
         <span>지원 사이트:</span>
-        <span className="text-slate-400">syosetu.com</span>
-        <span className="text-slate-600">•</span>
-        <span className="text-slate-400">syosetu.org (Hameln)</span>
-        <span className="text-slate-600">•</span>
-        <span className="text-slate-400">kakuyomu.jp</span>
+        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>syosetu.com</span>
+        <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>
+        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>syosetu.org (Hameln)</span>
+        <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>
+        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>kakuyomu.jp</span>
       </div>
     </div>
   );

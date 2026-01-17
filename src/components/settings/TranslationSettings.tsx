@@ -1,6 +1,7 @@
 import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
+import { useAppStore } from '../../stores/appStore';
 
 const DEFAULT_SYSTEM_PROMPT = `<|im_start|>system
 [공리]
@@ -30,6 +31,7 @@ export const TranslationSettings = forwardRef((_, ref) => {
   const [translationNote, setTranslationNote] = useState('');
   const [substitutions, setSubstitutions] = useState('');
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const isDark = useAppStore((state) => state.theme) === 'dark';
 
   useImperativeHandle(ref, () => ({
     save: handleSave
@@ -75,16 +77,22 @@ export const TranslationSettings = forwardRef((_, ref) => {
     setActiveSection(activeSection === section ? null : section);
   };
 
+  const textareaClass = `w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-y font-mono border ${
+    isDark 
+      ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' 
+      : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+  }`;
+
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-700 pb-4">
-        <h2 className="text-xl font-semibold text-white">번역 설정</h2>
-        <p className="text-sm text-slate-400 mt-1">프롬프트와 치환 규칙을 설정합니다.</p>
+      <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>번역 설정</h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>프롬프트와 치환 규칙을 설정합니다.</p>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4">
+      <div className={`p-6 rounded-xl border space-y-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <details open={activeSection === 'system'} onToggle={() => toggleSection('system')}>
-          <summary className="text-lg font-medium text-white cursor-pointer hover:text-blue-400 transition-colors">
+          <summary className={`text-lg font-medium cursor-pointer hover:text-blue-400 transition-colors ${isDark ? 'text-white' : 'text-slate-900'}`}>
             시스템 프롬프트
           </summary>
           <div className="mt-4 space-y-3">
@@ -92,11 +100,11 @@ export const TranslationSettings = forwardRef((_, ref) => {
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={10}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-y font-mono"
+              className={textareaClass}
               placeholder={DEFAULT_SYSTEM_PROMPT}
             />
             <div className="flex justify-between items-center">
-              <p className="text-xs text-slate-500">
+              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 <code className="text-blue-400">{`{{note}}`}</code> 번역 노트 삽입 위치, 
                 <code className="text-blue-400 ml-2">{`{{slot}}`}</code> 원문 삽입 위치
               </p>
@@ -107,31 +115,31 @@ export const TranslationSettings = forwardRef((_, ref) => {
           </div>
         </details>
 
-        <div className="border-t border-slate-700 pt-4">
-          <label className="block text-sm font-medium text-slate-300 mb-2">번역 노트</label>
+        <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>번역 노트</label>
           <textarea
             value={translationNote}
             onChange={(e) => setTranslationNote(e.target.value)}
             rows={4}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-y font-mono"
+            className={textareaClass}
             placeholder={`프롬프트에서 {{note}}에 삽입할 내용. 추가 지시 및 용어집을 작성
 예시:
 독백은 반말로 번역.
 古明地こいし=코메이지 코이시
 ナルト=나루토`}
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             추가 지시사항 및 고유명사 번역 규칙을 작성합니다.
           </p>
         </div>
 
-        <div className="border-t border-slate-700 pt-4">
-          <label className="block text-sm font-medium text-slate-300 mb-2">치환 규칙</label>
+        <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>치환 규칙</label>
           <textarea
             value={substitutions}
             onChange={(e) => setSubstitutions(e.target.value)}
             rows={6}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-y font-mono"
+            className={textareaClass}
             placeholder={`단어 치환 규칙 목록. A/B 형식으로 작성 시 번역 전/후에 A를 B로 자동 치환
 정규식 지원 ($1, $2 등 그룹 참조 가능)
 
@@ -141,7 +149,7 @@ export const TranslationSettings = forwardRef((_, ref) => {
 克莱恩/克莱恩(클레인)
 (철수)([은는이가을를])/영희$2`}
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             줄 단위로 <code className="text-blue-400">원본/치환</code> 형식. 정규식 사용 가능.
           </p>
         </div>

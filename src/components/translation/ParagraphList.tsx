@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Paragraph } from '../../types';
 import { useViewSettings } from '../../hooks/useViewSettings';
+import { useAppStore } from '../../stores/appStore';
 
 interface ParagraphListProps {
   paragraphs: Paragraph[];
@@ -9,6 +10,7 @@ interface ParagraphListProps {
 export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
   const { config, getStyles } = useViewSettings();
   const styles = getStyles();
+  const isDark = useAppStore((state) => state.theme) === 'dark';
 
   const isStacked = config.displayLayout === 'stacked';
 
@@ -25,7 +27,7 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
       {paragraphs.map((p) => (
         <div 
           key={p.id} 
-          className="group p-4 rounded-lg hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-700/50"
+          className={`group p-4 rounded-lg transition-colors border border-transparent ${isDark ? 'hover:bg-slate-800/50 hover:border-slate-700/50' : 'hover:bg-slate-100/50 hover:border-slate-200'}`}
           style={{ marginBottom: styles.paragraph.marginBottom }}
         >
           {isStacked ? (
@@ -61,7 +63,7 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
                     }
                   </div>
                 ) : (
-                  <div className="text-slate-600 text-sm italic opacity-20">
+                  <div className={`text-sm italic opacity-20 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
                     번역 대기 중...
                   </div>
                 )}
@@ -101,7 +103,7 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
                     }
                   </div>
                 ) : (
-                  <div className="text-slate-600 text-sm italic opacity-20">
+                  <div className={`text-sm italic opacity-20 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
                     번역 대기 중...
                   </div>
                 )}
