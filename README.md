@@ -1,73 +1,75 @@
-# React + TypeScript + Vite
+# AI Novel Translator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A desktop application for translating Japanese web novels to Korean using AI. Built with Tauri 2.0, React, and Rust.
 
-Currently, two official plugins are available:
+[한국어 문서](./README.ko.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Multi-site Support**: Parse novels from Syosetu, Hameln, Kakuyomu, and Nocturne
+- **Multiple AI Providers**: Choose between Gemini API, OpenRouter, or Antigravity Proxy
+- **Batch Translation**: Translate entire series with progress tracking
+- **Smart Caching**: SHA256-based cache to avoid redundant API calls
+- **Per-Novel Cache**: Translation cache is isolated per novel
+- **Streaming Output**: Real-time translation display as AI generates text
+- **Dark Mode**: Full dark theme support
+- **Export**: Save translated chapters as TXT files
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Supported Sites
 
-## Expanding the ESLint configuration
+| Site | Domain |
+|------|--------|
+| Syosetu | ncode.syosetu.com |
+| Hameln | syosetu.org |
+| Kakuyomu | kakuyomu.jp |
+| Nocturne | novel18.syosetu.com |
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## AI Providers
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Provider | Auth Method | Notes |
+|----------|-------------|-------|
+| Gemini API | API Key | Free tier available at [Google AI Studio](https://aistudio.google.com/apikey) |
+| OpenRouter | API Key | Access to Claude, GPT-4, Llama, etc. at [OpenRouter](https://openrouter.ai) |
+| Antigravity Proxy | Google OAuth | No API key needed, uses local proxy |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+
+- [Rust](https://rustup.rs/) 1.77+
+- [pnpm](https://pnpm.io/) (recommended)
+
+### Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/azyu/ai-novel-translator.git
+cd ai-novel-translator
+
+# Install dependencies
+pnpm install
+
+# Run in development mode
+pnpm run tauri dev
+
+# Build for production
+pnpm run tauri build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Usage
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. **Add API Key**: Go to Settings → LLM Settings → Add your API key
+2. **Select Provider**: Choose one provider (Gemini, OpenRouter, or Antigravity)
+3. **Paste URL**: Enter a chapter or series URL from a supported site
+4. **Translate**: Click the translate button or use batch translation for series
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Tech Stack
+
+- **Frontend**: React 19, TypeScript, Tailwind CSS, Zustand
+- **Backend**: Rust, Tauri 2.0, SQLite (via sqlx)
+- **Build**: Vite, pnpm
+
+## License
+
+MIT
