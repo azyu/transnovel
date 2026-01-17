@@ -369,3 +369,82 @@ fn decode_paragraph_id(id: &str) -> Option<usize> {
 
     Some(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_with_skipped_paragraphs() {
+        let text = r#"<p id="A">첫 번째</p>
+<p id="C">세 번째</p>
+<p id="D">네 번째</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 4).unwrap();
+        
+        assert_eq!(result.len(), 4);
+        assert_eq!(result[0], "첫 번째");
+        assert_eq!(result[1], "");
+        assert_eq!(result[2], "세 번째");
+        assert_eq!(result[3], "네 번째");
+    }
+
+    #[test]
+    fn test_parse_by_indices_non_sequential() {
+        let text = r#"<p id="F">다섯 번째</p>
+<p id="H">일곱 번째</p>
+<p id="J">아홉 번째</p>"#;
+        
+        let original_indices = vec![5, 6, 7, 8, 9];
+        let result = parse_translated_paragraphs_by_indices(text, &original_indices).unwrap();
+        
+        assert_eq!(result.len(), 5);
+        assert_eq!(result[0], "다섯 번째");
+        assert_eq!(result[1], "");
+        assert_eq!(result[2], "일곱 번째");
+        assert_eq!(result[3], "");
+        assert_eq!(result[4], "아홉 번째");
+    }
+
+    #[test]
+    fn test_parse_empty_response_fallback() {
+        let text = "번역된 텍스트만 있고 태그가 없는 경우";
+        
+        let result = parse_translated_paragraphs(text, 1).unwrap();
+        
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], text);
+    }
+
+    #[test]
+    fn test_empty_content_blocks_error() {
+        let response = AntigravityResponse {
+            content: Some(vec![]),
+            error: None,
+        };
+        
+        let content_blocks = response.content.unwrap_or_default();
+        assert!(content_blocks.is_empty());
+    }
+
+    #[test]
+    fn test_content_block_without_text() {
+        let response = AntigravityResponse {
+            content: Some(vec![
+                ContentBlock {
+                    content_type: "thinking".to_string(),
+                    text: None,
+                }
+            ]),
+            error: None,
+        };
+        
+        let content_blocks = response.content.unwrap_or_default();
+        let text_block = content_blocks
+            .into_iter()
+            .find(|b| b.content_type == "text")
+            .and_then(|b| b.text);
+        
+        assert!(text_block.is_none());
+    }
+}
