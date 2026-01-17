@@ -50,6 +50,7 @@ sha2 = "0.10"
 hex = "0.4"
 futures = "0.3"
 async-trait = "0.1"
+open = "5"
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }

@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-const ANTIGRAVITY_BASE: &str = "http://localhost:8080";
+pub const ANTIGRAVITY_BASE: &str = "http://localhost:8045";
 
 #[derive(Debug, Serialize)]
 struct AntigravityRequest {

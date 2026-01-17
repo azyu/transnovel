@@ -29,7 +29,8 @@ impl SyosetuParser {
     }
 
     fn parse_chapter_list(document: &Html) -> Vec<ChapterInfo> {
-        let chapter_selector = Selector::parse(".novel_sublist2 .subtitle a").unwrap();
+        // New selector: .p-eplist__subtitle (2024+ layout)
+        let chapter_selector = Selector::parse(".p-eplist__subtitle").unwrap();
 
         document
             .select(&chapter_selector)
@@ -67,26 +68,20 @@ impl NovelParser for SyosetuParser {
         let html = fetch_html(url).await?;
         let document = Html::parse_document(&html);
 
-        let subtitle_selector = Selector::parse(".novel_subtitle").unwrap();
-        let subtitle = document
-            .select(&subtitle_selector)
+        let title_selector = Selector::parse(".p-novel__title").unwrap();
+        let title = document
+            .select(&title_selector)
             .next()
-            .map(|el| el.inner_html());
+            .map(|el| el.text().collect::<String>().trim().to_string());
 
-        let content_selector = Selector::parse("#novel_honbun").unwrap();
+        let content_selector = Selector::parse(".p-novel__text").unwrap();
         let content = document
             .select(&content_selector)
             .next()
             .map(|el| el.inner_html())
             .ok_or("본문을 찾을 수 없습니다.")?;
 
-        let note_selector = Selector::parse("#novel_a").unwrap();
-        let author_note = document
-            .select(&note_selector)
-            .next()
-            .map(|el| el.inner_html());
-
-        let prev_selector = Selector::parse(".novel_bn a[rel='prev']").unwrap();
+        let prev_selector = Selector::parse(".c-pager__item--before").unwrap();
         let prev_url = document
             .select(&prev_selector)
             .next()
@@ -99,7 +94,7 @@ impl NovelParser for SyosetuParser {
                 }
             });
 
-        let next_selector = Selector::parse(".novel_bn a[rel='next']").unwrap();
+        let next_selector = Selector::parse(".c-pager__item--next").unwrap();
         let next_url = document
             .select(&next_selector)
             .next()
@@ -113,10 +108,10 @@ impl NovelParser for SyosetuParser {
             });
 
         Ok(ChapterContent {
-            title: None,
-            subtitle,
+            title,
+            subtitle: None,
             content,
-            author_note,
+            author_note: None,
             prev_url,
             next_url,
         })
@@ -129,14 +124,14 @@ impl NovelParser for SyosetuParser {
         let html = fetch_html(&index_url).await?;
         let document = Html::parse_document(&html);
 
-        let title_selector = Selector::parse(".novel_title").unwrap();
+        let title_selector = Selector::parse(".p-novel__title").unwrap();
         let title = document
             .select(&title_selector)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_else(|| parsed.novel_id.clone());
 
-        let author_selector = Selector::parse(".novel_writername a").unwrap();
+        let author_selector = Selector::parse(".p-novel__author").unwrap();
         let author = document
             .select(&author_selector)
             .next()
@@ -152,5 +147,62 @@ impl NovelParser for SyosetuParser {
             total_chapters: chapters.len() as u32,
             chapters,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_url_with_chapter() {
+        let url = "https://ncode.syosetu.com/n4029bs/1/";
+        let parsed = SyosetuParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "syosetu");
+        assert_eq!(parsed.novel_id, "n4029bs");
+        assert_eq!(parsed.chapter, Some(1));
+    }
+
+    #[test]
+    fn test_parse_url_without_chapter() {
+        let url = "https://ncode.syosetu.com/n4029bs/";
+        let parsed = SyosetuParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "syosetu");
+        assert_eq!(parsed.novel_id, "n4029bs");
+        assert_eq!(parsed.chapter, None);
+    }
+
+    #[test]
+    fn test_matches_url() {
+        let parser = SyosetuParser::new();
+        assert!(parser.matches_url("https://ncode.syosetu.com/n4029bs/1/"));
+        assert!(parser.matches_url("https://ncode.syosetu.com/n4029bs/"));
+        assert!(!parser.matches_url("https://syosetu.org/novel/123/1.html"));
+        assert!(!parser.matches_url("https://kakuyomu.jp/works/123"));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network - run with: cargo test -- --ignored"]
+    async fn test_get_chapter_selectors() {
+        let parser = SyosetuParser::new();
+        let result = parser.get_chapter("https://ncode.syosetu.com/n4029bs/1/").await;
+        
+        assert!(result.is_ok(), "Failed to fetch chapter: {:?}", result.err());
+        let content = result.unwrap();
+        assert!(!content.content.is_empty(), "Content should not be empty");
+        assert!(content.content.contains("<p"), "Content should contain <p> tags");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network - run with: cargo test -- --ignored"]
+    async fn test_get_series_info_selectors() {
+        let parser = SyosetuParser::new();
+        let result = parser.get_series_info("https://ncode.syosetu.com/n4029bs/").await;
+        
+        assert!(result.is_ok(), "Failed to fetch series info: {:?}", result.err());
+        let info = result.unwrap();
+        assert!(!info.title.is_empty(), "Title should not be empty");
+        assert!(info.total_chapters > 0, "Should have at least one chapter");
+        assert!(!info.chapters.is_empty(), "Chapters list should not be empty");
     }
 }

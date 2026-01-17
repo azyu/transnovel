@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
 use crate::db::get_pool;
+use crate::services::antigravity::ANTIGRAVITY_BASE;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiKey {
@@ -150,5 +151,54 @@ pub async fn increment_api_usage(id: i64) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
     
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct AntigravityStatus {
+    pub running: bool,
+    pub authenticated: bool,
+    pub url: String,
+}
+
+#[tauri::command]
+pub async fn check_antigravity_status() -> Result<AntigravityStatus, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .map_err(|e| e.to_string())?;
+    
+    let models_url = format!("{}/v1/models", ANTIGRAVITY_BASE);
+    let response = client.get(&models_url).send().await;
+    
+    match response {
+        Ok(r) if r.status().is_success() => {
+            Ok(AntigravityStatus {
+                running: true,
+                authenticated: true,
+                url: ANTIGRAVITY_BASE.to_string(),
+            })
+        }
+        Ok(r) if r.status().as_u16() == 401 || r.status().as_u16() == 403 => {
+            Ok(AntigravityStatus {
+                running: true,
+                authenticated: false,
+                url: ANTIGRAVITY_BASE.to_string(),
+            })
+        }
+        _ => {
+            Ok(AntigravityStatus {
+                running: false,
+                authenticated: false,
+                url: ANTIGRAVITY_BASE.to_string(),
+            })
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn open_antigravity_auth() -> Result<(), String> {
+    let auth_url = format!("{}/auth", ANTIGRAVITY_BASE);
+    open::that(&auth_url).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
     Ok(())
 }

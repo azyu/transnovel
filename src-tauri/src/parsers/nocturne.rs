@@ -43,26 +43,20 @@ impl NovelParser for NocturneParser {
         let html = fetch_html(url).await?;
         let document = Html::parse_document(&html);
 
-        let subtitle_selector = Selector::parse(".novel_subtitle").unwrap();
-        let subtitle = document
-            .select(&subtitle_selector)
+        let title_selector = Selector::parse(".p-novel__title").unwrap();
+        let title = document
+            .select(&title_selector)
             .next()
-            .map(|el| el.inner_html());
+            .map(|el| el.text().collect::<String>().trim().to_string());
 
-        let content_selector = Selector::parse("#novel_honbun").unwrap();
+        let content_selector = Selector::parse(".p-novel__text").unwrap();
         let content = document
             .select(&content_selector)
             .next()
             .map(|el| el.inner_html())
             .ok_or("본문을 찾을 수 없습니다.")?;
 
-        let note_selector = Selector::parse("#novel_a").unwrap();
-        let author_note = document
-            .select(&note_selector)
-            .next()
-            .map(|el| el.inner_html());
-
-        let prev_selector = Selector::parse(".novel_bn a[rel='prev']").unwrap();
+        let prev_selector = Selector::parse(".c-pager__item--before").unwrap();
         let prev_url = document
             .select(&prev_selector)
             .next()
@@ -75,7 +69,7 @@ impl NovelParser for NocturneParser {
                 }
             });
 
-        let next_selector = Selector::parse(".novel_bn a[rel='next']").unwrap();
+        let next_selector = Selector::parse(".c-pager__item--next").unwrap();
         let next_url = document
             .select(&next_selector)
             .next()
@@ -89,10 +83,10 @@ impl NovelParser for NocturneParser {
             });
 
         Ok(ChapterContent {
-            title: None,
-            subtitle,
+            title,
+            subtitle: None,
             content,
-            author_note,
+            author_note: None,
             prev_url,
             next_url,
         })
@@ -105,20 +99,20 @@ impl NovelParser for NocturneParser {
         let html = fetch_html(&index_url).await?;
         let document = Html::parse_document(&html);
 
-        let title_selector = Selector::parse(".novel_title").unwrap();
+        let title_selector = Selector::parse(".p-novel__title").unwrap();
         let title = document
             .select(&title_selector)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_else(|| parsed.novel_id.clone());
 
-        let author_selector = Selector::parse(".novel_writername a").unwrap();
+        let author_selector = Selector::parse(".p-novel__author").unwrap();
         let author = document
             .select(&author_selector)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string());
 
-        let chapter_selector = Selector::parse(".novel_sublist2 .subtitle a").unwrap();
+        let chapter_selector = Selector::parse(".p-eplist__subtitle").unwrap();
         let chapters: Vec<ChapterInfo> = document
             .select(&chapter_selector)
             .enumerate()

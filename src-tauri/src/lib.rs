@@ -31,6 +31,8 @@ pub fn run() {
             commands::settings::get_api_keys,
             commands::settings::add_api_key,
             commands::settings::remove_api_key,
+            commands::settings::check_antigravity_status,
+            commands::settings::open_antigravity_auth,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
