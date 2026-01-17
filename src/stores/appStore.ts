@@ -13,6 +13,9 @@ interface AppState {
   showToast: (message: string) => void;
   hideToast: () => void;
 
+  viewConfigVersion: number;
+  bumpViewConfigVersion: () => void;
+
   currentUrl: string;
   setUrl: (url: string) => void;
   chapterContent: {
@@ -53,6 +56,9 @@ export const useAppStore = create<AppState>((set) => ({
   toast: null,
   showToast: (message) => set({ toast: message }),
   hideToast: () => set({ toast: null }),
+
+  viewConfigVersion: 0,
+  bumpViewConfigVersion: () => set((state) => ({ viewConfigVersion: state.viewConfigVersion + 1 })),
 
   currentUrl: '',
   setUrl: (url) => set({ currentUrl: url }),

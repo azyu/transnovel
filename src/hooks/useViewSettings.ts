@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useAppStore } from '../stores/appStore';
 
 export type DisplayLayout = 'sideBySide' | 'stacked';
 
@@ -38,6 +39,7 @@ const DEFAULT_CONFIG: ViewConfig = {
 export function useViewSettings() {
   const [config, setConfig] = useState<ViewConfig>(DEFAULT_CONFIG);
   const [isLoading, setIsLoading] = useState(true);
+  const viewConfigVersion = useAppStore((state) => state.viewConfigVersion);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -54,7 +56,7 @@ export function useViewSettings() {
       }
     };
     loadSettings();
-  }, []);
+  }, [viewConfigVersion]);
 
   const getStyles = () => ({
     container: {

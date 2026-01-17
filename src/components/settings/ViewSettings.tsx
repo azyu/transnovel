@@ -2,6 +2,7 @@ import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
+import { useAppStore } from '../../stores/appStore';
 
 type DisplayLayout = 'sideBySide' | 'stacked';
 
@@ -52,6 +53,7 @@ const COLOR_PRESETS = [
 
 export const ViewSettings = forwardRef((_, ref) => {
   const [config, setConfig] = useState<ViewConfig>(DEFAULT_CONFIG);
+  const bumpViewConfigVersion = useAppStore((state) => state.bumpViewConfigVersion);
 
   useImperativeHandle(ref, () => ({
     save: handleSave
@@ -75,6 +77,7 @@ export const ViewSettings = forwardRef((_, ref) => {
   const handleSave = async () => {
     try {
       await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
+      bumpViewConfigVersion();
     } catch (error) {
       console.error('Failed to save view settings:', error);
     }
@@ -215,26 +218,6 @@ export const ViewSettings = forwardRef((_, ref) => {
         </div>
 
         <div className="border-t border-slate-700 pt-4 space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-slate-300 mb-3">레이아웃</h3>
-            <div className="flex gap-2">
-              {LAYOUT_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => updateConfig('displayLayout', option.value)}
-                  className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
-                    config.displayLayout === option.value
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-slate-600 hover:border-slate-500'
-                  }`}
-                >
-                  <span className="block text-sm font-medium text-white">{option.label}</span>
-                  <span className="block text-xs text-slate-400 mt-1">{option.description}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -255,6 +238,27 @@ export const ViewSettings = forwardRef((_, ref) => {
               <span className="text-sm text-slate-300">대사 강제 개행</span>
             </label>
           </div>
+
+          <div className={config.showOriginal ? '' : 'opacity-50 pointer-events-none'}>
+            <h3 className="text-sm font-medium text-slate-300 mb-3">레이아웃</h3>
+            <div className="flex gap-2">
+              {LAYOUT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => updateConfig('displayLayout', option.value)}
+                  disabled={!config.showOriginal}
+                  className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
+                    config.displayLayout === option.value
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-slate-600 hover:border-slate-500'
+                  }`}
+                >
+                  <span className="block text-sm font-medium text-white">{option.label}</span>
+                  <span className="block text-xs text-slate-400 mt-1">{option.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="border-t border-slate-700 pt-4">
@@ -271,21 +275,38 @@ export const ViewSettings = forwardRef((_, ref) => {
               padding: `16px ${config.horizontalPadding}px`,
             }}
           >
-            {config.showOriginal && (
-              <p
-                className="mb-2"
-                style={{
-                  opacity: Number(config.originalOpacity) / 100,
-                  marginBottom: `${config.paragraphSpacing}px`,
-                  textIndent: `${config.textIndent}em`,
-                }}
-              >
-                これは日本語の原文テキストです。
-              </p>
+            {config.showOriginal && config.displayLayout === 'sideBySide' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <p
+                  style={{
+                    opacity: Number(config.originalOpacity) / 100,
+                    textIndent: `${config.textIndent}em`,
+                  }}
+                >
+                  これは日本語の原文テキストです。
+                </p>
+                <p style={{ textIndent: `${config.textIndent}em` }}>
+                  이것은 한국어 번역 텍스트입니다.
+                </p>
+              </div>
+            ) : (
+              <>
+                {config.showOriginal && (
+                  <p
+                    style={{
+                      opacity: Number(config.originalOpacity) / 100,
+                      marginBottom: `${config.paragraphSpacing}px`,
+                      textIndent: `${config.textIndent}em`,
+                    }}
+                  >
+                    これは日本語の原文テキストです。
+                  </p>
+                )}
+                <p style={{ textIndent: `${config.textIndent}em` }}>
+                  이것은 한국어 번역 텍스트입니다.
+                </p>
+              </>
             )}
-            <p style={{ textIndent: `${config.textIndent}em` }}>
-              이것은 한국어 번역 텍스트입니다.
-            </p>
           </div>
         </div>
 
