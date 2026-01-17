@@ -53,6 +53,9 @@ struct StreamDelta {
     #[allow(dead_code)]
     delta_type: Option<String>,
     text: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    thinking: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -70,8 +73,13 @@ pub struct AntigravityClient {
 
 impl AntigravityClient {
     pub fn new(base_url: Option<String>, model: Option<String>) -> Self {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(600))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+        
         Self {
-            client: Client::new(),
+            client,
             model: model.unwrap_or_else(|| "claude-sonnet-4-5-20250514".to_string()),
             base_url: base_url.unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string()),
         }
@@ -214,11 +222,15 @@ impl AntigravityClient {
                 let line = buffer[..pos].to_string();
                 buffer = buffer[pos + 1..].to_string();
 
-                if line.starts_with("event:") {
+                if line.is_empty() || line.starts_with("event:") || line.starts_with(":") {
                     continue;
                 }
 
                 if let Some(data) = line.strip_prefix("data: ") {
+                    if data.trim() == "[DONE]" {
+                        continue;
+                    }
+
                     if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
                         if event.event_type == "content_block_delta" {
                             if let Some(delta) = event.delta {
@@ -249,7 +261,6 @@ impl AntigravityClient {
             }
         }
 
-        let _ = app_handle.emit("translation-complete", true);
         parse_translated_paragraphs(&full_text, paragraphs.len())
     }
 }

@@ -277,7 +277,6 @@ impl GeminiClient {
             }
         }
 
-        let _ = app_handle.emit("translation-complete", true);
         parse_translated_paragraphs(&full_text, paragraphs.len())
     }
 }

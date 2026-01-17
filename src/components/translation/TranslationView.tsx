@@ -15,10 +15,11 @@ interface AntigravityStatus {
 }
 
 export const TranslationView: React.FC = () => {
-  const { chapterContent, isTranslating, setIsTranslating, setUrl, theme } = useAppStore();
-  const { parseAndTranslate } = useTranslation();
+  const { chapterContent, isTranslating, setIsTranslating, setUrl, theme, failedParagraphIndices } = useAppStore();
+  const { parseAndTranslate, retryFailedParagraphs } = useTranslation();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const isDark = theme === 'dark';
 
   useEffect(() => {
@@ -137,9 +138,29 @@ export const TranslationView: React.FC = () => {
 
       {chapterContent && (
         <div className={`py-4 px-6 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
-          <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating}>
-            저장
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying}>
+              저장
+            </Button>
+            {failedParagraphIndices.length > 0 && !isTranslating && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-red-500">
+                  {failedParagraphIndices.length}개 문단 실패
+                </span>
+                <Button 
+                  variant="secondary" 
+                  onClick={async () => {
+                    setRetrying(true);
+                    await retryFailedParagraphs();
+                    setRetrying(false);
+                  }}
+                  disabled={retrying}
+                >
+                  {retrying ? '재시도 중...' : '재시도'}
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="flex gap-4">
             {isTranslating ? (
               <Button variant="danger" onClick={handleStop}>

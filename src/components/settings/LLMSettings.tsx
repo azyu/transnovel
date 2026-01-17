@@ -226,6 +226,24 @@ export const LLMSettings = forwardRef((_, ref) => {
     init();
   }, [fetchGeminiModels, fetchOpenrouterModels]);
 
+  useEffect(() => {
+    const saveSettings = async () => {
+      try {
+        await Promise.all([
+          invoke('set_setting', { key: 'active_provider', value: activeProvider }),
+          invoke('set_setting', { key: 'gemini_model', value: geminiModel }),
+          invoke('set_setting', { key: 'openrouter_model', value: openrouterModel }),
+          invoke('set_setting', { key: 'antigravity_model', value: antigravityModel }),
+          invoke('set_setting', { key: 'antigravity_proxy_url', value: proxyUrl }),
+        ]);
+        window.dispatchEvent(new Event('settings-changed'));
+      } catch (error) {
+        console.error('Failed to auto-save settings:', error);
+      }
+    };
+    saveSettings();
+  }, [activeProvider, geminiModel, openrouterModel, antigravityModel, proxyUrl]);
+
   const handleAddGeminiKey = async () => {
     if (!newGeminiKey.trim()) return;
     setAddingGeminiKey(true);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
 
@@ -15,28 +15,33 @@ export const StatusBar: React.FC = () => {
   const [model, setModel] = useState<string>('');
   const isDark = useAppStore((state) => state.theme) === 'dark';
 
-  useEffect(() => {
-    const loadStatus = async () => {
-      try {
-        const settings = await invoke<{ key: string; value: string }[]>('get_settings');
+  const loadStatus = useCallback(async () => {
+    try {
+      const settings = await invoke<{ key: string; value: string }[]>('get_settings');
 
-        const provider = settings.find(s => s.key === 'active_provider')?.value as Provider | undefined;
-        setActiveProvider(provider || null);
+      const provider = settings.find(s => s.key === 'active_provider')?.value as Provider | undefined;
+      setActiveProvider(provider || null);
 
-        if (provider) {
-          const modelKey = `${provider}_model`;
-          const modelValue = settings.find(s => s.key === modelKey)?.value;
-          setModel(modelValue || '');
-        }
-      } catch (error) {
-        console.error('Failed to load status:', error);
+      if (provider) {
+        const modelKey = `${provider}_model`;
+        const modelValue = settings.find(s => s.key === modelKey)?.value;
+        setModel(modelValue || '');
       }
-    };
-
-    loadStatus();
-    const interval = setInterval(loadStatus, 30000);
-    return () => clearInterval(interval);
+    } catch (error) {
+      console.error('Failed to load status:', error);
+    }
   }, []);
+
+  useEffect(() => {
+    loadStatus();
+    
+    const handleSettingsChange = () => loadStatus();
+    window.addEventListener('settings-changed', handleSettingsChange);
+    
+    return () => {
+      window.removeEventListener('settings-changed', handleSettingsChange);
+    };
+  }, [loadStatus]);
 
   const formatModelName = (name: string): string => {
     if (!name) return '미설정';

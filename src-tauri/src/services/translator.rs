@@ -255,37 +255,82 @@ impl TranslatorService {
                 }
             }
 
-            let translated = match &mut self.client {
-                ApiClient::Gemini(client) => {
-                    client
-                        .translate_streaming(novel_id, &uncached_paragraphs, &uncached_indices, &prompt, app_handle)
-                        .await?
-                }
-                ApiClient::OpenRouter(client) => {
-                    client
-                        .translate_streaming(novel_id, &uncached_paragraphs, &uncached_indices, &prompt, app_handle)
-                        .await?
-                }
-                ApiClient::Antigravity(client) => {
-                    client
-                        .translate_streaming(novel_id, &uncached_paragraphs, &uncached_indices, &prompt, app_handle)
-                        .await?
-                }
-            };
+            const CHUNK_SIZE: usize = 50;
+            const MAX_RETRIES: u32 = 3;
+            let chunk_count = (uncached_paragraphs.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+            let mut failed_indices: Vec<usize> = Vec::new();
+            
+            for chunk_idx in 0..chunk_count {
+                let start = chunk_idx * CHUNK_SIZE;
+                let end = std::cmp::min(start + CHUNK_SIZE, uncached_paragraphs.len());
+                
+                let chunk_paragraphs = &uncached_paragraphs[start..end];
+                let chunk_indices = &uncached_indices[start..end];
 
-            let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
+                let mut last_error: Option<String> = None;
+                let mut success = false;
 
-            let mut pairs: Vec<(String, String)> = Vec::new();
-            for (i, trans) in uncached_indices.iter().zip(postprocessed.iter()) {
-                results[*i] = trans.clone();
-                pairs.push((
-                    uncached_paragraphs[uncached_indices.iter().position(|x| x == i).unwrap()]
-                        .clone(),
-                    trans.clone(),
-                ));
+                for retry in 0..MAX_RETRIES {
+                    if retry > 0 {
+                        let delay_secs = 2u64.pow(retry);
+                        tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+                        eprintln!("[Translator] Chunk {} retry {}/{}", chunk_idx + 1, retry, MAX_RETRIES - 1);
+                    }
+
+                    let translate_result = match &mut self.client {
+                        ApiClient::Gemini(client) => {
+                            client
+                                .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                .await
+                        }
+                        ApiClient::OpenRouter(client) => {
+                            client
+                                .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                .await
+                        }
+                        ApiClient::Antigravity(client) => {
+                            client
+                                .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                .await
+                        }
+                    };
+
+                    match translate_result {
+                        Ok(translated) => {
+                            let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
+
+                            let mut pairs: Vec<(String, String)> = Vec::new();
+                            for (i, trans) in chunk_indices.iter().zip(postprocessed.iter()) {
+                                results[*i] = trans.clone();
+                                let local_idx = chunk_indices.iter().position(|x| x == i).unwrap();
+                                pairs.push((chunk_paragraphs[local_idx].clone(), trans.clone()));
+                            }
+
+                            cache_translations(novel_id, &pairs).await.ok();
+                            success = true;
+                            break;
+                        }
+                        Err(e) => {
+                            last_error = Some(e);
+                        }
+                    }
+                }
+
+                if !success {
+                    eprintln!("[Translator] Chunk {} failed after {} retries: {:?}", 
+                        chunk_idx + 1, MAX_RETRIES, last_error);
+                    failed_indices.extend(chunk_indices.iter().cloned());
+                }
             }
 
-            cache_translations(novel_id, &pairs).await.ok();
+            if !failed_indices.is_empty() {
+                let _ = app_handle.emit("translation-failed-paragraphs", serde_json::json!({
+                    "failed_indices": failed_indices,
+                    "total": paragraphs.len()
+                }));
+            }
+            
+            let _ = app_handle.emit("translation-complete", true);
         } else {
             let _ = app_handle.emit("translation-complete", true);
         }

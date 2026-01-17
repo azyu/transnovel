@@ -51,6 +51,10 @@ interface AppState {
   batchProgress: TranslationProgress | null;
   setBatchProgress: (progress: TranslationProgress | null) => void;
   updateBatchProgress: (update: Partial<TranslationProgress>) => void;
+
+  failedParagraphIndices: number[];
+  setFailedParagraphIndices: (indices: number[]) => void;
+  clearFailedParagraphIndices: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -120,4 +124,8 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       batchProgress: state.batchProgress ? { ...state.batchProgress, ...update } : null,
     })),
+
+  failedParagraphIndices: [],
+  setFailedParagraphIndices: (indices) => set({ failedParagraphIndices: indices }),
+  clearFailedParagraphIndices: () => set({ failedParagraphIndices: [] }),
 }));

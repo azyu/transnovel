@@ -12,6 +12,8 @@ export const useTranslation = () => {
     updateParagraphTranslation,
     updateTitleTranslation,
     showError,
+    setFailedParagraphIndices,
+    clearFailedParagraphIndices,
   } = useAppStore();
   
   const [loading, setLoading] = useState(false);
@@ -136,11 +138,24 @@ export const useTranslation = () => {
         }
       });
 
+      const unlistenFailed = await listen<{ failed_indices: number[]; total: number }>('translation-failed-paragraphs', (event) => {
+        setFailedParagraphIndices(event.payload.failed_indices);
+        if (event.payload.failed_indices.length > 0) {
+          showError(
+            '일부 문단 번역 실패',
+            `${event.payload.failed_indices.length}개 문단 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
+          );
+        }
+      });
+
       const unlistenComplete = await listen<boolean>('translation-complete', async () => {
         unlistenChunk();
+        unlistenFailed();
         unlistenComplete();
         setIsTranslating(false);
       });
+
+      clearFailedParagraphIndices();
 
       try {
         await invoke('translate_paragraphs_streaming', { 
@@ -149,6 +164,7 @@ export const useTranslation = () => {
         });
       } catch (err) {
         unlistenChunk();
+        unlistenFailed();
         unlistenComplete();
         setIsTranslating(false);
         throw err;
@@ -162,7 +178,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, showError]);
+  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
 
   const translateText = useCallback(async (novelId: string, text: string, note?: string) => {
     try {
@@ -264,6 +280,56 @@ await invoke('start_batch_translation', {
       }
   }, [showError]);
 
+  const retryFailedParagraphs = useCallback(async () => {
+    const store = useAppStore.getState();
+    const { chapterContent, failedParagraphIndices } = store;
+    
+    if (!chapterContent || failedParagraphIndices.length === 0) return;
+
+    const failedParagraphs = failedParagraphIndices.map(idx => chapterContent.paragraphs[idx]?.original).filter(Boolean);
+    if (failedParagraphs.length === 0) return;
+
+    setIsTranslating(true);
+    clearFailedParagraphIndices();
+
+    const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
+      const idx = decodeParagraphId(event.payload.paragraph_id);
+      if (idx !== null) {
+        updateParagraphTranslation(`p-${idx}`, event.payload.text);
+      }
+    });
+
+    const unlistenFailed = await listen<{ failed_indices: number[]; total: number }>('translation-failed-paragraphs', (event) => {
+      setFailedParagraphIndices(event.payload.failed_indices);
+      if (event.payload.failed_indices.length > 0) {
+        showError(
+          '일부 문단 번역 실패',
+          `${event.payload.failed_indices.length}개 문단이 여전히 실패했습니다.`
+        );
+      }
+    });
+
+    const unlistenComplete = await listen<boolean>('translation-complete', async () => {
+      unlistenChunk();
+      unlistenFailed();
+      unlistenComplete();
+      setIsTranslating(false);
+    });
+
+    try {
+      await invoke('translate_paragraphs_streaming', {
+        novelId: chapterContent.novel_id,
+        paragraphs: failedParagraphs,
+      });
+    } catch (err) {
+      unlistenChunk();
+      unlistenFailed();
+      unlistenComplete();
+      setIsTranslating(false);
+      showError('재시도 실패', String(err));
+    }
+  }, [setIsTranslating, updateParagraphTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
+
   const exportNovel = useCallback(async (novelId: string, options: ExportOptions) => {
       try {
           await invoke('export_novel', { request: { novel_id: novelId, options } });
@@ -287,6 +353,7 @@ await invoke('start_batch_translation', {
     stopBatchTranslation,
     pauseBatchTranslation,
     resumeBatchTranslation,
+    retryFailedParagraphs,
     exportNovel
   };
 };
