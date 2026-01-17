@@ -71,6 +71,7 @@ Tauri 2.0 desktop app translating Japanese web novels → Korean. React frontend
 | `as any`, `@ts-ignore` | Type safety violations |
 
 ## Workflow
+- TDD-driven development (Red → Green → Refactor)
 - Commit after completing feature implementation or bug fix
 - Use conventional commit messages (feat:, fix:, refactor:, etc.)
 

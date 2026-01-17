@@ -266,7 +266,7 @@ impl AntigravityClient {
 }
 
 fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
-    let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
     let mut chunks = Vec::new();
 
     for cap in re.captures_iter(text) {
@@ -307,7 +307,7 @@ fn encode_paragraph_id(n: usize) -> String {
 }
 
 fn parse_translated_paragraphs(text: &str, _expected_count: usize) -> Result<Vec<String>, String> {
-    let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
 
     let mut results: Vec<(usize, String)> = Vec::new();
 

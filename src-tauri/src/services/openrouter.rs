@@ -273,7 +273,7 @@ fn decode_paragraph_id(id: &str) -> Option<usize> {
 }
 
 fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
-    let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
     let mut chunks = Vec::new();
 
     for cap in re.captures_iter(text) {
@@ -290,7 +290,7 @@ fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
 }
 
 fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
-    let re = regex::Regex::new(r#"<p id="[A-Za-z]+">([^<]*)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="[A-Za-z]+">(.*?)</p>"#).unwrap();
     let mut results: Vec<String> = re
         .captures_iter(text)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))

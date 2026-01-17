@@ -282,7 +282,7 @@ impl GeminiClient {
 }
 
 fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
-    let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
     let mut chunks = Vec::new();
 
     for cap in re.captures_iter(text) {
@@ -323,7 +323,7 @@ pub fn encode_paragraph_id(n: usize) -> String {
 }
 
 pub fn parse_translated_paragraphs(text: &str, _expected_count: usize) -> Result<Vec<String>, String> {
-    let re = regex::Regex::new(r#"<p id="([A-Za-z]+)">([^<]*)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
 
     let mut results: Vec<(usize, String)> = Vec::new();
 
@@ -354,27 +354,171 @@ fn decode_paragraph_id(id: &str) -> Option<usize> {
         return None;
     }
 
-    let mut result: usize;
-
-    let first = chars[0];
-    if first.is_ascii_uppercase() {
-        result = (first as usize) - 65;
-    } else if first.is_ascii_lowercase() {
-        result = (first as usize) - 71;
-    } else {
-        return None;
-    }
-
-    for &c in &chars[1..] {
-        result = result.checked_mul(52)?.checked_add(1)?;
+    let decode_char = |c: char| -> Option<usize> {
         if c.is_ascii_uppercase() {
-            result = result.checked_add((c as usize) - 65)?;
+            Some((c as usize) - 65)
         } else if c.is_ascii_lowercase() {
-            result = result.checked_add((c as usize) - 71)?;
+            Some((c as usize) - 71)
         } else {
-            return None;
+            None
+        }
+    };
+
+    match chars.len() {
+        1 => decode_char(chars[0]),
+        2 => {
+            let first = decode_char(chars[0])?;
+            let second = decode_char(chars[1])?;
+            Some(52 + first * 52 + second)
+        }
+        _ => {
+            let prefix_len = chars.len() - 2;
+            let prefix: String = chars[..prefix_len].iter().collect();
+            let suffix_first = decode_char(chars[prefix_len])?;
+            let suffix_second = decode_char(chars[prefix_len + 1])?;
+            let prefix_value = decode_paragraph_id(&prefix)?;
+            Some(2756 + prefix_value * 2704 + suffix_first * 52 + suffix_second)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_decode_paragraph_id() {
+        // Single uppercase letters (0-25)
+        assert_eq!(encode_paragraph_id(0), "A");
+        assert_eq!(encode_paragraph_id(25), "Z");
+        
+        // Single lowercase letters (26-51)
+        assert_eq!(encode_paragraph_id(26), "a");
+        assert_eq!(encode_paragraph_id(51), "z");
+        
+        // Two-letter IDs (52+)
+        assert_eq!(encode_paragraph_id(52), "AA");
+        assert_eq!(encode_paragraph_id(53), "AB");
+        
+        // Verify round-trip
+        for i in 0..200 {
+            let encoded = encode_paragraph_id(i);
+            let decoded = decode_paragraph_id(&encoded);
+            assert_eq!(decoded, Some(i), "Failed for index {}: encoded as '{}'", i, encoded);
         }
     }
 
-    Some(result)
+    #[test]
+    fn test_parse_normal_paragraphs() {
+        let text = r#"<p id="A">첫 번째 문단입니다.</p>
+<p id="B">두 번째 문단입니다.</p>
+<p id="C">세 번째 문단입니다.</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 3).unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "첫 번째 문단입니다.");
+        assert_eq!(result[1], "두 번째 문단입니다.");
+        assert_eq!(result[2], "세 번째 문단입니다.");
+    }
+
+    #[test]
+    fn test_parse_paragraphs_with_less_than_symbol() {
+        // This test demonstrates the bug: content with '<' character fails to parse
+        let text = r#"<p id="A">a < b 인 경우</p>
+<p id="B">x > y 이면서 y < z</p>
+<p id="C">정상 문단</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 3).unwrap();
+        
+        // BUG: Current regex [^<]* cannot match content containing '<'
+        // After fix, these assertions should pass:
+        assert_eq!(result.len(), 3, "Should parse all 3 paragraphs");
+        assert_eq!(result[0], "a < b 인 경우", "First paragraph with '<' should be parsed");
+        assert_eq!(result[1], "x > y 이면서 y < z", "Second paragraph with '<' should be parsed");
+        assert_eq!(result[2], "정상 문단", "Normal paragraph should be parsed");
+    }
+
+    #[test]
+    fn test_parse_paragraphs_with_math_expressions() {
+        let text = r#"<p id="A">조건: 0 < x < 10</p>
+<p id="B">결과: y >= 5</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 2).unwrap();
+        
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], "조건: 0 < x < 10");
+        assert_eq!(result[1], "결과: y >= 5");
+    }
+
+    #[test]
+    fn test_extract_completed_paragraphs_with_less_than() {
+        let text = r#"<p id="A">HP < 50이면 위험</p>
+<p id="B">MP가 충분하다</p>"#;
+        
+        let chunks = extract_completed_paragraphs(text);
+        
+        assert_eq!(chunks.len(), 2, "Should extract 2 paragraphs");
+        assert_eq!(chunks[0].paragraph_id, "A");
+        assert_eq!(chunks[0].text, "HP < 50이면 위험");
+        assert_eq!(chunks[1].paragraph_id, "B");
+        assert_eq!(chunks[1].text, "MP가 충분하다");
+    }
+
+    #[test]
+    fn test_extract_completed_paragraphs_streaming_simulation() {
+        // Simulate streaming: text arrives incrementally
+        let partial1 = r#"<p id="A">완료된 문단</p>
+<p id="B">아직 진행"#;
+        
+        let chunks1 = extract_completed_paragraphs(partial1);
+        assert_eq!(chunks1.len(), 1, "Only completed paragraph should be extracted");
+        assert_eq!(chunks1[0].paragraph_id, "A");
+        
+        // More text arrives
+        let partial2 = r#"<p id="A">완료된 문단</p>
+<p id="B">아직 진행 중</p>"#;
+        
+        let chunks2 = extract_completed_paragraphs(partial2);
+        assert_eq!(chunks2.len(), 2, "Both paragraphs now complete");
+    }
+
+    #[test]
+    fn test_parse_with_special_characters() {
+        let text = r#"<p id="A">"인용문" 테스트</p>
+<p id="B">괄호(테스트)와 [대괄호]</p>
+<p id="C">특수문자: !@#$%^&*()</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 3).unwrap();
+        
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "\"인용문\" 테스트");
+        assert_eq!(result[1], "괄호(테스트)와 [대괄호]");
+        assert_eq!(result[2], "특수문자: !@#$%^&*()");
+    }
+
+    #[test]
+    fn test_parse_empty_response_fallback() {
+        // When no valid paragraphs found, return original text
+        let text = "번역된 텍스트만 있고 태그가 없는 경우";
+        
+        let result = parse_translated_paragraphs(text, 1).unwrap();
+        
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], text);
+    }
+
+    #[test]
+    fn test_parse_out_of_order_paragraphs() {
+        // LLM might return paragraphs out of order
+        let text = r#"<p id="C">세 번째</p>
+<p id="A">첫 번째</p>
+<p id="B">두 번째</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 3).unwrap();
+        
+        // Should be sorted by ID
+        assert_eq!(result[0], "첫 번째");
+        assert_eq!(result[1], "두 번째");
+        assert_eq!(result[2], "세 번째");
+    }
 }
