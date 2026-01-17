@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { UrlInput } from './UrlInput';
 import { ParagraphList } from './ParagraphList';
+import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
 import { useAppStore } from '../../stores/appStore';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -17,6 +18,7 @@ export const TranslationView: React.FC = () => {
   const { chapterContent, isTranslating, setIsTranslating, setUrl } = useAppStore();
   const { parseAndTranslate } = useTranslation();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   useEffect(() => {
     const checkApiConfig = async () => {
@@ -48,22 +50,27 @@ export const TranslationView: React.FC = () => {
     await parseAndTranslate(chapterContent.next_url);
   };
 
-  const handleSave = async () => {
+  const handleSaveWithDialog = async (format: 'txt' | 'html' | 'md', includeOriginal: boolean) => {
     if (!chapterContent) return;
     try {
-      const path = await invoke<string>('save_chapter', {
+      const path = await invoke<string>('save_chapter_with_dialog', {
         request: {
-          title: chapterContent.title,
-          subtitle: chapterContent.subtitle,
+          title: chapterContent.translatedTitle || chapterContent.title,
+          subtitle: chapterContent.translatedSubtitle || chapterContent.subtitle,
           paragraphs: chapterContent.paragraphs.map(p => ({
             original: p.original,
             translated: p.translated,
           })),
+          format,
+          include_original: includeOriginal,
         },
       });
       alert(`저장 완료: ${path}`);
     } catch (err) {
-      alert(`저장 실패: ${err}`);
+      const errorMessage = String(err);
+      if (!errorMessage.includes('취소')) {
+        alert(`저장 실패: ${err}`);
+      }
     }
   };
 
@@ -91,9 +98,27 @@ export const TranslationView: React.FC = () => {
         {chapterContent ? (
           <div className="space-y-8 pb-20">
             <header className="border-b border-slate-700 pb-6">
-              <h1 className="text-2xl font-bold text-white mb-2">{chapterContent.title}</h1>
+              <div className="mb-2">
+                {chapterContent.translatedTitle ? (
+                  <>
+                    <p className="text-sm text-slate-500 mb-1">{chapterContent.title}</p>
+                    <h1 className="text-2xl font-bold text-white">{chapterContent.translatedTitle}</h1>
+                  </>
+                ) : (
+                  <h1 className="text-2xl font-bold text-white">{chapterContent.title}</h1>
+                )}
+              </div>
               {chapterContent.subtitle && (
-                <h2 className="text-xl text-slate-300">{chapterContent.subtitle}</h2>
+                <div>
+                  {chapterContent.translatedSubtitle ? (
+                    <>
+                      <p className="text-sm text-slate-500 mb-1">{chapterContent.subtitle}</p>
+                      <h2 className="text-xl text-slate-300">{chapterContent.translatedSubtitle}</h2>
+                    </>
+                  ) : (
+                    <h2 className="text-xl text-slate-300">{chapterContent.subtitle}</h2>
+                  )}
+                </div>
               )}
             </header>
 
@@ -111,7 +136,7 @@ export const TranslationView: React.FC = () => {
 
       {chapterContent && (
         <div className="p-4 border-t border-slate-700 bg-slate-900/80 backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center">
-          <Button variant="secondary" onClick={handleSave} disabled={isTranslating}>
+          <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating}>
             저장
           </Button>
           <div className="flex gap-4">
@@ -127,6 +152,12 @@ export const TranslationView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <SaveModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSaveWithDialog}
+      />
     </div>
   );
 };

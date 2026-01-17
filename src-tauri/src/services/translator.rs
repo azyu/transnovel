@@ -264,6 +264,8 @@ impl TranslatorService {
             }
 
             cache_translations(&pairs).await.ok();
+        } else {
+            let _ = app_handle.emit("translation-complete", true);
         }
 
         let final_results: Vec<String> = self.substitution.apply_to_paragraphs(&results);

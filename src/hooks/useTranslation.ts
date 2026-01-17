@@ -10,6 +10,7 @@ export const useTranslation = () => {
     setChapterList, 
     setIsTranslating,
     updateParagraphTranslation,
+    updateTitleTranslation,
   } = useAppStore();
   
   const [loading, setLoading] = useState(false);
@@ -115,10 +116,27 @@ export const useTranslation = () => {
         }
       });
 
-      const unlistenComplete = await listen<boolean>('translation-complete', () => {
-        setIsTranslating(false);
+      const unlistenComplete = await listen<boolean>('translation-complete', async () => {
         unlistenChunk();
         unlistenComplete();
+        
+        try {
+          const titlesToTranslate = [content.title];
+          if (content.subtitle) titlesToTranslate.push(content.subtitle);
+          
+          const result = await invoke<{ translated: string[] }>('translate_paragraphs', {
+            paragraphs: titlesToTranslate,
+          });
+          
+          updateTitleTranslation(
+            result.translated[0] || content.title,
+            content.subtitle ? result.translated[1] : undefined
+          );
+        } catch (e) {
+          console.error('Failed to translate title:', e);
+        }
+        
+        setIsTranslating(false);
       });
 
       try {

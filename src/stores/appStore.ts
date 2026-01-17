@@ -16,11 +16,14 @@ interface AppState {
     novel_id: string;
     title: string;
     subtitle: string;
+    translatedTitle?: string;
+    translatedSubtitle?: string;
     paragraphs: Paragraph[];
     prev_url: string | null;
     next_url: string | null;
   } | null;
-  setChapterContent: (content: { site: string; novel_id: string; title: string; subtitle: string; paragraphs: Paragraph[]; prev_url: string | null; next_url: string | null } | null) => void;
+  setChapterContent: (content: { site: string; novel_id: string; title: string; subtitle: string; translatedTitle?: string; translatedSubtitle?: string; paragraphs: Paragraph[]; prev_url: string | null; next_url: string | null } | null) => void;
+  updateTitleTranslation: (title: string, subtitle?: string) => void;
   updateParagraphTranslation: (id: string, text: string) => void;
   updateAllTranslations: (translations: string[]) => void;
   isTranslating: boolean;
@@ -47,6 +50,17 @@ export const useAppStore = create<AppState>((set) => ({
   setUrl: (url) => set({ currentUrl: url }),
   chapterContent: null,
   setChapterContent: (content) => set({ chapterContent: content }),
+  updateTitleTranslation: (title, subtitle) =>
+    set((state) => {
+      if (!state.chapterContent) return {};
+      return {
+        chapterContent: {
+          ...state.chapterContent,
+          translatedTitle: title,
+          translatedSubtitle: subtitle,
+        },
+      };
+    }),
   updateParagraphTranslation: (id, text) =>
     set((state) => {
       if (!state.chapterContent) return {};

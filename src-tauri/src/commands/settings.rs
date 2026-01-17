@@ -359,3 +359,56 @@ fn format_model_name(id: &str) -> String {
     
     words.join(" ")
 }
+
+#[derive(Debug, Serialize)]
+pub struct CacheStats {
+    pub count: i64,
+}
+
+#[tauri::command]
+pub async fn get_cache_stats() -> Result<CacheStats, String> {
+    let pool = get_pool()?;
+    
+    let row = sqlx::query("SELECT COUNT(*) as count FROM translation_cache")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    Ok(CacheStats {
+        count: row.get::<i64, _>("count"),
+    })
+}
+
+#[tauri::command]
+pub async fn clear_cache() -> Result<i64, String> {
+    let pool = get_pool()?;
+    
+    let result = sqlx::query("DELETE FROM translation_cache")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    Ok(result.rows_affected() as i64)
+}
+
+#[tauri::command]
+pub async fn reset_all() -> Result<(), String> {
+    let pool = get_pool()?;
+    
+    sqlx::query("DELETE FROM translation_cache")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    sqlx::query("DELETE FROM settings")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    sqlx::query("DELETE FROM api_keys")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    Ok(())
+}

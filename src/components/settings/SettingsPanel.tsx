@@ -1,11 +1,12 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { LLMSettings } from './LLMSettings';
 import { TranslationSettings } from './TranslationSettings';
 import { ViewSettings } from './ViewSettings';
+import { AdvancedSettings } from './AdvancedSettings';
 import { Button } from '../common/Button';
 import { useAppStore } from '../../stores/appStore';
 
-type SettingsTab = 'llm' | 'translation' | 'view';
+type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced';
 
 interface SettingsHandle {
   save: () => Promise<void>;
@@ -24,6 +25,7 @@ export const SettingsPanel: React.FC = () => {
     { id: 'llm', label: 'LLM' },
     { id: 'translation', label: '번역' },
     { id: 'view', label: '보기' },
+    { id: 'advanced', label: '고급' },
   ];
 
   const handleSaveAll = async () => {
@@ -69,18 +71,20 @@ export const SettingsPanel: React.FC = () => {
           ))}
         </nav>
 
-        <Button 
-          onClick={handleSaveAll} 
-          isLoading={isSaving}
-          className="flex items-center gap-2"
-        >
-          {!isSaving && (
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-          )}
-          설정 저장
-        </Button>
+        {activeTab !== 'advanced' && (
+          <Button 
+            onClick={handleSaveAll} 
+            isLoading={isSaving}
+            className="flex items-center gap-2"
+          >
+            {!isSaving && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+            )}
+            설정 저장
+          </Button>
+        )}
       </div>
       
       <div className={activeTab === 'llm' ? 'block' : 'hidden'}>
@@ -91,6 +95,9 @@ export const SettingsPanel: React.FC = () => {
       </div>
       <div className={activeTab === 'view' ? 'block' : 'hidden'}>
         <ViewSettings ref={viewRef} />
+      </div>
+      <div className={activeTab === 'advanced' ? 'block' : 'hidden'}>
+        <AdvancedSettings />
       </div>
     </div>
   );

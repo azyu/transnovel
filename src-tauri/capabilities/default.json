@@ -20,6 +20,7 @@
     "sql:allow-load",
     "sql:allow-close",
     "http:default",
-    "log:default"
+    "log:default",
+    "dialog:default"
   ]
 }

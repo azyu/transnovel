@@ -10,6 +10,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_log::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             commands::translation::translate_chapter,
@@ -28,6 +29,7 @@ pub fn run() {
             commands::series::get_translation_progress,
             commands::export::export_novel,
             commands::export::save_chapter,
+            commands::export::save_chapter_with_dialog,
             commands::settings::get_settings,
             commands::settings::set_setting,
             commands::settings::get_api_keys,
@@ -37,6 +39,9 @@ pub fn run() {
             commands::settings::open_antigravity_auth,
             commands::settings::fetch_gemini_models,
             commands::settings::fetch_antigravity_models,
+            commands::settings::get_cache_stats,
+            commands::settings::clear_cache,
+            commands::settings::reset_all,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
