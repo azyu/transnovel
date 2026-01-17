@@ -63,10 +63,12 @@ impl TranslatorService {
     pub async fn new() -> Result<Self, String> {
         let gemini_key = get_active_api_key("gemini").await?;
         
+        let (system_prompt, translation_note, substitutions, antigravity_url) = Self::load_settings().await;
+
         let client = if let Some(key) = gemini_key {
             ApiClient::Gemini(GeminiClient::new(vec![key]))
         } else {
-            let antigravity = AntigravityClient::new();
+            let antigravity = AntigravityClient::new(antigravity_url);
             if antigravity.check_health().await {
                 ApiClient::Antigravity(antigravity)
             } else {
@@ -77,8 +79,6 @@ impl TranslatorService {
             }
         };
 
-        let (system_prompt, translation_note, substitutions) = Self::load_settings().await;
-
         Ok(Self {
             client,
             system_prompt,
@@ -87,7 +87,7 @@ impl TranslatorService {
         })
     }
 
-    async fn load_settings() -> (String, String, String) {
+    async fn load_settings() -> (String, String, String, Option<String>) {
         let settings = get_settings().await.unwrap_or_default();
         
         let system_prompt = settings
@@ -109,7 +109,13 @@ impl TranslatorService {
             .map(|s| s.value.clone())
             .unwrap_or_default();
 
-        (system_prompt, translation_note, substitutions)
+        let antigravity_url = settings
+            .iter()
+            .find(|s| s.key == "antigravity_proxy_url")
+            .map(|s| s.value.clone())
+            .filter(|v| !v.is_empty());
+
+        (system_prompt, translation_note, substitutions, antigravity_url)
     }
 
     fn build_prompt(&self) -> String {

@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter};
 
 use super::cache::cache_translation;
 
-pub const ANTIGRAVITY_BASE: &str = "http://127.0.0.1:8045";
+pub const DEFAULT_ANTIGRAVITY_URL: &str = "http://127.0.0.1:8045";
 
 #[derive(Debug, Serialize)]
 struct AntigravityRequest {
@@ -65,13 +65,15 @@ pub struct TranslationChunk {
 pub struct AntigravityClient {
     client: Client,
     model: String,
+    base_url: String,
 }
 
 impl AntigravityClient {
-    pub fn new() -> Self {
+    pub fn new(base_url: Option<String>) -> Self {
         Self {
             client: Client::new(),
             model: "claude-sonnet-4-5-thinking".to_string(),
+            base_url: base_url.unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string()),
         }
     }
 
@@ -82,7 +84,7 @@ impl AntigravityClient {
             .unwrap_or_else(|_| reqwest::Client::new());
         
         client
-            .get(format!("{}/v1/models", ANTIGRAVITY_BASE))
+            .get(format!("{}/v1/models", self.base_url))
             .send()
             .await
             .map(|r| r.status().is_success())
@@ -94,7 +96,7 @@ impl AntigravityClient {
         paragraphs: &[String],
         system_prompt: &str,
     ) -> Result<Vec<String>, String> {
-        let url = format!("{}/v1/messages", ANTIGRAVITY_BASE);
+        let url = format!("{}/v1/messages", self.base_url);
 
         let numbered_text = paragraphs
             .iter()
@@ -160,7 +162,7 @@ impl AntigravityClient {
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
-        let url = format!("{}/v1/messages", ANTIGRAVITY_BASE);
+        let url = format!("{}/v1/messages", self.base_url);
 
         let numbered_text = paragraphs
             .iter()

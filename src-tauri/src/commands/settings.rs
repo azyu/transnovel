@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
 use crate::db::get_pool;
-use crate::services::antigravity::ANTIGRAVITY_BASE;
+use crate::services::antigravity::DEFAULT_ANTIGRAVITY_URL;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiKey {
@@ -148,13 +148,15 @@ pub struct AntigravityStatus {
 }
 
 #[tauri::command]
-pub async fn check_antigravity_status() -> Result<AntigravityStatus, String> {
+pub async fn check_antigravity_status(url: Option<String>) -> Result<AntigravityStatus, String> {
+    let base_url = url.filter(|u| !u.is_empty()).unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string());
+    
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(3))
         .build()
         .map_err(|e| e.to_string())?;
     
-    let models_url = format!("{}/v1/models", ANTIGRAVITY_BASE);
+    let models_url = format!("{}/v1/models", base_url);
     let response = client.get(&models_url).send().await;
     
     match response {
@@ -162,29 +164,30 @@ pub async fn check_antigravity_status() -> Result<AntigravityStatus, String> {
             Ok(AntigravityStatus {
                 running: true,
                 authenticated: true,
-                url: ANTIGRAVITY_BASE.to_string(),
+                url: base_url,
             })
         }
         Ok(r) if r.status().as_u16() == 401 || r.status().as_u16() == 403 => {
             Ok(AntigravityStatus {
                 running: true,
                 authenticated: false,
-                url: ANTIGRAVITY_BASE.to_string(),
+                url: base_url,
             })
         }
         _ => {
             Ok(AntigravityStatus {
                 running: false,
                 authenticated: false,
-                url: ANTIGRAVITY_BASE.to_string(),
+                url: base_url,
             })
         }
     }
 }
 
 #[tauri::command]
-pub async fn open_antigravity_auth() -> Result<(), String> {
-    let auth_url = format!("{}/auth", ANTIGRAVITY_BASE);
+pub async fn open_antigravity_auth(url: Option<String>) -> Result<(), String> {
+    let base_url = url.filter(|u| !u.is_empty()).unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string());
+    let auth_url = format!("{}/auth", base_url);
     open::that(&auth_url).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
     Ok(())
 }
@@ -295,13 +298,15 @@ struct AntigravityModelInfo {
 }
 
 #[tauri::command]
-pub async fn fetch_antigravity_models() -> Result<Vec<AntigravityModel>, String> {
+pub async fn fetch_antigravity_models(url: Option<String>) -> Result<Vec<AntigravityModel>, String> {
+    let base_url = url.filter(|u| !u.is_empty()).unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string());
+    
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let url = format!("{}/v1/models", ANTIGRAVITY_BASE);
+    let url = format!("{}/v1/models", base_url);
 
     let response = client
         .get(&url)
