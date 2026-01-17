@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 
-type SaveFormat = 'txt' | 'html' | 'md';
+type SaveFormat = 'txt' | 'html';
 
 interface SaveModalProps {
   isOpen: boolean;
@@ -13,7 +13,6 @@ interface SaveModalProps {
 const FORMAT_OPTIONS: { value: SaveFormat; label: string; description: string }[] = [
   { value: 'txt', label: 'Text (.txt)', description: '단순 텍스트 형식' },
   { value: 'html', label: 'HTML (.html)', description: '웹 브라우저에서 열 수 있는 형식, 루비 텍스트 지원' },
-  { value: 'md', label: 'Markdown (.md)', description: '마크다운 형식' },
 ];
 
 export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave }) => {

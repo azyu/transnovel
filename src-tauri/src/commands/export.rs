@@ -209,8 +209,6 @@ pub enum SaveFormat {
     Txt,
     #[serde(rename = "html")]
     Html,
-    #[serde(rename = "md")]
-    Markdown,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -236,7 +234,6 @@ pub async fn save_chapter_with_dialog(
     let (extension, filter_name) = match request.format {
         SaveFormat::Txt => ("txt", "Text File"),
         SaveFormat::Html => ("html", "HTML File"),
-        SaveFormat::Markdown => ("md", "Markdown File"),
     };
 
     let default_filename = format!("{}.{}", sanitize_filename(&title), extension);
@@ -258,7 +255,6 @@ pub async fn save_chapter_with_dialog(
     let content = match request.format {
         SaveFormat::Txt => generate_txt_content(&request),
         SaveFormat::Html => generate_html_content(&request),
-        SaveFormat::Markdown => generate_markdown_content(&request),
     };
 
     let mut file = File::create(&path).map_err(|e| format!("파일 생성 실패: {}", e))?;
@@ -331,27 +327,7 @@ fn generate_html_content(request: &SaveChapterWithDialogRequest) -> String {
     content
 }
 
-fn generate_markdown_content(request: &SaveChapterWithDialogRequest) -> String {
-    let mut content = String::new();
-    content.push_str(&format!("# {}\n\n", request.title));
-    if let Some(subtitle) = &request.subtitle {
-        content.push_str(&format!("## {}\n\n", subtitle));
-    }
-    content.push_str("---\n\n");
 
-    for para in &request.paragraphs {
-        if request.include_original {
-            content.push_str(&format!("> {}\n\n", para.original));
-        }
-        if let Some(translated) = &para.translated {
-            content.push_str(&format!("{}\n\n", translated));
-        } else if !request.include_original {
-            content.push_str(&format!("{}\n\n", para.original));
-        }
-    }
-
-    content
-}
 
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
