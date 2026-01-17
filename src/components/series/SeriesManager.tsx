@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { UrlInput } from '../translation/UrlInput';
@@ -9,11 +8,12 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 
 export const SeriesManager: React.FC = () => {
-  const { chapterList, batchProgress, isTranslating, setIsTranslating } = useAppStore();
-  const { startBatchTranslation, exportNovel } = useTranslation();
+  const { chapterList, batchProgress, isTranslating, currentUrl } = useAppStore();
+  const { startBatchTranslation, stopBatchTranslation, pauseBatchTranslation, resumeBatchTranslation, exportNovel } = useTranslation();
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'TxtSingle' | 'TxtChapters' | 'Epub'>('TxtSingle');
   const [exporting, setExporting] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   const handleStart = async (start: number, end: number) => {
     const content = useAppStore.getState().chapterContent;
@@ -22,17 +22,23 @@ export const SeriesManager: React.FC = () => {
       return;
     }
 
-    await startBatchTranslation(content.novel_id, content.site, start, end);
+    setIsPaused(false);
+    await startBatchTranslation(content.novel_id, content.site, start, end, currentUrl);
   };
 
   const handlePause = async () => {
-    await invoke('pause_translation');
-    setIsTranslating(false);
+    await pauseBatchTranslation();
+    setIsPaused(true);
   };
 
   const handleResume = async () => {
-    await invoke('resume_translation');
-    setIsTranslating(true);
+    await resumeBatchTranslation();
+    setIsPaused(false);
+  };
+
+  const handleStop = async () => {
+    await stopBatchTranslation();
+    setIsPaused(false);
   };
 
   const handleExport = async () => {
@@ -64,15 +70,26 @@ export const SeriesManager: React.FC = () => {
           <ProgressBar progress={batchProgress} />
           
           <div className="flex justify-center gap-4">
-            {isTranslating ? (
-              <Button variant="secondary" onClick={handlePause}>
-                일시정지
-              </Button>
-            ) : batchProgress.status !== 'completed' && batchProgress.status !== 'error' ? (
-              <Button onClick={handleResume}>
-                재개
-              </Button>
-            ) : null}
+            {isTranslating && !isPaused && (
+              <>
+                <Button variant="secondary" onClick={handlePause}>
+                  일시정지
+                </Button>
+                <Button variant="danger" onClick={handleStop}>
+                  중지
+                </Button>
+              </>
+            )}
+            {isPaused && (
+              <>
+                <Button onClick={handleResume}>
+                  재개
+                </Button>
+                <Button variant="danger" onClick={handleStop}>
+                  중지
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -135,7 +152,7 @@ export const SeriesManager: React.FC = () => {
             </div>
           </div>
           <p className="text-sm text-slate-400">
-            * '다운로드' 폴더의 'AI Novel Translator' 폴더에 저장됩니다.
+            * '다운로드' 폴더에 저장됩니다.
           </p>
         </div>
       </Modal>

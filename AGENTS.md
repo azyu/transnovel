@@ -10,7 +10,8 @@
 | **Platform** | Tauri 2.0 Desktop App (macOS, Windows, Linux) |
 | **Frontend** | React 18 + TypeScript + TailwindCSS |
 | **Backend** | Rust (Tauri) |
-| **Database** | SQLite (tauri-plugin-sql) |
+| **Database** | SQLite (sqlx) |
+| **Package Manager** | pnpm |
 | **Translation** | Japanese → Korean |
 | **UI Language** | Korean |
 
@@ -329,17 +330,28 @@ Example:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Development mode
-npm run tauri dev
+pnpm run tauri dev
 
 # Build for production
-npm run tauri build
+pnpm run tauri build
 
-# Run tests
+# Build frontend only
+pnpm run build
+
+# Run Rust tests
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+## Development Workflow
+
+1. **Implement**: Build feature by feature
+2. **Test**: Verify build and test functionality
+3. **Commit**: Commit after tests pass
+
+> Follow the cycle: Implement → Test → Commit for each feature.
 
 ## Environment Variables
 
@@ -370,6 +382,32 @@ ANTIGRAVITY_PROXY_URL=http://localhost:8080
 | 2026-01-17 | Japanese→Korean only | Optimized prompts, focused scope |
 | 2026-01-17 | Korean UI only | Primary user base, simpler maintenance |
 | 2026-01-17 | Dual API support | Flexibility between free (Gemini) and OAuth (Antigravity) |
+
+## Implementation Status
+
+### Completed (P0)
+- [x] Project setup (Tauri 2.0 + React + TypeScript + TailwindCSS + pnpm)
+- [x] Site parsers (Syosetu, Hameln, Kakuyomu, Nocturne)
+- [x] Frontend UI (3 tabs: Translation, Series, Settings)
+- [x] SQLite database with sqlx (API keys, settings, translation cache)
+- [x] Gemini API integration with paragraph-based translation
+- [x] Antigravity proxy fallback support
+- [x] Single chapter translation flow
+
+### Completed (P1)
+- [x] Translation caching (SHA256 hash-based deduplication)
+- [x] Batch translation with pause/resume/stop controls
+- [x] TXT export (single file and per-chapter)
+
+### Pending (P2)
+- [ ] EPUB export
+- [ ] Streaming translation display
+- [ ] Auto-retry on API errors
+- [ ] API key rotation
+
+### Ruby Text Handling
+- Format: `漢字(읽는법)` (parenthetical notation)
+- Consistent across all output formats (display, TXT, EPUB)
 
 ## References
 

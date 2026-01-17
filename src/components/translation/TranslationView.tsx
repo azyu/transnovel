@@ -6,8 +6,8 @@ import { useAppStore } from '../../stores/appStore';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export const TranslationView: React.FC = () => {
-  const { chapterContent, isTranslating, setIsTranslating, updateParagraphTranslation } = useAppStore();
-  const { translateText } = useTranslation();
+  const { chapterContent, isTranslating, setIsTranslating, updateAllTranslations } = useAppStore();
+  const { translateParagraphs } = useTranslation();
 
   const handleTranslateAll = async () => {
     if (!chapterContent) return;
@@ -15,18 +15,26 @@ export const TranslationView: React.FC = () => {
     setIsTranslating(true);
     
     try {
-      const paragraphsToTranslate = chapterContent.paragraphs.filter(p => !p.translated);
+      const untranslatedParagraphs = chapterContent.paragraphs
+        .filter(p => !p.translated)
+        .map(p => p.original);
       
-      for (const p of paragraphsToTranslate) {
-        if (!useAppStore.getState().isTranslating) break;
-        
-        try {
-          const translated = await translateText(p.original, 'gemini');
-          updateParagraphTranslation(p.id, translated);
-        } catch (e) {
-          console.error(`Failed to translate paragraph ${p.id}`, e);
-        }
-      }
+      if (untranslatedParagraphs.length === 0) return;
+      
+      const translated = await translateParagraphs(untranslatedParagraphs);
+      
+      const allTranslations = chapterContent.paragraphs.map((p, i) => {
+        if (p.translated) return p.translated;
+        const untranslatedIndex = chapterContent.paragraphs
+          .slice(0, i + 1)
+          .filter(pp => !pp.translated)
+          .length - 1;
+        return translated[untranslatedIndex] || '';
+      });
+      
+      updateAllTranslations(allTranslations);
+    } catch (e) {
+      console.error('Translation failed:', e);
     } finally {
       setIsTranslating(false);
     }

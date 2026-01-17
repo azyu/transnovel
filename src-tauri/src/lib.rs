@@ -5,30 +5,16 @@ mod parsers;
 mod services;
 
 use tauri::Manager;
-use tauri_plugin_sql::{Migration, MigrationKind};
-
-fn get_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create_initial_tables",
-        sql: include_str!("db/migrations/001_initial.sql"),
-        kind: MigrationKind::Up,
-    }]
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:novels.db", get_migrations())
-                .build(),
-        )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_log::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             commands::translation::translate_chapter,
             commands::translation::translate_text,
+            commands::translation::translate_paragraphs,
             commands::parser::parse_url,
             commands::parser::parse_chapter,
             commands::parser::get_chapter_content,
@@ -37,6 +23,7 @@ pub fn run() {
             commands::series::start_batch_translation,
             commands::series::pause_translation,
             commands::series::resume_translation,
+            commands::series::stop_translation,
             commands::series::get_translation_progress,
             commands::export::export_novel,
             commands::settings::get_settings,
@@ -46,6 +33,13 @@ pub fn run() {
             commands::settings::remove_api_key,
         ])
         .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = db::init_db(&handle).await {
+                    log::error!("Failed to initialize database: {}", e);
+                }
+            });
+            
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();

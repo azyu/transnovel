@@ -44,9 +44,9 @@ export const useTranslation = () => {
     }
   }, [setChapterContent, setChapterList]);
 
-  const translateText = useCallback(async (text: string, apiType: 'gemini' | 'antigravity') => {
+  const translateText = useCallback(async (text: string, note?: string) => {
     try {
-      const result = await invoke<{ translated_text: string }>('translate_text', { text, apiType });
+      const result = await invoke<{ translated_text: string }>('translate_text', { text, note });
       return result.translated_text;
     } catch (err) {
       console.error("Translation failed:", err);
@@ -54,7 +54,17 @@ export const useTranslation = () => {
     }
   }, []);
 
-  const startBatchTranslation = useCallback(async (novelId: string, site: string, start: number, end: number) => {
+  const translateParagraphs = useCallback(async (paragraphs: string[], note?: string) => {
+    try {
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs', { paragraphs, note });
+      return result.translated;
+    } catch (err) {
+      console.error("Translation failed:", err);
+      throw err;
+    }
+  }, []);
+
+  const startBatchTranslation = useCallback(async (novelId: string, site: string, start: number, end: number, baseUrl: string) => {
       try {
           setIsTranslating(true);
           await invoke('start_batch_translation', { 
@@ -62,7 +72,8 @@ export const useTranslation = () => {
                   novel_id: novelId, 
                   site, 
                   start_chapter: start, 
-                  end_chapter: end 
+                  end_chapter: end,
+                  base_url: baseUrl
               } 
           });
       } catch (err) {
@@ -70,6 +81,31 @@ export const useTranslation = () => {
           setError(String(err));
       }
   }, [setIsTranslating]);
+
+  const stopBatchTranslation = useCallback(async () => {
+      try {
+          await invoke('stop_translation');
+          setIsTranslating(false);
+      } catch (err) {
+          setError(String(err));
+      }
+  }, [setIsTranslating]);
+
+  const pauseBatchTranslation = useCallback(async () => {
+      try {
+          await invoke('pause_translation');
+      } catch (err) {
+          setError(String(err));
+      }
+  }, []);
+
+  const resumeBatchTranslation = useCallback(async () => {
+      try {
+          await invoke('resume_translation');
+      } catch (err) {
+          setError(String(err));
+      }
+  }, []);
 
   const exportNovel = useCallback(async (novelId: string, options: ExportOptions) => {
       try {
@@ -85,7 +121,11 @@ export const useTranslation = () => {
     error,
     parseChapter,
     translateText,
+    translateParagraphs,
     startBatchTranslation,
+    stopBatchTranslation,
+    pauseBatchTranslation,
+    resumeBatchTranslation,
     exportNovel
   };
 };

@@ -16,6 +16,7 @@ interface AppState {
   } | null;
   setChapterContent: (content: { site: string; novel_id: string; title: string; subtitle: string; paragraphs: Paragraph[] } | null) => void;
   updateParagraphTranslation: (id: string, text: string) => void;
+  updateAllTranslations: (translations: string[]) => void;
   isTranslating: boolean;
   setIsTranslating: (isTranslating: boolean) => void;
 
@@ -42,6 +43,15 @@ export const useAppStore = create<AppState>((set) => ({
       const newParagraphs = state.chapterContent.paragraphs.map((p) =>
         p.id === id ? { ...p, translated: text } : p
       );
+      return { chapterContent: { ...state.chapterContent, paragraphs: newParagraphs } };
+    }),
+  updateAllTranslations: (translations) =>
+    set((state) => {
+      if (!state.chapterContent) return {};
+      const newParagraphs = state.chapterContent.paragraphs.map((p, i) => ({
+        ...p,
+        translated: translations[i] || p.translated,
+      }));
       return { chapterContent: { ...state.chapterContent, paragraphs: newParagraphs } };
     }),
   isTranslating: false,

@@ -51,6 +51,9 @@ hex = "0.4"
 futures = "0.3"
 async-trait = "0.1"
 
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
