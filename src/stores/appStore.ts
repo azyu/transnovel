@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { TabType, NovelMetadata, Chapter, Paragraph, TranslationProgress } from '../types';
 
+interface ToastData {
+  message: string;
+  type: 'success' | 'error';
+  detail?: string;
+}
+
 interface AppState {
   currentTab: TabType;
   setTab: (tab: TabType) => void;
@@ -9,8 +15,9 @@ interface AppState {
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
 
-  toast: string | null;
+  toast: ToastData | null;
   showToast: (message: string) => void;
+  showError: (message: string, detail?: string) => void;
   hideToast: () => void;
 
   viewConfigVersion: number;
@@ -55,7 +62,8 @@ export const useAppStore = create<AppState>((set) => ({
   toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
 
   toast: null,
-  showToast: (message) => set({ toast: message }),
+  showToast: (message) => set({ toast: { message, type: 'success' } }),
+  showError: (message, detail) => set({ toast: { message, type: 'error', detail } }),
   hideToast: () => set({ toast: null }),
 
   viewConfigVersion: 0,

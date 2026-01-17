@@ -11,6 +11,7 @@ export const useTranslation = () => {
     setIsTranslating,
     updateParagraphTranslation,
     updateTitleTranslation,
+    showError,
   } = useAppStore();
   
   const [loading, setLoading] = useState(false);
@@ -71,7 +72,9 @@ export const useTranslation = () => {
       }
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setError(errMsg);
+      showError('챕터 파싱 실패', errMsg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -152,12 +155,14 @@ export const useTranslation = () => {
       }
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setError(errMsg);
+      showError('번역 실패', errMsg);
       console.error(err);
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation]);
+  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, showError]);
 
   const translateText = useCallback(async (novelId: string, text: string, note?: string) => {
     try {
@@ -221,9 +226,11 @@ export const useTranslation = () => {
           });
       } catch (err) {
           setIsTranslating(false);
-          setError(String(err));
+          const errMsg = String(err);
+          setError(errMsg);
+          showError('일괄 번역 실패', errMsg);
       }
-  }, [setIsTranslating]);
+  }, [setIsTranslating, showError]);
 
   const stopBatchTranslation = useCallback(async () => {
       try {
@@ -231,34 +238,42 @@ export const useTranslation = () => {
           setIsTranslating(false);
           useAppStore.getState().setBatchProgress(null);
       } catch (err) {
-          setError(String(err));
+          const errMsg = String(err);
+          setError(errMsg);
+          showError('번역 중지 실패', errMsg);
       }
-  }, [setIsTranslating]);
+  }, [setIsTranslating, showError]);
 
   const pauseBatchTranslation = useCallback(async () => {
       try {
           await invoke('pause_translation');
       } catch (err) {
-          setError(String(err));
+          const errMsg = String(err);
+          setError(errMsg);
+          showError('번역 일시정지 실패', errMsg);
       }
-  }, []);
+  }, [showError]);
 
   const resumeBatchTranslation = useCallback(async () => {
       try {
           await invoke('resume_translation');
       } catch (err) {
-          setError(String(err));
+          const errMsg = String(err);
+          setError(errMsg);
+          showError('번역 재개 실패', errMsg);
       }
-  }, []);
+  }, [showError]);
 
   const exportNovel = useCallback(async (novelId: string, options: ExportOptions) => {
       try {
           await invoke('export_novel', { request: { novel_id: novelId, options } });
       } catch (err) {
-          setError(String(err));
+          const errMsg = String(err);
+          setError(errMsg);
+          showError('내보내기 실패', errMsg);
           throw err;
       }
-  }, []);
+  }, [showError]);
 
   return {
     loading,
