@@ -68,7 +68,7 @@ export const StatusBar: React.FC = () => {
             antigravityStatus?.running ? 'bg-yellow-500' : 'bg-slate-600'
           }`}
           title={
-            !antigravityStatus?.running ? 'Antigravity 프록시 미실행' :
+            !antigravityStatus?.running ? 'Antigravity Proxy 미실행' :
             !antigravityStatus?.authenticated ? 'Antigravity 인증 필요' : 'Antigravity 연결됨'
           }
         />

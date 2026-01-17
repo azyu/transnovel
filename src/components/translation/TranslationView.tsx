@@ -84,7 +84,7 @@ export const TranslationView: React.FC = () => {
           <div>
             <p className="text-yellow-500 font-medium">API 설정 필요</p>
             <p className="text-yellow-500/80 text-sm mt-1">
-              번역을 사용하려면 설정 탭에서 Gemini API 키를 등록하거나 Antigravity 프록시를 실행해주세요.
+              번역을 사용하려면 설정 탭에서 Gemini API 키를 등록하거나 Antigravity Proxy를 실행해주세요.
             </p>
           </div>
         </div>

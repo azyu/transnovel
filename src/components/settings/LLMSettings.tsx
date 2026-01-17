@@ -274,7 +274,7 @@ export const LLMSettings = forwardRef((_, ref) => {
                 ))}
               </optgroup>
               {antigravityModels.length > 0 && (
-                <optgroup label="Antigravity 프록시">
+                <optgroup label="Antigravity Proxy">
                   {antigravityModels.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name} ({m.provider})
@@ -343,7 +343,7 @@ export const LLMSettings = forwardRef((_, ref) => {
       </div>
 
       <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-        <h3 className="text-lg font-medium text-white mb-4">Antigravity 프록시</h3>
+        <h3 className="text-lg font-medium text-white mb-4">Antigravity Proxy</h3>
         <p className="text-sm text-slate-400 mb-4">
           API 키 없이 Google OAuth로 번역할 수 있습니다. 아래 도구 중 하나를 설치하세요:
         </p>

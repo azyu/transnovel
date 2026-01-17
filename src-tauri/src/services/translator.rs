@@ -71,7 +71,7 @@ impl TranslatorService {
                 ApiClient::Antigravity(antigravity)
             } else {
                 return Err(
-                    "API 키가 설정되지 않았고, Antigravity 프록시도 실행 중이 아닙니다. 설정에서 API 키를 추가해주세요."
+                    "API 키가 설정되지 않았고, Antigravity Proxy도 실행 중이 아닙니다. 설정에서 API 키를 추가해주세요."
                         .to_string(),
                 );
             }
