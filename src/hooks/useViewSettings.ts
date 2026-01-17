@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
+export type DisplayLayout = 'sideBySide' | 'stacked';
+
 export interface ViewConfig {
   fontFamily: string;
   fontSize: string;
@@ -14,6 +16,7 @@ export interface ViewConfig {
   horizontalPadding: string;
   showOriginal: boolean;
   forceDialogueBreak: boolean;
+  displayLayout: DisplayLayout;
 }
 
 const DEFAULT_CONFIG: ViewConfig = {
@@ -29,6 +32,7 @@ const DEFAULT_CONFIG: ViewConfig = {
   horizontalPadding: '24',
   showOriginal: true,
   forceDialogueBreak: false,
+  displayLayout: 'sideBySide',
 };
 
 export function useViewSettings() {

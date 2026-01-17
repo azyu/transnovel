@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 
+type DisplayLayout = 'sideBySide' | 'stacked';
+
 interface ViewConfig {
   fontFamily: string;
   fontSize: string;
@@ -16,6 +18,7 @@ interface ViewConfig {
   horizontalPadding: string;
   showOriginal: boolean;
   forceDialogueBreak: boolean;
+  displayLayout: DisplayLayout;
 }
 
 const DEFAULT_CONFIG: ViewConfig = {
@@ -31,7 +34,13 @@ const DEFAULT_CONFIG: ViewConfig = {
   horizontalPadding: '24',
   showOriginal: true,
   forceDialogueBreak: false,
+  displayLayout: 'sideBySide',
 };
+
+const LAYOUT_OPTIONS: { value: DisplayLayout; label: string; description: string }[] = [
+  { value: 'sideBySide', label: '좌우 배치', description: '원문과 번역을 나란히 표시' },
+  { value: 'stacked', label: '상하 배치', description: '원문 아래에 번역을 표시' },
+];
 
 const COLOR_PRESETS = [
   { name: '다크 (기본)', text: '#ffffff', bg: '#0f172a' },
@@ -205,25 +214,47 @@ export const ViewSettings = forwardRef((_, ref) => {
           </div>
         </div>
 
-        <div className="border-t border-slate-700 pt-4 space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={config.showOriginal}
-              onChange={(e) => updateConfig('showOriginal', e.target.checked)}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
-            />
-            <span className="text-sm text-slate-300">원문 표시</span>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={config.forceDialogueBreak}
-              onChange={(e) => updateConfig('forceDialogueBreak', e.target.checked)}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
-            />
-            <span className="text-sm text-slate-300">대사 강제 개행</span>
-          </label>
+        <div className="border-t border-slate-700 pt-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-medium text-slate-300 mb-3">레이아웃</h3>
+            <div className="flex gap-2">
+              {LAYOUT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => updateConfig('displayLayout', option.value)}
+                  className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
+                    config.displayLayout === option.value
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-slate-600 hover:border-slate-500'
+                  }`}
+                >
+                  <span className="block text-sm font-medium text-white">{option.label}</span>
+                  <span className="block text-xs text-slate-400 mt-1">{option.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.showOriginal}
+                onChange={(e) => updateConfig('showOriginal', e.target.checked)}
+                className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+              />
+              <span className="text-sm text-slate-300">원문 표시</span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.forceDialogueBreak}
+                onChange={(e) => updateConfig('forceDialogueBreak', e.target.checked)}
+                className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+              />
+              <span className="text-sm text-slate-300">대사 강제 개행</span>
+            </label>
+          </div>
         </div>
 
         <div className="border-t border-slate-700 pt-4">
