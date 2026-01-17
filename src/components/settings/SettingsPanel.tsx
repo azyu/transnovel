@@ -3,10 +3,11 @@ import { LLMSettings } from './LLMSettings';
 import { TranslationSettings } from './TranslationSettings';
 import { ViewSettings } from './ViewSettings';
 import { AdvancedSettings } from './AdvancedSettings';
+import { AboutSettings } from './AboutSettings';
 import { Button } from '../common/Button';
 import { useAppStore } from '../../stores/appStore';
 
-type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced';
+type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced' | 'about';
 
 interface SettingsHandle {
   save: () => Promise<void>;
@@ -26,6 +27,7 @@ export const SettingsPanel: React.FC = () => {
     { id: 'translation', label: '번역' },
     { id: 'view', label: '보기' },
     { id: 'advanced', label: '고급' },
+    { id: 'about', label: '정보' },
   ];
 
   const handleSaveAll = async () => {
@@ -71,7 +73,7 @@ export const SettingsPanel: React.FC = () => {
           ))}
         </nav>
 
-        {activeTab !== 'advanced' && (
+        {activeTab !== 'advanced' && activeTab !== 'about' && (
           <Button 
             onClick={handleSaveAll} 
             isLoading={isSaving}
@@ -98,6 +100,9 @@ export const SettingsPanel: React.FC = () => {
       </div>
       <div className={activeTab === 'advanced' ? 'block' : 'hidden'}>
         <AdvancedSettings />
+      </div>
+      <div className={activeTab === 'about' ? 'block' : 'hidden'}>
+        <AboutSettings />
       </div>
     </div>
   );
