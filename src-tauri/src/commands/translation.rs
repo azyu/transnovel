@@ -32,33 +32,36 @@ pub async fn translate_chapter(
 
 #[tauri::command]
 pub async fn translate_text(
+    novel_id: String,
     text: String,
     note: Option<String>,
 ) -> Result<TranslateTextResult, String> {
     let mut translator = TranslatorService::new().await?;
-    let translated = translator.translate_text(&text, note.as_deref()).await?;
+    let translated = translator.translate_text(&novel_id, &text, note.as_deref()).await?;
     Ok(TranslateTextResult { translated_text: translated })
 }
 
 #[tauri::command]
 pub async fn translate_paragraphs(
+    novel_id: String,
     paragraphs: Vec<String>,
     note: Option<String>,
 ) -> Result<TranslateParagraphsResult, String> {
     let mut translator = TranslatorService::new().await?;
-    let translated = translator.translate_paragraphs(&paragraphs, note.as_deref()).await?;
+    let translated = translator.translate_paragraphs(&novel_id, &paragraphs, note.as_deref()).await?;
     Ok(TranslateParagraphsResult { translated })
 }
 
 #[tauri::command]
 pub async fn translate_paragraphs_streaming(
     app: AppHandle,
+    novel_id: String,
     paragraphs: Vec<String>,
     note: Option<String>,
 ) -> Result<TranslateParagraphsResult, String> {
     let mut translator = TranslatorService::new().await?;
     let translated = translator
-        .translate_paragraphs_streaming(&paragraphs, note.as_deref(), &app)
+        .translate_paragraphs_streaming(&novel_id, &paragraphs, note.as_deref(), &app)
         .await?;
     Ok(TranslateParagraphsResult { translated })
 }

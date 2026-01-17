@@ -92,7 +92,7 @@ export const TranslationView: React.FC = () => {
       )}
       
       <div className="p-6 pb-0">
-        <UrlInput />
+        <UrlInput historyKey="url_history_chapter" />
       </div>
 
       <div className="flex-1 overflow-auto p-6">
@@ -136,7 +136,7 @@ export const TranslationView: React.FC = () => {
       </div>
 
       {chapterContent && (
-        <div className={`p-4 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
+        <div className={`py-4 px-6 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
           <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating}>
             저장
           </Button>

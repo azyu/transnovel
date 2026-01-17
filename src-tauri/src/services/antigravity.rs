@@ -69,10 +69,10 @@ pub struct AntigravityClient {
 }
 
 impl AntigravityClient {
-    pub fn new(base_url: Option<String>) -> Self {
+    pub fn new(base_url: Option<String>, model: Option<String>) -> Self {
         Self {
             client: Client::new(),
-            model: "claude-sonnet-4-5-thinking".to_string(),
+            model: model.unwrap_or_else(|| "claude-sonnet-4-5-20250514".to_string()),
             base_url: base_url.unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string()),
         }
     }
@@ -157,6 +157,7 @@ impl AntigravityClient {
 
     pub async fn translate_streaming<R: tauri::Runtime>(
         &self,
+        novel_id: &str,
         paragraphs: &[String],
         original_indices: &[usize],
         system_prompt: &str,
@@ -232,7 +233,7 @@ impl AntigravityClient {
                                             if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id) {
                                                 if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
                                                     if pos < paragraphs.len() {
-                                                        let _ = cache_translation(&paragraphs[pos], &chunk.text).await;
+                                                        let _ = cache_translation(novel_id, &paragraphs[pos], &chunk.text).await;
                                                     }
                                                 }
                                             }

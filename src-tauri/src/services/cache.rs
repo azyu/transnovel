@@ -3,9 +3,9 @@ use sqlx::Row;
 
 use crate::db::get_pool;
 
-pub async fn get_cached_translation(original: &str) -> Result<Option<String>, String> {
+pub async fn get_cached_translation(novel_id: &str, original: &str) -> Result<Option<String>, String> {
     let pool = get_pool()?;
-    let hash = compute_hash(original);
+    let hash = compute_hash(novel_id, original);
     
     let row = sqlx::query(
         "SELECT translated_text FROM translation_cache WHERE text_hash = ?"
@@ -30,9 +30,9 @@ pub async fn get_cached_translation(original: &str) -> Result<Option<String>, St
     }
 }
 
-pub async fn cache_translation(original: &str, translated: &str) -> Result<(), String> {
+pub async fn cache_translation(novel_id: &str, original: &str, translated: &str) -> Result<(), String> {
     let pool = get_pool()?;
-    let hash = compute_hash(original);
+    let hash = compute_hash(novel_id, original);
     
     sqlx::query(
         "INSERT INTO translation_cache (text_hash, original_text, translated_text, hit_count, last_used_at) 
@@ -52,25 +52,27 @@ pub async fn cache_translation(original: &str, translated: &str) -> Result<(), S
     Ok(())
 }
 
-pub async fn get_cached_translations(originals: &[String]) -> Result<Vec<Option<String>>, String> {
+pub async fn get_cached_translations(novel_id: &str, originals: &[String]) -> Result<Vec<Option<String>>, String> {
     let mut results = Vec::with_capacity(originals.len());
     
     for original in originals {
-        results.push(get_cached_translation(original).await?);
+        results.push(get_cached_translation(novel_id, original).await?);
     }
     
     Ok(results)
 }
 
-pub async fn cache_translations(pairs: &[(String, String)]) -> Result<(), String> {
+pub async fn cache_translations(novel_id: &str, pairs: &[(String, String)]) -> Result<(), String> {
     for (original, translated) in pairs {
-        cache_translation(original, translated).await?;
+        cache_translation(novel_id, original, translated).await?;
     }
     Ok(())
 }
 
-fn compute_hash(text: &str) -> String {
+fn compute_hash(novel_id: &str, text: &str) -> String {
     let mut hasher = Sha256::new();
+    hasher.update(novel_id.as_bytes());
+    hasher.update(b":");
     hasher.update(text.as_bytes());
     hex::encode(hasher.finalize())
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Chapter } from '../../types';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -7,13 +7,22 @@ import { useAppStore } from '../../stores/appStore';
 interface ChapterListProps {
   chapters: Chapter[];
   onStartTranslation: (start: number, end: number) => void;
+  onChapterDoubleClick?: (chapter: Chapter) => void;
   isLoading: boolean;
 }
 
-export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTranslation, isLoading }) => {
-  const [start, setStart] = useState<number>(chapters.length > 0 ? chapters[0].number : 1);
-  const [end, setEnd] = useState<number>(chapters.length > 0 ? chapters[chapters.length - 1].number : 1);
+export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTranslation, onChapterDoubleClick, isLoading }) => {
+  const [start, setStart] = useState<number>(1);
+  const [end, setEnd] = useState<number>(1);
   const isDark = useAppStore((state) => state.theme) === 'dark';
+
+  // Sync start/end when chapters change (new series loaded)
+  useEffect(() => {
+    if (chapters.length > 0) {
+      setStart(chapters[0].number);
+      setEnd(chapters[chapters.length - 1].number);
+    }
+  }, [chapters]);
 
   const handleStart = () => {
     onStartTranslation(start, end);
@@ -58,7 +67,8 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
         <table className="w-full text-left text-sm">
           <thead className={isDark ? 'bg-slate-900/50 text-slate-400' : 'bg-slate-100 text-slate-500'}>
             <tr>
-              <th className="px-4 py-3 font-medium rounded-l-lg">번호</th>
+              <th className="px-4 py-3 font-medium rounded-l-lg w-12"></th>
+              <th className="px-4 py-3 font-medium">번호</th>
               <th className="px-4 py-3 font-medium rounded-r-lg">제목</th>
             </tr>
           </thead>
@@ -66,15 +76,19 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
             {chapters.map((chapter) => (
               <tr 
                 key={chapter.number} 
-                className={`transition-colors ${isDark ? 'hover:bg-slate-700/30' : 'hover:bg-slate-50'} ${chapter.number >= start && chapter.number <= end ? 'bg-blue-500/5' : ''}`}
+                className={`transition-colors cursor-pointer ${isDark ? 'hover:bg-slate-700/30' : 'hover:bg-slate-50'} ${chapter.number >= start && chapter.number <= end ? 'bg-blue-500/5' : ''}`}
+                onDoubleClick={() => onChapterDoubleClick?.(chapter)}
               >
+                <td className="px-4 py-3 w-12 text-center">
+                  {chapter.status === 'completed' && <span className="text-green-500">✓</span>}
+                </td>
                 <td className={`px-4 py-3 w-20 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>#{chapter.number}</td>
                 <td className={`px-4 py-3 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{chapter.title}</td>
               </tr>
             ))}
             {chapters.length === 0 && (
               <tr>
-                <td colSpan={2} className={`px-4 py-8 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <td colSpan={3} className={`px-4 py-8 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                   챕터 목록이 없습니다.
                 </td>
               </tr>

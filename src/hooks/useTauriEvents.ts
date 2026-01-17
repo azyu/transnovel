@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/appStore';
 import type { TranslationProgress } from '../types';
 
 export const useTauriEvents = () => {
-  const { setBatchProgress, updateBatchProgress, setIsTranslating } = useAppStore();
+  const { setBatchProgress, updateBatchProgress, setIsTranslating, updateChapterStatus } = useAppStore();
 
   useEffect(() => {
     const unlistenProgress = listen<TranslationProgress>('translation-progress', (event) => {
@@ -21,10 +21,15 @@ export const useTauriEvents = () => {
        updateBatchProgress({ status: 'error', error_message: event.payload.error });
     });
 
+    const unlistenChapterCompleted = listen<{ chapter: number; novel_id: string }>('chapter-completed', (event) => {
+      updateChapterStatus(event.payload.chapter, 'completed');
+    });
+
     return () => {
       unlistenProgress.then((f) => f());
       unlistenComplete.then((f) => f());
       unlistenError.then((f) => f());
+      unlistenChapterCompleted.then((f) => f());
     };
-  }, [setBatchProgress, updateBatchProgress, setIsTranslating]);
+  }, [setBatchProgress, updateBatchProgress, setIsTranslating, updateChapterStatus]);
 };

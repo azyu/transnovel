@@ -5,6 +5,7 @@ use crate::models::translation::TranslationResult;
 use crate::services::antigravity::{AntigravityClient, TranslationChunk};
 use crate::services::cache::{cache_translations, get_cached_translations};
 use crate::services::gemini::GeminiClient;
+use crate::services::openrouter::OpenRouterClient;
 use crate::services::substitution::SubstitutionService;
 
 fn encode_paragraph_id(n: usize) -> String {
@@ -49,6 +50,7 @@ const DEFAULT_SYSTEM_PROMPT: &str = r#"<|im_start|>system
 
 pub enum ApiClient {
     Gemini(GeminiClient),
+    OpenRouter(OpenRouterClient),
     Antigravity(AntigravityClient),
 }
 
@@ -59,63 +61,70 @@ pub struct TranslatorService {
     substitution: SubstitutionService,
 }
 
+struct TranslatorSettings {
+    system_prompt: String,
+    translation_note: String,
+    substitutions: String,
+    active_provider: String,
+    gemini_model: Option<String>,
+    openrouter_model: Option<String>,
+    antigravity_model: Option<String>,
+    antigravity_url: Option<String>,
+}
+
 impl TranslatorService {
     pub async fn new() -> Result<Self, String> {
-        let gemini_key = get_active_api_key("gemini").await?;
-        
-        let (system_prompt, translation_note, substitutions, antigravity_url) = Self::load_settings().await;
+        let settings = Self::load_settings().await;
 
-        let client = if let Some(key) = gemini_key {
-            ApiClient::Gemini(GeminiClient::new(vec![key]))
-        } else {
-            let antigravity = AntigravityClient::new(antigravity_url);
-            if antigravity.check_health().await {
-                ApiClient::Antigravity(antigravity)
-            } else {
-                return Err(
-                    "API 키가 설정되지 않았고, Antigravity Proxy도 실행 중이 아닙니다. 설정에서 API 키를 추가해주세요."
-                        .to_string(),
-                );
+        let client = match settings.active_provider.as_str() {
+            "gemini" => {
+                let key = get_active_api_key("gemini").await?
+                    .ok_or("Gemini API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
+                ApiClient::Gemini(GeminiClient::new(vec![key], settings.gemini_model.clone()))
+            }
+            "openrouter" => {
+                let key = get_active_api_key("openrouter").await?
+                    .ok_or("OpenRouter API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
+                ApiClient::OpenRouter(OpenRouterClient::new(key, settings.openrouter_model.clone()))
+            }
+            "antigravity" => {
+                let antigravity = AntigravityClient::new(settings.antigravity_url.clone(), settings.antigravity_model.clone());
+                if antigravity.check_health().await {
+                    ApiClient::Antigravity(antigravity)
+                } else {
+                    return Err("Antigravity Proxy가 실행 중이 아니거나 인증되지 않았습니다.".to_string());
+                }
+            }
+            _ => {
+                return Err("사용할 API가 설정되지 않았습니다. 설정에서 API를 선택해주세요.".to_string());
             }
         };
 
         Ok(Self {
             client,
-            system_prompt,
-            translation_note,
-            substitution: SubstitutionService::from_config(&substitutions),
+            system_prompt: settings.system_prompt,
+            translation_note: settings.translation_note,
+            substitution: SubstitutionService::from_config(&settings.substitutions),
         })
     }
 
-    async fn load_settings() -> (String, String, String, Option<String>) {
+    async fn load_settings() -> TranslatorSettings {
         let settings = get_settings().await.unwrap_or_default();
-        
-        let system_prompt = settings
-            .iter()
-            .find(|s| s.key == "system_prompt")
-            .map(|s| s.value.clone())
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());
-        
-        let translation_note = settings
-            .iter()
-            .find(|s| s.key == "translation_note")
-            .map(|s| s.value.clone())
-            .unwrap_or_default();
-        
-        let substitutions = settings
-            .iter()
-            .find(|s| s.key == "substitutions")
-            .map(|s| s.value.clone())
-            .unwrap_or_default();
 
-        let antigravity_url = settings
-            .iter()
-            .find(|s| s.key == "antigravity_proxy_url")
-            .map(|s| s.value.clone())
-            .filter(|v| !v.is_empty());
-
-        (system_prompt, translation_note, substitutions, antigravity_url)
+        let get_setting = |key: &str| -> Option<String> {
+            settings.iter().find(|s| s.key == key).map(|s| s.value.clone()).filter(|v| !v.is_empty())
+        };
+        
+        TranslatorSettings {
+            system_prompt: get_setting("system_prompt").unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string()),
+            translation_note: get_setting("translation_note").unwrap_or_default(),
+            substitutions: get_setting("substitutions").unwrap_or_default(),
+            active_provider: get_setting("active_provider").unwrap_or_else(|| "gemini".to_string()),
+            gemini_model: get_setting("gemini_model"),
+            openrouter_model: get_setting("openrouter_model"),
+            antigravity_model: get_setting("antigravity_model"),
+            antigravity_url: get_setting("antigravity_proxy_url"),
+        }
     }
 
     fn build_prompt(&self) -> String {
@@ -124,14 +133,14 @@ impl TranslatorService {
         prompt
     }
 
-    pub async fn translate_paragraphs(&mut self, paragraphs: &[String], note: Option<&str>) -> Result<Vec<String>, String> {
+    pub async fn translate_paragraphs(&mut self, novel_id: &str, paragraphs: &[String], note: Option<&str>) -> Result<Vec<String>, String> {
         if paragraphs.is_empty() {
             return Ok(vec![]);
         }
 
         let preprocessed: Vec<String> = self.substitution.apply_to_paragraphs(paragraphs);
 
-        let cached = get_cached_translations(&preprocessed).await.unwrap_or_else(|_| vec![None; preprocessed.len()]);
+        let cached = get_cached_translations(novel_id, &preprocessed).await.unwrap_or_else(|_| vec![None; preprocessed.len()]);
         
         let mut uncached_indices: Vec<usize> = Vec::new();
         let mut uncached_paragraphs: Vec<String> = Vec::new();
@@ -156,6 +165,7 @@ impl TranslatorService {
 
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &prompt).await?,
+                ApiClient::OpenRouter(client) => client.translate(&uncached_paragraphs, &prompt).await?,
                 ApiClient::Antigravity(client) => client.translate(&uncached_paragraphs, &prompt).await?,
             };
             
@@ -167,7 +177,7 @@ impl TranslatorService {
                 pairs.push((uncached_paragraphs[uncached_indices.iter().position(|x| x == i).unwrap()].clone(), trans.clone()));
             }
             
-            cache_translations(&pairs).await.ok();
+            cache_translations(novel_id, &pairs).await.ok();
         }
         
         let final_results: Vec<String> = self.substitution.apply_to_paragraphs(&results);
@@ -175,7 +185,7 @@ impl TranslatorService {
         Ok(final_results)
     }
 
-    pub async fn translate_text(&mut self, text: &str, note: Option<&str>) -> Result<String, String> {
+    pub async fn translate_text(&mut self, novel_id: &str, text: &str, note: Option<&str>) -> Result<String, String> {
         let paragraphs: Vec<String> = text
             .lines()
             .filter(|line| !line.trim().is_empty())
@@ -186,12 +196,13 @@ impl TranslatorService {
             return Ok(String::new());
         }
 
-        let translated = self.translate_paragraphs(&paragraphs, note).await?;
+        let translated = self.translate_paragraphs(novel_id, &paragraphs, note).await?;
         Ok(translated.join("\n"))
     }
 
     pub async fn translate_paragraphs_streaming<R: tauri::Runtime>(
         &mut self,
+        novel_id: &str,
         paragraphs: &[String],
         note: Option<&str>,
         app_handle: &AppHandle<R>,
@@ -202,7 +213,7 @@ impl TranslatorService {
 
         let preprocessed: Vec<String> = self.substitution.apply_to_paragraphs(paragraphs);
 
-        let cached = get_cached_translations(&preprocessed)
+        let cached = get_cached_translations(novel_id, &preprocessed)
             .await
             .unwrap_or_else(|_| vec![None; preprocessed.len()]);
 
@@ -247,12 +258,17 @@ impl TranslatorService {
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => {
                     client
-                        .translate_streaming(&uncached_paragraphs, &uncached_indices, &prompt, app_handle)
+                        .translate_streaming(novel_id, &uncached_paragraphs, &uncached_indices, &prompt, app_handle)
+                        .await?
+                }
+                ApiClient::OpenRouter(client) => {
+                    client
+                        .translate_streaming(novel_id, &uncached_paragraphs, &uncached_indices, &prompt, app_handle)
                         .await?
                 }
                 ApiClient::Antigravity(client) => {
                     client
-                        .translate_streaming(&uncached_paragraphs, &uncached_indices, &prompt, app_handle)
+                        .translate_streaming(novel_id, &uncached_paragraphs, &uncached_indices, &prompt, app_handle)
                         .await?
                 }
             };
@@ -269,7 +285,7 @@ impl TranslatorService {
                 ));
             }
 
-            cache_translations(&pairs).await.ok();
+            cache_translations(novel_id, &pairs).await.ok();
         } else {
             let _ = app_handle.emit("translation-complete", true);
         }

@@ -1,7 +1,6 @@
 import React from 'react';
 import type { Paragraph } from '../../types';
 import { useViewSettings } from '../../hooks/useViewSettings';
-import { useAppStore } from '../../stores/appStore';
 
 interface ParagraphListProps {
   paragraphs: Paragraph[];
@@ -10,7 +9,6 @@ interface ParagraphListProps {
 export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
   const { config, getStyles } = useViewSettings();
   const styles = getStyles();
-  const isDark = useAppStore((state) => state.theme) === 'dark';
 
   const isStacked = config.displayLayout === 'stacked';
 
@@ -22,19 +20,25 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
         fontSize: styles.container.fontSize,
         fontWeight: styles.container.fontWeight,
         lineHeight: styles.container.lineHeight,
+        backgroundColor: config.backgroundColor,
+        color: config.textColor,
+        padding: styles.container.padding,
       }}
     >
       {paragraphs.map((p) => (
         <div 
           key={p.id} 
-          className={`group p-4 rounded-lg transition-colors border border-transparent ${isDark ? 'hover:bg-slate-800/50 hover:border-slate-700/50' : 'hover:bg-slate-100/50 hover:border-slate-200'}`}
+          className="group p-4 rounded-lg transition-colors"
           style={{ marginBottom: styles.paragraph.marginBottom }}
         >
           {isStacked ? (
             <div className="space-y-2">
               {config.showOriginal && (
                 <div className="relative">
-                  <div className="absolute -left-3 top-0 text-[10px] font-mono text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div 
+                    className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
+                    style={{ color: config.textColor }}
+                  >
                     {p.id}
                   </div>
                   <div 
@@ -63,7 +67,10 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
                     }
                   </div>
                 ) : (
-                  <div className={`text-sm italic opacity-20 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                  <div 
+                    className="text-sm italic opacity-30"
+                    style={{ color: config.textColor }}
+                  >
                     번역 대기 중...
                   </div>
                 )}
@@ -73,7 +80,10 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
               {config.showOriginal && (
                 <div className="relative">
-                  <div className="absolute -left-3 top-0 text-[10px] font-mono text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div 
+                    className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
+                    style={{ color: config.textColor }}
+                  >
                     {p.id}
                   </div>
                   <div 
@@ -103,7 +113,10 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
                     }
                   </div>
                 ) : (
-                  <div className={`text-sm italic opacity-20 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                  <div 
+                    className="text-sm italic opacity-30"
+                    style={{ color: config.textColor }}
+                  >
                     번역 대기 중...
                   </div>
                 )}

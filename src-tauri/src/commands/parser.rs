@@ -55,14 +55,32 @@ pub async fn parse_chapter(url: String) -> Result<ParseChapterResult, String> {
     let parsed = ParsedUrl::from_url(&url).ok_or("지원하지 않는 URL 형식입니다.")?;
     let parser = get_parser_for_url(&url).ok_or("지원하지 않는 사이트입니다.")?;
     
-    let content = parser.get_chapter(&url).await?;
+    let (actual_url, chapter_number) = if parsed.chapter.is_none() {
+        let series_info = parser.get_series_info(&url).await.ok();
+        
+        if let Some(info) = series_info {
+            if !info.chapters.is_empty() {
+                let first_chapter_url = &info.chapters[0].url;
+                (first_chapter_url.clone(), 1u32)
+            } else {
+                (url.clone(), 1u32)
+            }
+        } else {
+            (url.clone(), 1u32)
+        }
+    } else {
+        (url.clone(), parsed.chapter.unwrap())
+    };
+    
+    let actual_parsed = ParsedUrl::from_url(&actual_url).unwrap_or(parsed);
+    let content = parser.get_chapter(&actual_url).await?;
     
     let paragraphs = extract_paragraphs(&content.content);
     
     Ok(ParseChapterResult {
-        site: parsed.site,
-        novel_id: parsed.novel_id,
-        chapter_number: parsed.chapter.unwrap_or(1),
+        site: actual_parsed.site,
+        novel_id: actual_parsed.novel_id,
+        chapter_number,
         title: content.title.unwrap_or_default(),
         subtitle: content.subtitle.unwrap_or_default(),
         paragraphs,

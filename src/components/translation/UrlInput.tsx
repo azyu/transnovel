@@ -1,28 +1,39 @@
 import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAppStore } from '../../stores/appStore';
 
-const URL_HISTORY_KEY = 'url_history';
+const SUPPORTED_SITES = [
+  { name: 'syosetu.com', url: 'https://syosetu.com' },
+  { name: 'novel18.syosetu.com', url: 'https://novel18.syosetu.com' },
+  { name: 'syosetu.org (Hameln)', url: 'https://syosetu.org' },
+  { name: 'kakuyomu.jp', url: 'https://kakuyomu.jp' },
+];
+
 const MAX_HISTORY = 5;
 
-const getUrlHistory = (): string[] => {
+const getUrlHistory = (key: string): string[] => {
   try {
-    const stored = localStorage.getItem(URL_HISTORY_KEY);
+    const stored = localStorage.getItem(key);
     return stored ? JSON.parse(stored) : [];
   } catch {
     return [];
   }
 };
 
-const saveUrlHistory = (url: string) => {
-  const history = getUrlHistory().filter(u => u !== url);
+const saveUrlHistory = (key: string, url: string) => {
+  const history = getUrlHistory(key).filter(u => u !== url);
   history.unshift(url);
-  localStorage.setItem(URL_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+  localStorage.setItem(key, JSON.stringify(history.slice(0, MAX_HISTORY)));
 };
 
-export const UrlInput: React.FC = () => {
+interface UrlInputProps {
+  historyKey?: string;
+}
+
+export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history' }) => {
   const { currentUrl, setUrl, isTranslating, theme } = useAppStore();
   const { parseAndTranslate, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
@@ -32,8 +43,8 @@ export const UrlInput: React.FC = () => {
   const isDark = theme === 'dark';
 
   useEffect(() => {
-    setHistory(getUrlHistory());
-  }, []);
+    setHistory(getUrlHistory(historyKey));
+  }, [historyKey]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -49,8 +60,8 @@ export const UrlInput: React.FC = () => {
     e.preventDefault();
     if (!localUrl || isTranslating) return;
     setShowDropdown(false);
-    saveUrlHistory(localUrl);
-    setHistory(getUrlHistory());
+    saveUrlHistory(historyKey, localUrl);
+    setHistory(getUrlHistory(historyKey));
     setUrl(localUrl);
     await parseAndTranslate(localUrl);
   };
@@ -93,11 +104,18 @@ export const UrlInput: React.FC = () => {
       </form>
       <div className={`mt-3 text-xs flex gap-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
         <span>지원 사이트:</span>
-        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>syosetu.com</span>
-        <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>
-        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>syosetu.org (Hameln)</span>
-        <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>
-        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>kakuyomu.jp</span>
+        {SUPPORTED_SITES.map((site, idx) => (
+          <span key={site.name} className="flex items-center gap-2">
+            {idx > 0 && <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>}
+            <button
+              type="button"
+              onClick={() => invoke('open_url', { url: site.url })}
+              className={`hover:underline cursor-pointer ${isDark ? 'text-slate-400 hover:text-blue-400' : 'text-slate-500 hover:text-blue-500'}`}
+            >
+              {site.name}
+            </button>
+          </span>
+        ))}
       </div>
     </div>
   );

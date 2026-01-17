@@ -192,6 +192,12 @@ pub async fn open_antigravity_auth(url: Option<String>) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn open_url(url: String) -> Result<(), String> {
+    open::that(&url).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize)]
 pub struct GeminiModel {
     pub name: String,
@@ -363,6 +369,88 @@ fn format_model_name(id: &str) -> String {
         .collect();
     
     words.join(" ")
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenRouterModel {
+    pub id: String,
+    pub name: String,
+    pub context_length: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterModelsResponse {
+    data: Option<Vec<OpenRouterModelInfo>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterModelInfo {
+    id: String,
+    name: Option<String>,
+    context_length: Option<u32>,
+}
+
+#[tauri::command]
+pub async fn fetch_openrouter_models(api_key: String) -> Result<Vec<OpenRouterModel>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get("https://openrouter.ai/api/v1/models")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("API 요청 실패: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("API 오류: {}", error_text));
+    }
+
+    let models_response: OpenRouterModelsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+    let mut models: Vec<OpenRouterModel> = models_response
+        .data
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|m| {
+            let id = m.id.to_lowercase();
+            (id.contains("claude") || id.contains("gpt") || id.contains("gemini") || 
+             id.contains("llama") || id.contains("deepseek") || id.contains("mistral") ||
+             id.contains("qwen"))
+            && !id.contains("free")
+            && !id.contains(":extended")
+        })
+        .map(|m| OpenRouterModel {
+            id: m.id.clone(),
+            name: m.name.unwrap_or_else(|| format_model_name(&m.id)),
+            context_length: m.context_length.unwrap_or(0),
+        })
+        .collect();
+
+    models.sort_by(|a, b| {
+        let score_a = get_openrouter_model_score(&a.id);
+        let score_b = get_openrouter_model_score(&b.id);
+        score_b.cmp(&score_a)
+    });
+
+    Ok(models)
+}
+
+fn get_openrouter_model_score(id: &str) -> i32 {
+    let mut score = 0;
+    if id.contains("claude") { score += 100; }
+    if id.contains("sonnet-4") { score += 50; }
+    if id.contains("gpt-4o") { score += 80; }
+    if id.contains("gemini-2") { score += 70; }
+    if id.contains("deepseek") { score += 60; }
+    if id.contains("llama") { score += 40; }
+    score
 }
 
 #[derive(Debug, Serialize)]

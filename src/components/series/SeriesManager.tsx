@@ -6,10 +6,11 @@ import { ChapterList } from './ChapterList';
 import { ProgressBar } from './ProgressBar';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
+import type { Chapter } from '../../types';
 
 export const SeriesManager: React.FC = () => {
-  const { chapterList, batchProgress, isTranslating, currentUrl, theme } = useAppStore();
-  const { startBatchTranslation, stopBatchTranslation, pauseBatchTranslation, resumeBatchTranslation, exportNovel } = useTranslation();
+  const { chapterList, batchProgress, isTranslating, currentUrl, theme, setTab, setUrl } = useAppStore();
+  const { startBatchTranslation, stopBatchTranslation, pauseBatchTranslation, resumeBatchTranslation, exportNovel, parseAndTranslate } = useTranslation();
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'TxtSingle' | 'TxtChapters' | 'Epub'>('TxtSingle');
   const [exporting, setExporting] = useState(false);
@@ -42,6 +43,13 @@ export const SeriesManager: React.FC = () => {
     setIsPaused(false);
   };
 
+  const handleChapterDoubleClick = async (chapter: Chapter) => {
+    if (isTranslating) return;
+    setUrl(chapter.url);
+    setTab('translation');
+    await parseAndTranslate(chapter.url);
+  };
+
   const handleExport = async () => {
     const content = useAppStore.getState().chapterContent;
     if (!content) return;
@@ -64,7 +72,7 @@ export const SeriesManager: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8 pb-20">
-      <UrlInput />
+      <UrlInput historyKey="url_history_series" />
 
       {batchProgress && (
         <div className="space-y-4">
@@ -100,6 +108,7 @@ export const SeriesManager: React.FC = () => {
           <ChapterList 
             chapters={chapterList} 
             onStartTranslation={handleStart} 
+            onChapterDoubleClick={handleChapterDoubleClick}
             isLoading={isTranslating} 
           />
 

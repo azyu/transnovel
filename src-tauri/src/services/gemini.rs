@@ -86,12 +86,12 @@ pub struct GeminiClient {
 }
 
 impl GeminiClient {
-    pub fn new(api_keys: Vec<String>) -> Self {
+    pub fn new(api_keys: Vec<String>, model: Option<String>) -> Self {
         Self {
             client: Client::new(),
             api_keys,
             current_key_index: 0,
-            model: "gemini-2.5-flash-preview-05-20".to_string(),
+            model: model.unwrap_or_else(|| "gemini-2.5-flash-preview-05-20".to_string()),
         }
     }
 
@@ -193,6 +193,7 @@ impl GeminiClient {
 
     pub async fn translate_streaming<R: tauri::Runtime>(
         &mut self,
+        novel_id: &str,
         paragraphs: &[String],
         original_indices: &[usize],
         system_prompt: &str,
@@ -262,7 +263,7 @@ impl GeminiClient {
                                     if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id) {
                                         if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
                                             if pos < paragraphs.len() {
-                                                let _ = cache_translation(&paragraphs[pos], &chunk.text).await;
+                                                let _ = cache_translation(novel_id, &paragraphs[pos], &chunk.text).await;
                                             }
                                         }
                                     }

@@ -114,6 +114,7 @@ export const useTranslation = () => {
         if (content.subtitle) titlesToTranslate.push(content.subtitle);
         
         const result = await invoke<{ translated: string[] }>('translate_paragraphs', {
+          novel_id: content.novel_id,
           paragraphs: titlesToTranslate,
         });
         
@@ -125,7 +126,6 @@ export const useTranslation = () => {
         console.error('Failed to translate title:', e);
       }
 
-      // Then translate body with streaming
       const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
         const idx = decodeParagraphId(event.payload.paragraph_id);
         if (idx !== null) {
@@ -141,6 +141,7 @@ export const useTranslation = () => {
 
       try {
         await invoke('translate_paragraphs_streaming', { 
+          novel_id: content.novel_id,
           paragraphs: content.paragraphs 
         });
       } catch (err) {
@@ -158,9 +159,9 @@ export const useTranslation = () => {
     }
   }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation]);
 
-  const translateText = useCallback(async (text: string, note?: string) => {
+  const translateText = useCallback(async (novelId: string, text: string, note?: string) => {
     try {
-      const result = await invoke<{ translated_text: string }>('translate_text', { text, note });
+      const result = await invoke<{ translated_text: string }>('translate_text', { novel_id: novelId, text, note });
       return result.translated_text;
     } catch (err) {
       console.error("Translation failed:", err);
@@ -168,9 +169,9 @@ export const useTranslation = () => {
     }
   }, []);
 
-  const translateParagraphs = useCallback(async (paragraphs: string[], note?: string) => {
+  const translateParagraphs = useCallback(async (novelId: string, paragraphs: string[], note?: string) => {
     try {
-      const result = await invoke<{ translated: string[] }>('translate_paragraphs', { paragraphs, note });
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs', { novel_id: novelId, paragraphs, note });
       return result.translated;
     } catch (err) {
       console.error("Translation failed:", err);
@@ -179,6 +180,7 @@ export const useTranslation = () => {
   }, []);
 
   const translateParagraphsStreaming = useCallback(async (
+    novelId: string,
     paragraphs: string[],
     onChunk: (chunk: TranslationChunk) => void,
     onComplete: () => void,
@@ -195,7 +197,7 @@ export const useTranslation = () => {
     });
     
     try {
-      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { paragraphs, note });
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { novel_id: novelId, paragraphs, note });
       return result.translated;
     } catch (err) {
       unlistenChunk();
@@ -227,6 +229,7 @@ export const useTranslation = () => {
       try {
           await invoke('stop_translation');
           setIsTranslating(false);
+          useAppStore.getState().setBatchProgress(null);
       } catch (err) {
           setError(String(err));
       }

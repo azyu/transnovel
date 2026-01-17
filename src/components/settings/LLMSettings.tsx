@@ -7,6 +7,8 @@ import type { ApiKey } from '../../types';
 
 const DEFAULT_PROXY_URL = 'http://127.0.0.1:8045';
 
+type Provider = 'gemini' | 'openrouter' | 'antigravity';
+
 interface AntigravityStatus {
   running: boolean;
   authenticated: boolean;
@@ -27,6 +29,12 @@ interface AntigravityModel {
   provider: string;
 }
 
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  context_length: number;
+}
+
 const FALLBACK_GEMINI_MODELS: GeminiModel[] = [
   { name: 'gemini-2.5-flash-preview-05-20', display_name: 'Gemini 2.5 Flash Preview', description: '', input_token_limit: 1048576, output_token_limit: 65536 },
   { name: 'gemini-2.5-pro-preview-05-06', display_name: 'Gemini 2.5 Pro Preview', description: '', input_token_limit: 1048576, output_token_limit: 65536 },
@@ -36,24 +44,38 @@ const FALLBACK_ANTIGRAVITY_MODELS: AntigravityModel[] = [
   { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5', provider: 'anthropic' },
 ];
 
+const FALLBACK_OPENROUTER_MODELS: OpenRouterModel[] = [
+  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', context_length: 200000 },
+  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', context_length: 200000 },
+  { id: 'openai/gpt-4o', name: 'GPT-4o', context_length: 128000 },
+  { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash', context_length: 1000000 },
+];
+
 export const LLMSettings = forwardRef((_, ref) => {
   const { theme } = useAppStore();
   const isDark = theme === 'dark';
   
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [newKey, setNewKey] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<Provider>('gemini');
+  
+  const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash-preview-05-20');
+  const [geminiModels, setGeminiModels] = useState<GeminiModel[]>(FALLBACK_GEMINI_MODELS);
+  const [loadingGeminiModels, setLoadingGeminiModels] = useState(false);
+  const [newGeminiKey, setNewGeminiKey] = useState('');
+  const [addingGeminiKey, setAddingGeminiKey] = useState(false);
+  
+  const [openrouterModel, setOpenrouterModel] = useState('anthropic/claude-sonnet-4');
+  const [openrouterModels, setOpenrouterModels] = useState<OpenRouterModel[]>(FALLBACK_OPENROUTER_MODELS);
+  const [loadingOpenrouterModels, setLoadingOpenrouterModels] = useState(false);
+  const [openrouterKey, setOpenrouterKey] = useState('');
+  const [savingOpenrouter, setSavingOpenrouter] = useState(false);
+  
+  const [antigravityModel, setAntigravityModel] = useState('claude-sonnet-4-5-20250514');
+  const [antigravityModels, setAntigravityModels] = useState<AntigravityModel[]>(FALLBACK_ANTIGRAVITY_MODELS);
+  const [loadingAntigravityModels, setLoadingAntigravityModels] = useState(false);
   const [antigravityStatus, setAntigravityStatus] = useState<AntigravityStatus | null>(null);
   const [checkingAntigravity, setCheckingAntigravity] = useState(false);
-  const [model, setModel] = useState('gemini-2.5-flash-preview-05-20');
   const [proxyUrl, setProxyUrl] = useState(DEFAULT_PROXY_URL);
-  
-  const [geminiModels, setGeminiModels] = useState<GeminiModel[]>(FALLBACK_GEMINI_MODELS);
-  const [antigravityModels, setAntigravityModels] = useState<AntigravityModel[]>(FALLBACK_ANTIGRAVITY_MODELS);
-  const [loadingGeminiModels, setLoadingGeminiModels] = useState(false);
-  const [loadingAntigravityModels, setLoadingAntigravityModels] = useState(false);
-  const [geminiModelsError, setGeminiModelsError] = useState<string | null>(null);
-  const [antigravityModelsError, setAntigravityModelsError] = useState<string | null>(null);
 
   useImperativeHandle(ref, () => ({
     save: handleSaveAll
@@ -72,7 +94,6 @@ export const LLMSettings = forwardRef((_, ref) => {
 
   const fetchGeminiModels = useCallback(async (apiKey: string) => {
     setLoadingGeminiModels(true);
-    setGeminiModelsError(null);
     try {
       const models = await invoke<GeminiModel[]>('fetch_gemini_models', { apiKey });
       if (models.length > 0) {
@@ -81,7 +102,6 @@ export const LLMSettings = forwardRef((_, ref) => {
       }
     } catch (error) {
       console.error('Failed to fetch Gemini models:', error);
-      setGeminiModelsError('모델 목록을 가져오지 못했습니다');
       setGeminiModels(FALLBACK_GEMINI_MODELS);
     } finally {
       setLoadingGeminiModels(false);
@@ -90,7 +110,6 @@ export const LLMSettings = forwardRef((_, ref) => {
 
   const fetchAntigravityModels = useCallback(async (url?: string) => {
     setLoadingAntigravityModels(true);
-    setAntigravityModelsError(null);
     try {
       const models = await invoke<AntigravityModel[]>('fetch_antigravity_models', { url: url || proxyUrl });
       if (models.length > 0) {
@@ -102,12 +121,26 @@ export const LLMSettings = forwardRef((_, ref) => {
       }
     } catch (error) {
       console.error('Failed to fetch Antigravity models:', error);
-      setAntigravityModelsError('프록시 모델 목록을 가져오지 못했습니다');
       setAntigravityModels(FALLBACK_ANTIGRAVITY_MODELS);
     } finally {
       setLoadingAntigravityModels(false);
     }
   }, [proxyUrl]);
+
+  const fetchOpenrouterModels = useCallback(async (apiKey: string) => {
+    setLoadingOpenrouterModels(true);
+    try {
+      const models = await invoke<OpenRouterModel[]>('fetch_openrouter_models', { apiKey });
+      if (models.length > 0) {
+        setOpenrouterModels(models);
+      }
+    } catch (error) {
+      console.error('Failed to fetch OpenRouter models:', error);
+      setOpenrouterModels(FALLBACK_OPENROUTER_MODELS);
+    } finally {
+      setLoadingOpenrouterModels(false);
+    }
+  }, []);
 
   const getModelScore = (name: string): number => {
     let score = 0;
@@ -150,13 +183,23 @@ export const LLMSettings = forwardRef((_, ref) => {
   const loadSettings = async () => {
     try {
       const settings = await invoke<{ key: string; value: string }[]>('get_settings');
-      const modelSetting = settings.find(s => s.key === 'selected_model');
-      if (modelSetting) setModel(modelSetting.value);
+      
+      const activeProviderSetting = settings.find(s => s.key === 'active_provider');
+      if (activeProviderSetting && ['gemini', 'openrouter', 'antigravity'].includes(activeProviderSetting.value)) {
+        setActiveProvider(activeProviderSetting.value as Provider);
+      }
+      
+      const geminiModelSetting = settings.find(s => s.key === 'gemini_model');
+      if (geminiModelSetting?.value) setGeminiModel(geminiModelSetting.value);
+      
+      const openrouterModelSetting = settings.find(s => s.key === 'openrouter_model');
+      if (openrouterModelSetting?.value) setOpenrouterModel(openrouterModelSetting.value);
+      
+      const antigravityModelSetting = settings.find(s => s.key === 'antigravity_model');
+      if (antigravityModelSetting?.value) setAntigravityModel(antigravityModelSetting.value);
       
       const proxyUrlSetting = settings.find(s => s.key === 'antigravity_proxy_url');
-      if (proxyUrlSetting && proxyUrlSetting.value) {
-        setProxyUrl(proxyUrlSetting.value);
-      }
+      if (proxyUrlSetting?.value) setProxyUrl(proxyUrlSetting.value);
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -172,28 +215,32 @@ export const LLMSettings = forwardRef((_, ref) => {
       if (geminiKey) {
         fetchGeminiModels(geminiKey.api_key);
       }
+
+      const openrouterApiKey = fetchedKeys.find(k => k.key_type === 'openrouter');
+      if (openrouterApiKey) {
+        setOpenrouterKey(openrouterApiKey.api_key);
+        fetchOpenrouterModels(openrouterApiKey.api_key);
+      }
     };
     init();
-  }, [fetchGeminiModels]);
+  }, [fetchGeminiModels, fetchOpenrouterModels]);
 
-  const handleAddKey = async () => {
-    if (!newKey.trim()) return;
-    setIsLoading(true);
+  const handleAddGeminiKey = async () => {
+    if (!newGeminiKey.trim()) return;
+    setAddingGeminiKey(true);
     try {
-      await invoke('add_api_key', { keyType: 'gemini', apiKey: newKey });
-      setNewKey('');
+      await invoke('add_api_key', { keyType: 'gemini', apiKey: newGeminiKey });
+      setNewGeminiKey('');
       const updatedKeys = await fetchKeys();
       
-      if (geminiModels === FALLBACK_GEMINI_MODELS || geminiModels.length === FALLBACK_GEMINI_MODELS.length) {
-        const geminiKey = updatedKeys.find(k => k.key_type === 'gemini');
-        if (geminiKey) {
-          fetchGeminiModels(geminiKey.api_key);
-        }
+      const geminiKey = updatedKeys.find(k => k.key_type === 'gemini');
+      if (geminiKey) {
+        fetchGeminiModels(geminiKey.api_key);
       }
     } catch (error) {
       console.error('Failed to add API key:', error);
     } finally {
-      setIsLoading(false);
+      setAddingGeminiKey(false);
     }
   };
 
@@ -210,12 +257,45 @@ export const LLMSettings = forwardRef((_, ref) => {
   const handleSaveAll = async () => {
     try {
       await Promise.all([
-        invoke('set_setting', { key: 'selected_model', value: model }),
+        invoke('set_setting', { key: 'active_provider', value: activeProvider }),
+        invoke('set_setting', { key: 'gemini_model', value: geminiModel }),
+        invoke('set_setting', { key: 'openrouter_model', value: openrouterModel }),
+        invoke('set_setting', { key: 'antigravity_model', value: antigravityModel }),
         invoke('set_setting', { key: 'antigravity_proxy_url', value: proxyUrl }),
       ]);
     } catch (error) {
       console.error('Failed to save settings:', error);
     }
+  };
+
+  const handleAddOpenrouterKey = async () => {
+    if (!openrouterKey.trim()) return;
+    setSavingOpenrouter(true);
+    try {
+      const existingKey = keys.find(k => k.key_type === 'openrouter');
+      if (existingKey) {
+        await invoke('remove_api_key', { id: existingKey.id });
+      }
+      await invoke('add_api_key', { keyType: 'openrouter', apiKey: openrouterKey });
+      await fetchKeys();
+    } catch (error) {
+      console.error('Failed to save OpenRouter key:', error);
+    } finally {
+      setSavingOpenrouter(false);
+    }
+  };
+
+  const handleRemoveOpenrouterKey = async () => {
+    const existingKey = keys.find(k => k.key_type === 'openrouter');
+    if (existingKey) {
+      await invoke('remove_api_key', { id: existingKey.id });
+      setOpenrouterKey('');
+      await fetchKeys();
+    }
+  };
+
+  const openUrl = (url: string) => {
+    invoke('open_url', { url }).catch(console.error);
   };
 
   const handleRefreshGeminiModels = async () => {
@@ -226,6 +306,7 @@ export const LLMSettings = forwardRef((_, ref) => {
   };
 
   const geminiKeys = keys.filter(k => k.key_type === 'gemini');
+  const openrouterKeys = keys.filter(k => k.key_type === 'openrouter');
 
   const formatTokenLimit = (limit: number): string => {
     if (limit >= 1000000) return `${(limit / 1000000).toFixed(1)}M`;
@@ -242,211 +323,315 @@ export const LLMSettings = forwardRef((_, ref) => {
     return colors[provider] || 'bg-slate-500/10 text-slate-400';
   };
 
+  const RadioButton = ({ provider, label }: { provider: Provider; label: string }) => (
+    <button
+      onClick={() => setActiveProvider(provider)}
+      className="flex items-center gap-3"
+    >
+      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+        activeProvider === provider
+          ? 'border-blue-500 bg-blue-500'
+          : isDark ? 'border-slate-600' : 'border-slate-300'
+      }`}>
+        {activeProvider === provider && (
+          <div className="w-2 h-2 rounded-full bg-white" />
+        )}
+      </div>
+      <span className={`text-lg font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{label}</span>
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
         <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>LLM 설정</h2>
-        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>API 키 및 모델을 관리합니다.</p>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사용할 API와 모델을 선택합니다. 하나만 활성화할 수 있습니다.</p>
       </div>
 
-      <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+      <div className={`p-6 rounded-xl border ${
+        activeProvider === 'gemini'
+          ? 'border-blue-500 ring-1 ring-blue-500/20'
+          : isDark ? 'border-slate-700' : 'border-slate-200'
+      } ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>사용 모델</h3>
-          <div className="flex gap-2">
-            {geminiKeys.length > 0 && (
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={handleRefreshGeminiModels}
-                isLoading={loadingGeminiModels}
-              >
-                Gemini 새로고침
-              </Button>
-            )}
-            {antigravityStatus?.authenticated && (
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={() => fetchAntigravityModels()}
-                isLoading={loadingAntigravityModels}
-              >
-                Antigravity 새로고침
-              </Button>
-            )}
-          </div>
+          <RadioButton provider="gemini" label="Gemini API" />
+          {geminiKeys.length > 0 && (
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={handleRefreshGeminiModels}
+              isLoading={loadingGeminiModels}
+            >
+              모델 새로고침
+            </Button>
+          )}
         </div>
+        
+        <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <button onClick={() => openUrl('https://aistudio.google.com/apikey')} className="text-blue-400 hover:underline">
+            Google AI Studio
+          </button>
+          에서 무료로 API 키를 발급받을 수 있습니다.
+        </p>
+
         <div className="space-y-4">
+          <div className="flex gap-4 items-end">
+            <div className="flex-1">
+              <Input
+                label="API Key"
+                value={newGeminiKey}
+                onChange={(e) => setNewGeminiKey(e.target.value)}
+                placeholder="AIzaSy..."
+              />
+            </div>
+            <Button onClick={handleAddGeminiKey} isLoading={addingGeminiKey} disabled={!newGeminiKey.trim()}>
+              추가
+            </Button>
+          </div>
+
+          {geminiKeys.length > 0 && (
+            <div className="space-y-2">
+              {geminiKeys.map((key) => (
+                <div key={key.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                  isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-400">
+                      GEMINI
+                    </span>
+                    <span className={`text-sm font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                      {key.api_key.substring(0, 12)}...{key.api_key.substring(key.api_key.length - 4)}
+                    </span>
+                  </div>
+                  <Button variant="danger" size="sm" onClick={() => handleRemoveKey(key.id)}>
+                    삭제
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div>
+            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>모델</label>
             <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
+              value={geminiModel}
+              onChange={(e) => setGeminiModel(e.target.value)}
               className={`w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${
                 isDark 
                   ? 'bg-slate-900 border-slate-700 text-white' 
                   : 'bg-slate-100 border-slate-300 text-slate-900'
               } border`}
             >
-              <optgroup label="Gemini (API 키 필요)">
-                {geminiModels.map((m) => (
-                  <option key={m.name} value={m.name}>
-                    {m.display_name} ({formatTokenLimit(m.input_token_limit)} in / {formatTokenLimit(m.output_token_limit)} out)
-                  </option>
-                ))}
-              </optgroup>
-              {antigravityModels.length > 0 && (
-                <optgroup label="Antigravity Proxy">
-                  {antigravityModels.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.provider})
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              {geminiModels.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.display_name} ({formatTokenLimit(m.input_token_limit)} in / {formatTokenLimit(m.output_token_limit)} out)
+                </option>
+              ))}
             </select>
-            {(geminiModelsError || antigravityModelsError) && (
-              <p className="mt-2 text-xs text-yellow-500">
-                {geminiModelsError || antigravityModelsError}
-              </p>
-            )}
+          </div>
+        </div>
+      </div>
+
+      <div className={`p-6 rounded-xl border ${
+        activeProvider === 'openrouter'
+          ? 'border-blue-500 ring-1 ring-blue-500/20'
+          : isDark ? 'border-slate-700' : 'border-slate-200'
+      } ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
+        <div className="flex items-center justify-between mb-4">
+          <RadioButton provider="openrouter" label="OpenRouter API" />
+        </div>
+        
+        <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <button onClick={() => openUrl('https://openrouter.ai/keys')} className="text-blue-400 hover:underline">
+            OpenRouter
+          </button>
+          에서 API 키를 발급받아 다양한 모델 (Claude, GPT-4, Llama 등)을 사용할 수 있습니다.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex gap-4 items-end">
+            <div className="flex-1">
+              <Input
+                label="API Key"
+                value={openrouterKey}
+                onChange={(e) => setOpenrouterKey(e.target.value)}
+                placeholder="sk-or-..."
+                type="password"
+              />
+            </div>
+            <Button onClick={handleAddOpenrouterKey} isLoading={savingOpenrouter} disabled={!openrouterKey.trim()}>
+              {openrouterKeys.length > 0 ? '업데이트' : '추가'}
+            </Button>
+          </div>
+
+          {openrouterKeys.length > 0 && (
+            <div className="space-y-2">
+              {openrouterKeys.map((key) => (
+                <div key={key.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                  isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/10 text-purple-400">
+                      OPENROUTER
+                    </span>
+                    <span className={`text-sm font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                      {key.api_key.substring(0, 12)}...{key.api_key.substring(key.api_key.length - 4)}
+                    </span>
+                  </div>
+                  <Button variant="danger" size="sm" onClick={handleRemoveOpenrouterKey}>
+                    삭제
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>모델</label>
+            <select
+              value={openrouterModel}
+              onChange={(e) => setOpenrouterModel(e.target.value)}
+              disabled={loadingOpenrouterModels}
+              className={`w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${
+                isDark 
+                  ? 'bg-slate-900 border-slate-700 text-white' 
+                  : 'bg-slate-100 border-slate-300 text-slate-900'
+              } border`}
+            >
+              {openrouterModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({Math.round(m.context_length / 1000)}K)
+                </option>
+              ))}
+            </select>
             <p className={`mt-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Gemini 모델은 API 키가 필요하고, Antigravity 모델은 프록시 인증이 필요합니다.
+              더 많은 모델은 <button onClick={() => openUrl('https://openrouter.ai/models')} className="text-blue-400 hover:underline">OpenRouter Models</button>에서 확인
             </p>
           </div>
         </div>
       </div>
 
-      <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-        <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Gemini API 키</h3>
-        <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-            Google AI Studio
-          </a>
-          에서 무료로 API 키를 발급받을 수 있습니다.
-        </p>
-        
-        <div className="flex gap-4 items-end mb-6">
-          <div className="flex-1">
-            <Input
-              label="API Key"
-              value={newKey}
-              onChange={(e) => setNewKey(e.target.value)}
-              placeholder="AIzaSy..."
-            />
-          </div>
-          <Button onClick={handleAddKey} isLoading={isLoading} disabled={!newKey.trim()}>
-            추가
-          </Button>
-        </div>
-
-        <div className="space-y-3">
-          {geminiKeys.map((key) => (
-            <div key={key.id} className={`flex items-center justify-between p-3 rounded-lg border ${
-              isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <div className="flex items-center gap-3">
-                <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-400">
-                  GEMINI
-                </span>
-                <span className={`text-sm font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  {key.api_key.substring(0, 12)}...{key.api_key.substring(key.api_key.length - 4)}
-                </span>
-              </div>
-              <Button variant="danger" size="sm" onClick={() => handleRemoveKey(key.id)}>
-                삭제
-              </Button>
-            </div>
-          ))}
-          {geminiKeys.length === 0 && (
-            <div className={`text-center py-4 text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              등록된 API 키가 없습니다.
-            </div>
+      <div className={`p-6 rounded-xl border ${
+        activeProvider === 'antigravity'
+          ? 'border-blue-500 ring-1 ring-blue-500/20'
+          : isDark ? 'border-slate-700' : 'border-slate-200'
+      } ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
+        <div className="flex items-center justify-between mb-4">
+          <RadioButton provider="antigravity" label="Antigravity Proxy" />
+          {antigravityStatus?.authenticated && (
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => fetchAntigravityModels()}
+              isLoading={loadingAntigravityModels}
+            >
+              모델 새로고침
+            </Button>
           )}
         </div>
-      </div>
-
-      <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-        <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Antigravity Proxy</h3>
+        
         <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          API 키 없이 Google OAuth로 번역할 수 있습니다. 아래 도구 중 하나를 설치하세요:
+          API 키 없이 Google OAuth로 번역할 수 있습니다.
         </p>
         <ul className={`text-sm mb-4 list-disc list-inside space-y-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
           <li>
-            <a href="https://github.com/lbjlaq/Antigravity-Manager" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+            <button onClick={() => openUrl('https://github.com/lbjlaq/Antigravity-Manager')} className="text-blue-400 hover:underline">
               Antigravity Manager
-            </a>
+            </button>
             <span className={isDark ? 'text-slate-500' : 'text-slate-400'}> - GUI 앱 (추천)</span>
           </li>
           <li>
-            <a href="https://github.com/badrisnarayanan/antigravity-claude-proxy" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+            <button onClick={() => openUrl('https://github.com/badrisnarayanan/antigravity-claude-proxy')} className="text-blue-400 hover:underline">
               antigravity-claude-proxy
-            </a>
+            </button>
             <span className={isDark ? 'text-slate-500' : 'text-slate-400'}> - CLI</span>
           </li>
         </ul>
 
-        <div className="flex gap-4 items-end mb-4">
-          <div className="flex-1">
-            <Input
-              label="프록시 URL"
-              value={proxyUrl}
-              onChange={(e) => setProxyUrl(e.target.value)}
-              placeholder="http://127.0.0.1:8045"
-            />
-          </div>
-          <Button 
-            variant="secondary" 
-            onClick={() => checkAntigravity()}
-            isLoading={checkingAntigravity}
-          >
-            상태 확인
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${
-              antigravityStatus?.running 
-                ? antigravityStatus.authenticated 
-                  ? 'bg-green-500' 
-                  : 'bg-yellow-500'
-                : 'bg-red-500'
-            }`} />
-            <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              {antigravityStatus?.running 
-                ? antigravityStatus.authenticated 
-                  ? '인증됨' 
-                  : '인증 필요'
-                : '미실행'}
-            </span>
-          </div>
-          
-          {antigravityStatus?.running && !antigravityStatus.authenticated && (
-            <Button size="sm" onClick={openAntigravityAuth}>
-              Google 로그인
+        <div className="space-y-4">
+          <div className="flex gap-4 items-end">
+            <div className="flex-1">
+              <Input
+                label="프록시 URL"
+                value={proxyUrl}
+                onChange={(e) => setProxyUrl(e.target.value)}
+                placeholder="http://127.0.0.1:8045"
+              />
+            </div>
+            <Button 
+              variant="secondary" 
+              onClick={() => checkAntigravity()}
+              isLoading={checkingAntigravity}
+            >
+              상태 확인
             </Button>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${
+                antigravityStatus?.running 
+                  ? antigravityStatus.authenticated 
+                    ? 'bg-green-500' 
+                    : 'bg-yellow-500'
+                  : 'bg-red-500'
+              }`} />
+              <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                {antigravityStatus?.running 
+                  ? antigravityStatus.authenticated 
+                    ? '인증됨' 
+                    : '인증 필요'
+                  : '미실행'}
+              </span>
+            </div>
+            
+            {antigravityStatus?.running && !antigravityStatus.authenticated && (
+              <Button size="sm" onClick={openAntigravityAuth}>
+                Google 로그인
+              </Button>
+            )}
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>모델</label>
+            <select
+              value={antigravityModel}
+              onChange={(e) => setAntigravityModel(e.target.value)}
+              className={`w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${
+                isDark 
+                  ? 'bg-slate-900 border-slate-700 text-white' 
+                  : 'bg-slate-100 border-slate-300 text-slate-900'
+              } border`}
+            >
+              {antigravityModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.provider})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {antigravityStatus?.authenticated && antigravityModels.length > 0 && (
+            <div>
+              <p className={`text-sm mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사용 가능한 모델:</p>
+              <div className="flex flex-wrap gap-2">
+                {antigravityModels.slice(0, 8).map((m) => (
+                  <span
+                    key={m.id}
+                    className={`px-2 py-1 rounded text-xs font-medium ${getProviderBadge(m.provider)}`}
+                  >
+                    {m.name}
+                  </span>
+                ))}
+                {antigravityModels.length > 8 && (
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'}`}>
+                    +{antigravityModels.length - 8} more
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </div>
-
-        {antigravityStatus?.authenticated && antigravityModels.length > 0 && (
-          <div className="mt-4">
-            <p className={`text-sm mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사용 가능한 모델:</p>
-            <div className="flex flex-wrap gap-2">
-              {antigravityModels.slice(0, 8).map((m) => (
-                <span
-                  key={m.id}
-                  className={`px-2 py-1 rounded text-xs font-medium ${getProviderBadge(m.provider)}`}
-                >
-                  {m.name}
-                </span>
-              ))}
-              {antigravityModels.length > 8 && (
-                <span className={`px-2 py-1 rounded text-xs font-medium ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'}`}>
-                  +{antigravityModels.length - 8} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

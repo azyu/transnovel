@@ -12,6 +12,7 @@ export interface Chapter {
   number: number;
   title: string;
   url: string;
+  status?: 'pending' | 'completed';
 }
 
 export interface Paragraph {
@@ -33,7 +34,7 @@ export interface ChapterContent {
 
 export interface ApiKey {
   id: number;
-  key_type: 'gemini' | 'antigravity';
+  key_type: 'gemini' | 'openrouter' | 'antigravity';
   api_key: string;
   is_active: boolean;
 }

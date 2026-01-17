@@ -55,7 +55,7 @@ pub async fn start_batch_translation(
 
         let chapter_url = build_chapter_url(&request.base_url, &request.site, &request.novel_id, chapter_num);
         
-        match translate_single_chapter(&mut translator, &chapter_url).await {
+        match translate_single_chapter(&mut translator, &request.novel_id, &chapter_url).await {
             Ok(_) => {
                 app.emit(
                     "chapter-completed",
@@ -88,7 +88,7 @@ pub async fn start_batch_translation(
     Ok(())
 }
 
-async fn translate_single_chapter(translator: &mut TranslatorService, url: &str) -> Result<Vec<String>, String> {
+async fn translate_single_chapter(translator: &mut TranslatorService, novel_id: &str, url: &str) -> Result<Vec<String>, String> {
     let parser = get_parser_for_url(url).ok_or("지원하지 않는 사이트입니다.")?;
     let content = parser.get_chapter(url).await?;
     
@@ -98,7 +98,7 @@ async fn translate_single_chapter(translator: &mut TranslatorService, url: &str)
         return Ok(vec![]);
     }
     
-    translator.translate_paragraphs(&paragraphs, None).await
+    translator.translate_paragraphs(novel_id, &paragraphs, None).await
 }
 
 fn extract_paragraphs(html: &str) -> Vec<String> {
