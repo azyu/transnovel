@@ -188,7 +188,7 @@ impl GeminiClient {
             .and_then(|p| p.text)
             .ok_or("응답에서 텍스트를 찾을 수 없습니다.")?;
 
-        parse_translated_paragraphs(&text, paragraphs.len())
+        parse_translated_paragraphs(&text, paragraphs.len(), has_subtitle)
     }
 
     pub async fn translate_streaming<R: tauri::Runtime>(
@@ -261,7 +261,7 @@ impl GeminiClient {
                                 if !emitted_ids.contains(&chunk.paragraph_id) {
                                     emitted_ids.insert(chunk.paragraph_id.clone());
                                     
-                                    if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id) {
+                                    if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id, has_subtitle) {
                                         if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
                                             if pos < paragraphs.len() {
                                                 let _ = cache_translation(novel_id, &paragraphs[pos], &chunk.text).await;
@@ -278,6 +278,6 @@ impl GeminiClient {
             }
         }
 
-        parse_translated_paragraphs_by_indices(&full_text, original_indices)
+        parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)
     }
 }

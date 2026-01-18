@@ -26,12 +26,22 @@ pub fn encode_paragraph_id(n: usize, has_subtitle: bool) -> String {
     }
 }
 
-pub fn decode_paragraph_id(id: &str) -> Option<usize> {
+/// Decode semantic ID back to paragraph index:
+/// - "title" → 0
+/// - "subtitle" → 1 (only when has_subtitle is true)
+/// - "p-N" → N (when has_subtitle is false) or N + 1 (when has_subtitle is true)
+pub fn decode_paragraph_id(id: &str, has_subtitle: bool) -> Option<usize> {
     match id {
         "title" => Some(0),
-        "subtitle" => Some(1),
+        "subtitle" if has_subtitle => Some(1),
+        "subtitle" => None,
         _ if id.starts_with("p-") => {
-            id[2..].parse::<usize>().ok().map(|n| n + 1)
+            let paragraph_num = id[2..].parse::<usize>().ok()?;
+            if has_subtitle {
+                Some(paragraph_num + 1)
+            } else {
+                Some(paragraph_num)
+            }
         }
         _ => None,
     }
@@ -54,12 +64,12 @@ pub fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
     chunks
 }
 
-pub fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
+pub fn parse_translated_paragraphs(text: &str, expected_count: usize, has_subtitle: bool) -> Result<Vec<String>, String> {
     let sequential_indices: Vec<usize> = (0..expected_count).collect();
-    parse_translated_paragraphs_by_indices(text, &sequential_indices)
+    parse_translated_paragraphs_by_indices(text, &sequential_indices, has_subtitle)
 }
 
-pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize]) -> Result<Vec<String>, String> {
+pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize], has_subtitle: bool) -> Result<Vec<String>, String> {
     let re = regex::Regex::new(r#"(?s)<p id="(title|subtitle|p-\d+)">(.*?)</p>"#).unwrap();
 
     let mut results: Vec<String> = vec![String::new(); original_indices.len()];
@@ -70,7 +80,7 @@ pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[us
             let id = id_match.as_str();
             let content = content_match.as_str().to_string();
 
-            if let Some(decoded_index) = decode_paragraph_id(id) {
+            if let Some(decoded_index) = decode_paragraph_id(id, has_subtitle) {
                 if let Some(pos) = original_indices.iter().position(|&x| x == decoded_index) {
                     results[pos] = content;
                     found_count += 1;
@@ -108,7 +118,6 @@ mod tests {
 
     #[test]
     fn test_encode_decode_paragraph_id() {
-        // With subtitle (has_subtitle = true)
         assert_eq!(encode_paragraph_id(0, true), "title");
         assert_eq!(encode_paragraph_id(1, true), "subtitle");
         assert_eq!(encode_paragraph_id(2, true), "p-1");
@@ -116,18 +125,20 @@ mod tests {
         assert_eq!(encode_paragraph_id(10, true), "p-9");
         assert_eq!(encode_paragraph_id(102, true), "p-101");
         
-        // Without subtitle (has_subtitle = false)
         assert_eq!(encode_paragraph_id(0, false), "title");
         assert_eq!(encode_paragraph_id(1, false), "p-1");
         assert_eq!(encode_paragraph_id(2, false), "p-2");
         assert_eq!(encode_paragraph_id(3, false), "p-3");
         assert_eq!(encode_paragraph_id(10, false), "p-10");
         
-        // Decode still works for both cases
         for i in 0..200 {
-            let encoded = encode_paragraph_id(i, true);
-            let decoded = decode_paragraph_id(&encoded);
-            assert_eq!(decoded, Some(i), "Failed for index {} with subtitle: encoded as '{}'", i, encoded);
+            let encoded_with = encode_paragraph_id(i, true);
+            let decoded_with = decode_paragraph_id(&encoded_with, true);
+            assert_eq!(decoded_with, Some(i), "Failed for index {} with subtitle: encoded as '{}'", i, encoded_with);
+            
+            let encoded_without = encode_paragraph_id(i, false);
+            let decoded_without = decode_paragraph_id(&encoded_without, false);
+            assert_eq!(decoded_without, Some(i), "Failed for index {} without subtitle: encoded as '{}'", i, encoded_without);
         }
     }
 
@@ -137,7 +148,7 @@ mod tests {
 <p id="subtitle">부제목입니다.</p>
 <p id="p-1">첫 번째 문단입니다.</p>"#;
         
-        let result = parse_translated_paragraphs(text, 3).unwrap();
+        let result = parse_translated_paragraphs(text, 3, true).unwrap();
         assert_eq!(result.len(), 3);
         assert_eq!(result[0], "제목입니다.");
         assert_eq!(result[1], "부제목입니다.");
@@ -150,7 +161,7 @@ mod tests {
 <p id="subtitle">x > y 이면서 y < z</p>
 <p id="p-1">정상 문단</p>"#;
         
-        let result = parse_translated_paragraphs(text, 3).unwrap();
+        let result = parse_translated_paragraphs(text, 3, true).unwrap();
         
         assert_eq!(result.len(), 3);
         assert_eq!(result[0], "a < b 인 경우");
@@ -180,7 +191,7 @@ mod tests {
 <p id="p-1">세 번째</p>
 <p id="p-2">네 번째</p>"#;
         
-        let result = parse_translated_paragraphs(text, 4).unwrap();
+        let result = parse_translated_paragraphs(text, 4, true).unwrap();
         
         assert_eq!(result.len(), 4);
         assert_eq!(result[0], "첫 번째");
@@ -196,7 +207,7 @@ mod tests {
 <p id="p-8">아홉 번째</p>"#;
         
         let original_indices = vec![5, 6, 7, 8, 9];
-        let result = parse_translated_paragraphs_by_indices(text, &original_indices).unwrap();
+        let result = parse_translated_paragraphs_by_indices(text, &original_indices, true).unwrap();
         
         assert_eq!(result.len(), 5);
         assert_eq!(result[0], "다섯 번째");
