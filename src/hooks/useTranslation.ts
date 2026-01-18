@@ -31,7 +31,7 @@ export const useTranslation = () => {
         title: content.title,
         subtitle: content.subtitle,
         paragraphs: content.paragraphs.map((p, index) => ({
-          id: `p-${index}`,
+          id: `p-${index + 1}`,
           original: p,
         })),
         prev_url: content.prev_url,
@@ -72,7 +72,7 @@ export const useTranslation = () => {
     try {
       const content = await invoke<ChapterContent>('parse_chapter', { url });
       const paragraphs = content.paragraphs.map((p, index) => ({
-        id: `p-${index}`,
+        id: `p-${index + 1}`,
         original: p,
       }));
       
@@ -117,8 +117,8 @@ export const useTranslation = () => {
           const paragraphIdx = paragraphNum - 1;
           const original = content.paragraphs[paragraphIdx] ?? '';
           const originalPreview = original.slice(0, 30) + (original.length > 30 ? '...' : '');
-          addDebugLog('chunk', `[${paragraphId}] p-${paragraphIdx}: "${originalPreview}" → "${translatedPreview}"`);
-          updateParagraphTranslation(`p-${paragraphIdx}`, event.payload.text);
+          addDebugLog('chunk', `[${paragraphId}]: "${originalPreview}" → "${translatedPreview}"`);
+          updateParagraphTranslation(paragraphId, event.payload.text);
         } else {
           addDebugLog('warn', `Unknown paragraph_id format: ${paragraphId}`);
         }
@@ -344,7 +344,7 @@ await invoke('start_batch_translation', {
       const retryIdx = parseInt(paragraphId.slice(2), 10) - 1;
       const originalIdx = retryIndexToOriginalIndex.get(retryIdx);
       if (originalIdx !== undefined) {
-        updateParagraphTranslation(`p-${originalIdx}`, event.payload.text);
+        updateParagraphTranslation(`p-${originalIdx + 1}`, event.payload.text);
       }
     });
 
