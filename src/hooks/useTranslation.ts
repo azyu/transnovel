@@ -85,6 +85,11 @@ export const useTranslation = () => {
   }, [setChapterContent, setChapterList]);
 
   const parseAndTranslate = useCallback(async (url: string) => {
+    if (useAppStore.getState().isTranslating) {
+      showError('번역 진행 중', '현재 번역이 진행 중입니다. 완료 후 다시 시도해주세요.');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
