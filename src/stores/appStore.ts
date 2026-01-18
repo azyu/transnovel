@@ -7,6 +7,14 @@ interface ToastData {
   detail?: string;
 }
 
+export interface DebugLogEntry {
+  id: number;
+  timestamp: Date;
+  type: 'chunk' | 'complete' | 'error' | 'warn' | 'info';
+  message: string;
+  data?: unknown;
+}
+
 interface AppState {
   currentTab: TabType;
   setTab: (tab: TabType) => void;
@@ -55,6 +63,12 @@ interface AppState {
   failedParagraphIndices: number[];
   setFailedParagraphIndices: (indices: number[]) => void;
   clearFailedParagraphIndices: () => void;
+
+  debugMode: boolean;
+  setDebugMode: (enabled: boolean) => void;
+  debugLogs: DebugLogEntry[];
+  addDebugLog: (type: DebugLogEntry['type'], message: string, data?: unknown) => void;
+  clearDebugLogs: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -128,4 +142,18 @@ export const useAppStore = create<AppState>((set) => ({
   failedParagraphIndices: [],
   setFailedParagraphIndices: (indices) => set({ failedParagraphIndices: indices }),
   clearFailedParagraphIndices: () => set({ failedParagraphIndices: [] }),
+
+  debugMode: false,
+  setDebugMode: (enabled) => set({ debugMode: enabled }),
+  debugLogs: [],
+  addDebugLog: (() => {
+    let counter = 0;
+    return (type: DebugLogEntry['type'], message: string, data?: unknown) => set((state) => ({
+      debugLogs: [
+        ...state.debugLogs.slice(-499),
+        { id: ++counter, timestamp: new Date(), type, message, data }
+      ]
+    }));
+  })(),
+  clearDebugLogs: () => set({ debugLogs: [] }),
 }));

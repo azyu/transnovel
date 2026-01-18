@@ -4,19 +4,29 @@ import { ask, message } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { useAppStore } from '../../stores/appStore';
 
-interface CacheStats {
+interface NovelCacheStats {
+  novel_id: string;
   count: number;
+  total_hits: number;
+}
+
+interface CacheStatsDetailed {
+  total_count: number;
+  total_hits: number;
+  by_novel: NovelCacheStats[];
 }
 
 export const AdvancedSettings: React.FC = () => {
-  const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
+  const [cacheStats, setCacheStats] = useState<CacheStatsDetailed | null>(null);
   const [isClearing, setIsClearing] = useState(false);
+  const [clearingNovelId, setClearingNovelId] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
-  const isDark = useAppStore((state) => state.theme) === 'dark';
+  const { theme, debugMode, setDebugMode } = useAppStore();
+  const isDark = theme === 'dark';
 
   const loadCacheStats = async () => {
     try {
-      const stats = await invoke<CacheStats>('get_cache_stats');
+      const stats = await invoke<CacheStatsDetailed>('get_cache_stats_detailed');
       setCacheStats(stats);
     } catch (error) {
       console.error('Failed to load cache stats:', error);
@@ -95,21 +105,104 @@ export const AdvancedSettings: React.FC = () => {
           <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             번역된 문단은 캐시에 저장되어 같은 내용을 다시 번역할 때 API 호출 없이 빠르게 불러옵니다.
           </p>
+          <div className="space-y-3">
+            <div className={`flex items-center justify-between p-4 rounded-lg border ${isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
+              <div>
+                <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  총 캐시: <span className={`font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{cacheStats?.total_count ?? '-'}</span>개
+                  <span className={`ml-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    사용 횟수: <span className={`font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{cacheStats?.total_hits ?? '-'}</span>회
+                  </span>
+                </p>
+              </div>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleClearCache}
+                isLoading={isClearing}
+                disabled={!cacheStats || cacheStats.total_count === 0}
+              >
+                전체 초기화
+              </Button>
+            </div>
+
+            {cacheStats && cacheStats.by_novel.length > 0 && (
+              <div className={`rounded-lg border ${isDark ? 'border-slate-700/50' : 'border-slate-200'}`}>
+                <div className={`px-4 py-2 border-b ${isDark ? 'border-slate-700/50 bg-slate-900/30' : 'border-slate-200 bg-slate-50'}`}>
+                  <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>소설별 캐시</p>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {cacheStats.by_novel.map((novel) => (
+                    <div
+                      key={novel.novel_id}
+                      className={`flex items-center justify-between px-4 py-2 border-b last:border-b-0 ${isDark ? 'border-slate-700/30' : 'border-slate-100'}`}
+                    >
+                      <div className="flex-1 min-w-0 mr-4">
+                        <p className={`text-sm font-mono truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          {novel.novel_id}
+                        </p>
+                        <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {novel.count}개 · {novel.total_hits}회 사용
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (clearingNovelId) return;
+                          setClearingNovelId(novel.novel_id);
+                          try {
+                            await invoke<number>('clear_cache_by_novel', { novelId: novel.novel_id });
+                            await loadCacheStats();
+                          } catch (error) {
+                            await message(`캐시 삭제 실패: ${error}`, { title: '오류', kind: 'error' });
+                          } finally {
+                            setClearingNovelId(null);
+                          }
+                        }}
+                        isLoading={clearingNovelId === novel.novel_id}
+                        disabled={clearingNovelId !== null}
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>개발자 모드</h3>
+          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            번역 과정에서 발생하는 이벤트를 실시간으로 확인할 수 있는 디버그 패널을 표시합니다.
+          </p>
           <div className={`flex items-center justify-between p-4 rounded-lg border ${isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
             <div>
-              <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                저장된 캐시: <span className={`font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{cacheStats?.count ?? '-'}</span>개
+              <p className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                디버그 패널 표시
+              </p>
+              <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                번역 화면 하단에 로그 패널이 나타납니다
               </p>
             </div>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={handleClearCache}
-              isLoading={isClearing}
-              disabled={!cacheStats || cacheStats.count === 0}
+            <button
+              onClick={() => setDebugMode(!debugMode)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                debugMode 
+                  ? 'bg-blue-600' 
+                  : isDark ? 'bg-slate-600' : 'bg-slate-300'
+              }`}
             >
-              캐시 초기화
-            </Button>
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  debugMode ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
         </div>
 

@@ -458,6 +458,20 @@ pub struct CacheStats {
     pub count: i64,
 }
 
+#[derive(Debug, Serialize)]
+pub struct NovelCacheStats {
+    pub novel_id: String,
+    pub count: i64,
+    pub total_hits: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CacheStatsDetailed {
+    pub total_count: i64,
+    pub total_hits: i64,
+    pub by_novel: Vec<NovelCacheStats>,
+}
+
 #[tauri::command]
 pub async fn get_cache_stats() -> Result<CacheStats, String> {
     let pool = get_pool()?;
@@ -473,10 +487,58 @@ pub async fn get_cache_stats() -> Result<CacheStats, String> {
 }
 
 #[tauri::command]
+pub async fn get_cache_stats_detailed() -> Result<CacheStatsDetailed, String> {
+    let pool = get_pool()?;
+    
+    let total: (i64, i64) = sqlx::query_as(
+        "SELECT COUNT(*), COALESCE(SUM(hit_count), 0) FROM translation_cache"
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    
+    let by_novel: Vec<(Option<String>, i64, i64)> = sqlx::query_as(
+        "SELECT novel_id, COUNT(*), COALESCE(SUM(hit_count), 0) 
+         FROM translation_cache 
+         GROUP BY novel_id 
+         ORDER BY COUNT(*) DESC"
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    
+    Ok(CacheStatsDetailed {
+        total_count: total.0,
+        total_hits: total.1,
+        by_novel: by_novel
+            .into_iter()
+            .map(|(novel_id, count, hits)| NovelCacheStats {
+                novel_id: novel_id.unwrap_or_else(|| "(unknown)".to_string()),
+                count,
+                total_hits: hits,
+            })
+            .collect(),
+    })
+}
+
+#[tauri::command]
 pub async fn clear_cache() -> Result<i64, String> {
     let pool = get_pool()?;
     
     let result = sqlx::query("DELETE FROM translation_cache")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    Ok(result.rows_affected() as i64)
+}
+
+#[tauri::command]
+pub async fn clear_cache_by_novel(novel_id: String) -> Result<i64, String> {
+    let pool = get_pool()?;
+    
+    let result = sqlx::query("DELETE FROM translation_cache WHERE novel_id = ?")
+        .bind(&novel_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;

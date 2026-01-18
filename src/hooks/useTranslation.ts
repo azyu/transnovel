@@ -14,6 +14,7 @@ export const useTranslation = () => {
     showError,
     setFailedParagraphIndices,
     clearFailedParagraphIndices,
+    addDebugLog,
   } = useAppStore();
   
   const [loading, setLoading] = useState(false);
@@ -118,14 +119,30 @@ export const useTranslation = () => {
       
       const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
         const idx = decodeParagraphId(event.payload.paragraph_id);
-        if (idx === null) return;
+        const translatedPreview = event.payload.text.slice(0, 40) + (event.payload.text.length > 40 ? '...' : '');
+        
+        if (idx === null) {
+          addDebugLog('warn', `Invalid paragraph_id: ${event.payload.paragraph_id}`);
+          return;
+        }
+
+        if (event.payload.text.trim() === '') {
+          addDebugLog('warn', `Empty translation received for [${event.payload.paragraph_id}→${idx}]`);
+        }
         
         if (idx === 0) {
+          const originalPreview = content.title.slice(0, 30) + (content.title.length > 30 ? '...' : '');
+          addDebugLog('chunk', `[${event.payload.paragraph_id}] title: "${originalPreview}" → "${translatedPreview}"`);
           updateTitleTranslation(event.payload.text, undefined);
         } else if (idx === 1 && content.subtitle) {
+          const originalPreview = content.subtitle.slice(0, 30) + (content.subtitle.length > 30 ? '...' : '');
+          addDebugLog('chunk', `[${event.payload.paragraph_id}] subtitle: "${originalPreview}" → "${translatedPreview}"`);
           updateTitleTranslation(undefined, event.payload.text);
         } else {
           const paragraphIdx = idx - titleOffset;
+          const original = content.paragraphs[paragraphIdx] ?? '';
+          const originalPreview = original.slice(0, 30) + (original.length > 30 ? '...' : '');
+          addDebugLog('chunk', `[${event.payload.paragraph_id}] p-${paragraphIdx}: "${originalPreview}" → "${translatedPreview}"`);
           updateParagraphTranslation(`p-${paragraphIdx}`, event.payload.text);
         }
       });
@@ -134,6 +151,7 @@ export const useTranslation = () => {
         const adjustedIndices = event.payload.failed_indices
           .filter(idx => idx >= titleOffset)
           .map(idx => idx - titleOffset);
+        addDebugLog('warn', `Failed paragraphs: [${adjustedIndices.join(', ')}]`);
         setFailedParagraphIndices(adjustedIndices);
         if (adjustedIndices.length > 0) {
           showError(
@@ -144,10 +162,20 @@ export const useTranslation = () => {
       });
 
       const unlistenComplete = await listen<boolean>('translation-complete', async () => {
+        addDebugLog('complete', `Translation complete`);
         unlistenChunk();
         unlistenFailed();
         unlistenComplete();
+        unlistenCache();
         setIsTranslating(false);
+      });
+
+      const unlistenCache = await listen<{ paragraph_id: string; cache_hit: boolean; original_preview: string }>('debug-cache', (event) => {
+        const { paragraph_id, cache_hit, original_preview } = event.payload;
+        addDebugLog(
+          cache_hit ? 'info' : 'info',
+          `[${paragraph_id}] ${cache_hit ? '✓ cache hit' : '✗ cache miss'}: "${original_preview}${original_preview.length >= 30 ? '...' : ''}"`
+        );
       });
 
       clearFailedParagraphIndices();
@@ -158,15 +186,19 @@ export const useTranslation = () => {
         ...content.paragraphs,
       ];
 
+      addDebugLog('info', `Starting translation: ${allTexts.length} items (title + ${content.subtitle ? 'subtitle + ' : ''}${content.paragraphs.length} paragraphs)`);
+
       try {
         await invoke('translate_paragraphs_streaming', { 
           novelId: content.novel_id,
           paragraphs: allTexts 
         });
       } catch (err) {
+        addDebugLog('error', `Translation error: ${err}`);
         unlistenChunk();
         unlistenFailed();
         unlistenComplete();
+        unlistenCache();
         setIsTranslating(false);
         throw err;
       }
@@ -287,25 +319,39 @@ await invoke('start_batch_translation', {
     
     if (!chapterContent || failedParagraphIndices.length === 0) return;
 
-    const failedParagraphs = failedParagraphIndices.map(idx => chapterContent.paragraphs[idx]?.original).filter(Boolean);
+    const retryIndexToOriginalIndex = new Map<number, number>();
+    failedParagraphIndices.forEach((originalIdx, retryIdx) => {
+      retryIndexToOriginalIndex.set(retryIdx, originalIdx);
+    });
+
+    const failedParagraphs = failedParagraphIndices
+      .map(idx => chapterContent.paragraphs[idx]?.original)
+      .filter((p): p is string => Boolean(p));
     if (failedParagraphs.length === 0) return;
 
     setIsTranslating(true);
     clearFailedParagraphIndices();
 
     const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
-      const idx = decodeParagraphId(event.payload.paragraph_id);
-      if (idx !== null) {
-        updateParagraphTranslation(`p-${idx}`, event.payload.text);
+      const retryIdx = decodeParagraphId(event.payload.paragraph_id);
+      if (retryIdx === null) return;
+      
+      const originalIdx = retryIndexToOriginalIndex.get(retryIdx);
+      if (originalIdx !== undefined) {
+        updateParagraphTranslation(`p-${originalIdx}`, event.payload.text);
       }
     });
 
     const unlistenFailed = await listen<{ failed_indices: number[]; total: number }>('translation-failed-paragraphs', (event) => {
-      setFailedParagraphIndices(event.payload.failed_indices);
-      if (event.payload.failed_indices.length > 0) {
+      const originalFailedIndices = event.payload.failed_indices
+        .map(retryIdx => retryIndexToOriginalIndex.get(retryIdx))
+        .filter((idx): idx is number => idx !== undefined);
+      
+      setFailedParagraphIndices(originalFailedIndices);
+      if (originalFailedIndices.length > 0) {
         showError(
           '일부 문단 번역 실패',
-          `${event.payload.failed_indices.length}개 문단이 여전히 실패했습니다.`
+          `${originalFailedIndices.length}개 문단이 여전히 실패했습니다.`
         );
       }
     });

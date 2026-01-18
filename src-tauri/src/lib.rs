@@ -42,7 +42,9 @@ pub fn run() {
             commands::settings::fetch_antigravity_models,
             commands::settings::fetch_openrouter_models,
             commands::settings::get_cache_stats,
+            commands::settings::get_cache_stats_detailed,
             commands::settings::clear_cache,
+            commands::settings::clear_cache_by_novel,
             commands::settings::reset_all,
         ])
         .setup(|app| {

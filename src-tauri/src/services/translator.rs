@@ -1,3 +1,4 @@
+use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::commands::settings::{get_active_api_key, get_settings};
@@ -7,6 +8,13 @@ use crate::services::cache::{cache_translations, get_cached_translations};
 use crate::services::gemini::GeminiClient;
 use crate::services::openrouter::OpenRouterClient;
 use crate::services::substitution::SubstitutionService;
+
+#[derive(Clone, Serialize)]
+pub struct DebugCacheEvent {
+    pub paragraph_id: String,
+    pub cache_hit: bool,
+    pub original_preview: String,
+}
 
 fn encode_paragraph_id(n: usize) -> String {
     if n < 26 {
@@ -131,10 +139,12 @@ impl TranslatorService {
         }
     }
 
-    fn build_prompt(&self) -> String {
-        let prompt = self.system_prompt
-            .replace("{{note}}", &self.translation_note);
-        prompt
+    fn build_prompt(&self, additional_note: Option<&str>) -> String {
+        let full_note = match additional_note {
+            Some(n) if !n.is_empty() => format!("{}\n{}", self.translation_note, n),
+            _ => self.translation_note.clone(),
+        };
+        self.system_prompt.replace("{{note}}", &full_note)
     }
 
     pub async fn translate_paragraphs(&mut self, novel_id: &str, paragraphs: &[String], note: Option<&str>) -> Result<Vec<String>, String> {
@@ -159,13 +169,7 @@ impl TranslatorService {
         let mut results: Vec<String> = cached.into_iter().map(|c| c.unwrap_or_default()).collect();
         
         if !uncached_paragraphs.is_empty() {
-            let mut prompt = self.build_prompt();
-            
-            if let Some(n) = note {
-                if !n.is_empty() {
-                    prompt = prompt.replace("{{note}}", &format!("{}\n{}", self.translation_note, n));
-                }
-            }
+            let prompt = self.build_prompt(note);
 
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &prompt).await?,
@@ -184,9 +188,7 @@ impl TranslatorService {
             cache_translations(novel_id, &pairs).await.ok();
         }
         
-        let final_results: Vec<String> = self.substitution.apply_to_paragraphs(&results);
-        
-        Ok(final_results)
+        Ok(results)
     }
 
     pub async fn translate_text(&mut self, novel_id: &str, text: &str, note: Option<&str>) -> Result<String, String> {
@@ -225,6 +227,16 @@ impl TranslatorService {
         let mut uncached_paragraphs: Vec<String> = Vec::new();
 
         for (i, (p, c)) in preprocessed.iter().zip(cached.iter()).enumerate() {
+            let original_preview: String = p.chars().take(30).collect();
+            let _ = app_handle.emit(
+                "debug-cache",
+                DebugCacheEvent {
+                    paragraph_id: encode_paragraph_id(i),
+                    cache_hit: c.is_some(),
+                    original_preview,
+                },
+            );
+            
             if c.is_none() {
                 uncached_indices.push(i);
                 uncached_paragraphs.push(p.clone());
@@ -248,16 +260,7 @@ impl TranslatorService {
         }
 
         if !uncached_paragraphs.is_empty() {
-            let mut prompt = self.build_prompt();
-
-            if let Some(n) = note {
-                if !n.is_empty() {
-                    prompt = prompt.replace(
-                        "{{note}}",
-                        &format!("{}\n{}", self.translation_note, n),
-                    );
-                }
-            }
+            let prompt = self.build_prompt(note);
 
             // Dynamic chunk sizing: send all at once if small enough
             const MAX_SINGLE_BATCH_CHARS: usize = 50_000; // ~50KB threshold
@@ -321,26 +324,27 @@ impl TranslatorService {
                             }
                         };
                         
-                        if let Ok(ref translated) = result {
-                            for (local_idx, &orig_idx) in chunk_indices.iter().enumerate() {
-                                if local_idx < translated.len() {
-                                    let _ = app_handle.emit(
-                                        "translation-chunk",
-                                        TranslationChunk {
-                                            paragraph_id: encode_paragraph_id(orig_idx),
-                                            text: translated[local_idx].clone(),
-                                            is_complete: true,
-                                        },
-                                    );
-                                }
-                            }
-                        }
                         result
                     };
 
                     match translate_result {
                         Ok(translated) => {
                             let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
+
+                            if !self.use_streaming {
+                                for (local_idx, &orig_idx) in chunk_indices.iter().enumerate() {
+                                    if local_idx < postprocessed.len() {
+                                        let _ = app_handle.emit(
+                                            "translation-chunk",
+                                            TranslationChunk {
+                                                paragraph_id: encode_paragraph_id(orig_idx),
+                                                text: postprocessed[local_idx].clone(),
+                                                is_complete: true,
+                                            },
+                                        );
+                                    }
+                                }
+                            }
 
                             let mut pairs: Vec<(String, String)> = Vec::new();
                             for (i, trans) in chunk_indices.iter().zip(postprocessed.iter()) {
@@ -378,9 +382,7 @@ impl TranslatorService {
             let _ = app_handle.emit("translation-complete", true);
         }
 
-        let final_results: Vec<String> = self.substitution.apply_to_paragraphs(&results);
-
-        Ok(final_results)
+        Ok(results)
     }
 
     pub async fn translate_chapter(

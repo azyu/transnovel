@@ -35,14 +35,16 @@ pub async fn cache_translation(novel_id: &str, original: &str, translated: &str)
     let hash = compute_hash(novel_id, original);
     
     sqlx::query(
-        "INSERT INTO translation_cache (text_hash, original_text, translated_text, hit_count, last_used_at) 
-         VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+        "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text, hit_count, last_used_at) 
+         VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
          ON CONFLICT(text_hash) DO UPDATE SET 
            translated_text = excluded.translated_text,
+           novel_id = excluded.novel_id,
            hit_count = translation_cache.hit_count + 1,
            last_used_at = CURRENT_TIMESTAMP"
     )
     .bind(&hash)
+    .bind(novel_id)
     .bind(original)
     .bind(translated)
     .execute(pool)

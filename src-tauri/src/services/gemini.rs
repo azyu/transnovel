@@ -349,7 +349,29 @@ pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[us
     }
 
     if found_count == 0 {
-        return Ok(vec![text.to_string()]);
+        let preview = if text.len() > 200 { &text[..200] } else { text };
+        return Err(format!(
+            "응답에서 유효한 번역 태그를 찾을 수 없습니다. 응답 미리보기: {}...",
+            preview
+        ));
+    }
+
+    if found_count < original_indices.len() {
+        eprintln!(
+            "[Gemini] 일부 문단 누락: {}/{} 파싱됨",
+            found_count, original_indices.len()
+        );
+        for (pos, (idx, result)) in original_indices.iter().zip(results.iter()).enumerate() {
+            if result.is_empty() {
+                eprintln!("[Gemini] 누락된 문단: pos={}, original_idx={}, id={}", pos, idx, encode_paragraph_id(*idx));
+            }
+        }
+    }
+
+    for (pos, (idx, result)) in original_indices.iter().zip(results.iter()).enumerate() {
+        let preview = if result.len() > 40 { &result[..40] } else { result.as_str() };
+        eprintln!("[Gemini] 파싱 결과: pos={}, idx={}, id={}, text=\"{}{}\"", 
+            pos, idx, encode_paragraph_id(*idx), preview, if result.len() > 40 { "..." } else { "" });
     }
 
     Ok(results)
@@ -505,14 +527,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_empty_response_fallback() {
-        // When no valid paragraphs found, return original text
+    fn test_parse_empty_response_returns_error() {
         let text = "번역된 텍스트만 있고 태그가 없는 경우";
         
-        let result = parse_translated_paragraphs(text, 1).unwrap();
+        let result = parse_translated_paragraphs(text, 1);
         
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], text);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("유효한 번역 태그를 찾을 수 없습니다"));
     }
 
     #[test]

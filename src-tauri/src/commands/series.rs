@@ -23,6 +23,14 @@ pub async fn start_batch_translation(
     app: AppHandle,
     request: BatchTranslateRequest,
 ) -> Result<(), String> {
+    if request.end_chapter < request.start_chapter {
+        return Err("종료 챕터는 시작 챕터보다 크거나 같아야 합니다.".to_string());
+    }
+    
+    if request.site == "kakuyomu" {
+        return Err("Kakuyomu는 현재 배치 번역을 지원하지 않습니다. 개별 챕터 번역을 이용해주세요.".to_string());
+    }
+    
     SHOULD_STOP.store(false, Ordering::SeqCst);
     IS_PAUSED.store(false, Ordering::SeqCst);
     

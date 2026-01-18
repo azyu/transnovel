@@ -4,6 +4,7 @@ import { UrlInput } from './UrlInput';
 import { ParagraphList } from './ParagraphList';
 import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
+import { DebugPanel } from '../common/DebugPanel';
 import { useAppStore } from '../../stores/appStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import type { ApiKey } from '../../types';
@@ -44,6 +45,12 @@ export const TranslationView: React.FC = () => {
 
   const handleStop = () => {
     setIsTranslating(false);
+  };
+
+  const handlePrevChapter = async () => {
+    if (!chapterContent?.prev_url) return;
+    setUrl(chapterContent.prev_url);
+    await parseAndTranslate(chapterContent.prev_url);
   };
 
   const handleNextChapter = async () => {
@@ -177,14 +184,27 @@ export const TranslationView: React.FC = () => {
                   번역 중지
                 </Button>
               </>
-            ) : chapterContent.next_url && chapterContent.paragraphs.every(p => p.translated) ? (
-              <Button onClick={handleNextChapter}>
-                다음 화
-              </Button>
+            ) : chapterContent.paragraphs.every(p => p.translated) ? (
+              <div className="flex items-center gap-2">
+                {chapterContent.prev_url && (
+                  <Button variant="secondary" onClick={handlePrevChapter}>
+                    이전 화
+                  </Button>
+                )}
+                {chapterContent.next_url && (
+                  <Button onClick={handleNextChapter}>
+                    다음 화
+                  </Button>
+                )}
+              </div>
             ) : null}
           </div>
         </div>
       )}
+
+      <div className="fixed bottom-0 left-0 right-0 z-20">
+        <DebugPanel />
+      </div>
 
       <SaveModal
         isOpen={showSaveModal}

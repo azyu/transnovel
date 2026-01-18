@@ -16,9 +16,13 @@ export const useTauriEvents = () => {
       updateBatchProgress({ status: 'completed' });
     });
 
-    const unlistenError = listen<{ error: string }>('translation-error', (event) => {
-       console.error("Translation error:", event.payload.error);
-       updateBatchProgress({ status: 'error', error_message: event.payload.error });
+    const unlistenError = listen<TranslationProgress>('translation-error', (event) => {
+       console.error("Translation error:", event.payload.error_message);
+       updateBatchProgress({ 
+         status: 'error', 
+         error_message: event.payload.error_message ?? 'Unknown error',
+         current_chapter: event.payload.current_chapter,
+       });
     });
 
     const unlistenChapterCompleted = listen<{ chapter: number; novel_id: string }>('chapter-completed', (event) => {
