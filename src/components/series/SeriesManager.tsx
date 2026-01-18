@@ -79,7 +79,7 @@ export const SeriesManager: React.FC = () => {
           <ProgressBar progress={batchProgress} />
           
           <div className="flex justify-center gap-4">
-            {isTranslating && !isPaused && (
+            {batchProgress?.status === 'translating' && !isPaused && (
               <>
                 <Button variant="secondary" onClick={handlePause}>
                   일시정지
@@ -109,7 +109,7 @@ export const SeriesManager: React.FC = () => {
             chapters={chapterList} 
             onStartTranslation={handleStart} 
             onChapterDoubleClick={handleChapterDoubleClick}
-            isLoading={isTranslating} 
+            isLoading={batchProgress?.status === 'translating'} 
           />
 
           <div className="fixed bottom-6 right-6 z-20">
@@ -117,7 +117,7 @@ export const SeriesManager: React.FC = () => {
                size="lg" 
                className="shadow-xl"
                onClick={() => setShowExportModal(true)}
-               disabled={isTranslating}
+               disabled={batchProgress?.status === 'translating'}
              >
                내보내기
              </Button>
