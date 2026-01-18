@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter};
 
+use crate::db::get_pool;
 use crate::models::novel::TranslationProgress;
 use crate::parsers::get_parser_for_url;
 use crate::services::translator::TranslatorService;
@@ -35,10 +38,25 @@ pub async fn start_batch_translation(
     SHOULD_STOP.store(false, Ordering::SeqCst);
     IS_PAUSED.store(false, Ordering::SeqCst);
     
+    let completed: HashSet<u32> = get_completed_chapters_internal(&request.novel_id)
+        .await?
+        .into_iter()
+        .map(|n| n as u32)
+        .collect();
+    
     let mut translator = TranslatorService::new().await?;
-    let total_chapters = request.end_chapter - request.start_chapter + 1;
+    let chapters_to_translate: Vec<u32> = (request.start_chapter..=request.end_chapter)
+        .filter(|n| !completed.contains(n))
+        .collect();
+    let total_chapters = chapters_to_translate.len() as u32;
+    
+    if total_chapters == 0 {
+        app.emit("batch-translation-complete", &request.novel_id)
+            .map_err(|e: tauri::Error| e.to_string())?;
+        return Ok(());
+    }
 
-    for chapter_num in request.start_chapter..=request.end_chapter {
+    for chapter_num in chapters_to_translate {
         if SHOULD_STOP.load(Ordering::SeqCst) {
             break;
         }
@@ -188,15 +206,16 @@ pub async fn mark_chapter_complete(novel_id: String, chapter_number: i32, paragr
 
 #[tauri::command]
 pub async fn get_completed_chapters(novel_id: String) -> Result<Vec<i32>, String> {
-    use crate::db::get_pool;
-    use sqlx::Row;
-    
+    get_completed_chapters_internal(&novel_id).await
+}
+
+async fn get_completed_chapters_internal(novel_id: &str) -> Result<Vec<i32>, String> {
     let pool = get_pool()?;
     
     let rows = sqlx::query(
         "SELECT chapter_number FROM completed_chapters WHERE novel_id = ? ORDER BY chapter_number"
     )
-    .bind(&novel_id)
+    .bind(novel_id)
     .fetch_all(pool)
     .await
     .map_err(|e| e.to_string())?;
