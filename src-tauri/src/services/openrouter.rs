@@ -92,13 +92,13 @@ impl OpenRouterClient {
         }
     }
 
-    pub async fn translate(&self, paragraphs: &[String], system_prompt: &str) -> Result<Vec<String>, String> {
+    pub async fn translate(&self, paragraphs: &[String], original_indices: &[usize], has_subtitle: bool, system_prompt: &str) -> Result<Vec<String>, String> {
         let url = format!("{}/chat/completions", OPENROUTER_API_BASE);
 
         let numbered_text = paragraphs
             .iter()
-            .enumerate()
-            .map(|(i, p)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(i), p))
+            .zip(original_indices.iter())
+            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -147,6 +147,7 @@ impl OpenRouterClient {
         novel_id: &str,
         paragraphs: &[String],
         original_indices: &[usize],
+        has_subtitle: bool,
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
@@ -155,7 +156,7 @@ impl OpenRouterClient {
         let numbered_text = paragraphs
             .iter()
             .zip(original_indices.iter())
-            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx), p))
+            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
             .collect::<Vec<_>>()
             .join("\n");
 

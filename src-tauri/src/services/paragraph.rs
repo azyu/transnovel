@@ -9,13 +9,20 @@ pub struct TranslationChunk {
 
 /// Encode paragraph index to semantic ID:
 /// - Index 0 → "title"
-/// - Index 1 → "subtitle"  
-/// - Index 2+ → "p-1", "p-2", ... (1-indexed paragraph numbers)
-pub fn encode_paragraph_id(n: usize) -> String {
+/// - Index 1 → "subtitle" (only if has_subtitle is true)
+/// - Remaining → "p-1", "p-2", ... (1-indexed paragraph numbers)
+/// 
+/// When has_subtitle is false:
+/// - Index 0 → "title"
+/// - Index 1+ → "p-1", "p-2", ...
+pub fn encode_paragraph_id(n: usize, has_subtitle: bool) -> String {
     match n {
         0 => "title".to_string(),
-        1 => "subtitle".to_string(),
-        _ => format!("p-{}", n - 1),
+        1 if has_subtitle => "subtitle".to_string(),
+        _ => {
+            let paragraph_num = if has_subtitle { n - 1 } else { n };
+            format!("p-{}", paragraph_num)
+        }
     }
 }
 
@@ -87,7 +94,7 @@ pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[us
         );
         for (pos, (idx, result)) in original_indices.iter().zip(results.iter()).enumerate() {
             if result.is_empty() {
-                eprintln!("[Translation] 누락된 문단: pos={}, original_idx={}, id={}", pos, idx, encode_paragraph_id(*idx));
+                eprintln!("[Translation] 누락된 문단: pos={}, original_idx={}", pos, idx);
             }
         }
     }
@@ -101,17 +108,26 @@ mod tests {
 
     #[test]
     fn test_encode_decode_paragraph_id() {
-        assert_eq!(encode_paragraph_id(0), "title");
-        assert_eq!(encode_paragraph_id(1), "subtitle");
-        assert_eq!(encode_paragraph_id(2), "p-1");
-        assert_eq!(encode_paragraph_id(3), "p-2");
-        assert_eq!(encode_paragraph_id(10), "p-9");
-        assert_eq!(encode_paragraph_id(102), "p-101");
+        // With subtitle (has_subtitle = true)
+        assert_eq!(encode_paragraph_id(0, true), "title");
+        assert_eq!(encode_paragraph_id(1, true), "subtitle");
+        assert_eq!(encode_paragraph_id(2, true), "p-1");
+        assert_eq!(encode_paragraph_id(3, true), "p-2");
+        assert_eq!(encode_paragraph_id(10, true), "p-9");
+        assert_eq!(encode_paragraph_id(102, true), "p-101");
         
+        // Without subtitle (has_subtitle = false)
+        assert_eq!(encode_paragraph_id(0, false), "title");
+        assert_eq!(encode_paragraph_id(1, false), "p-1");
+        assert_eq!(encode_paragraph_id(2, false), "p-2");
+        assert_eq!(encode_paragraph_id(3, false), "p-3");
+        assert_eq!(encode_paragraph_id(10, false), "p-10");
+        
+        // Decode still works for both cases
         for i in 0..200 {
-            let encoded = encode_paragraph_id(i);
+            let encoded = encode_paragraph_id(i, true);
             let decoded = decode_paragraph_id(&encoded);
-            assert_eq!(decoded, Some(i), "Failed for index {}: encoded as '{}'", i, encoded);
+            assert_eq!(decoded, Some(i), "Failed for index {} with subtitle: encoded as '{}'", i, encoded);
         }
     }
 
@@ -188,5 +204,47 @@ mod tests {
         assert_eq!(result[2], "일곱 번째");
         assert_eq!(result[3], "");
         assert_eq!(result[4], "아홉 번째");
+    }
+
+    #[test]
+    fn test_encode_without_subtitle_scenario() {
+        // given: syosetu chapter without subtitle (title + paragraphs only)
+        // when: encoding with has_subtitle = false
+        // then: index 0 = title, index 1+ = p-1, p-2, ...
+        
+        assert_eq!(encode_paragraph_id(0, false), "title");
+        assert_eq!(encode_paragraph_id(1, false), "p-1");
+        assert_eq!(encode_paragraph_id(2, false), "p-2");
+        assert_eq!(encode_paragraph_id(3, false), "p-3");
+        
+        // given: same syosetu chapter (2 items: title + 1 paragraph)
+        // when: backend sends [title, para1] with has_subtitle = false  
+        // then: IDs should be ["title", "p-1"]
+        let items = vec!["タイトル", "最初の段落"];
+        let ids: Vec<String> = items.iter().enumerate()
+            .map(|(i, _)| encode_paragraph_id(i, false))
+            .collect();
+        assert_eq!(ids, vec!["title", "p-1"]);
+    }
+
+    #[test]
+    fn test_encode_with_subtitle_scenario() {
+        // given: hameln chapter with subtitle (title + subtitle + paragraphs)
+        // when: encoding with has_subtitle = true
+        // then: index 0 = title, index 1 = subtitle, index 2+ = p-1, p-2, ...
+        
+        assert_eq!(encode_paragraph_id(0, true), "title");
+        assert_eq!(encode_paragraph_id(1, true), "subtitle");
+        assert_eq!(encode_paragraph_id(2, true), "p-1");
+        assert_eq!(encode_paragraph_id(3, true), "p-2");
+        
+        // given: hameln chapter (3 items: title + subtitle + 1 paragraph)
+        // when: backend sends [title, subtitle, para1] with has_subtitle = true
+        // then: IDs should be ["title", "subtitle", "p-1"]
+        let items = vec!["タイトル", "サブタイトル", "最初の段落"];
+        let ids: Vec<String> = items.iter().enumerate()
+            .map(|(i, _)| encode_paragraph_id(i, true))
+            .collect();
+        assert_eq!(ids, vec!["title", "subtitle", "p-1"]);
     }
 }

@@ -131,7 +131,7 @@ impl TranslatorService {
         self.system_prompt.replace("{{note}}", &full_note)
     }
 
-    pub async fn translate_paragraphs(&mut self, novel_id: &str, paragraphs: &[String], note: Option<&str>) -> Result<Vec<String>, String> {
+    pub async fn translate_paragraphs(&mut self, novel_id: &str, paragraphs: &[String], has_subtitle: bool, note: Option<&str>) -> Result<Vec<String>, String> {
         if paragraphs.is_empty() {
             return Ok(vec![]);
         }
@@ -156,9 +156,9 @@ impl TranslatorService {
             let prompt = self.build_prompt(note);
 
             let translated = match &mut self.client {
-                ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &prompt).await?,
-                ApiClient::OpenRouter(client) => client.translate(&uncached_paragraphs, &prompt).await?,
-                ApiClient::Antigravity(client) => client.translate(&uncached_paragraphs, &prompt).await?,
+                ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
+                ApiClient::OpenRouter(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
+                ApiClient::Antigravity(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
             };
             
             let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
@@ -186,7 +186,7 @@ impl TranslatorService {
             return Ok(String::new());
         }
 
-        let translated = self.translate_paragraphs(novel_id, &paragraphs, note).await?;
+        let translated = self.translate_paragraphs(novel_id, &paragraphs, true, note).await?;
         Ok(translated.join("\n"))
     }
 
@@ -194,6 +194,7 @@ impl TranslatorService {
         &mut self,
         novel_id: &str,
         paragraphs: &[String],
+        has_subtitle: bool,
         note: Option<&str>,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
@@ -215,7 +216,7 @@ impl TranslatorService {
             let _ = app_handle.emit(
                 "debug-cache",
                 DebugCacheEvent {
-                    paragraph_id: encode_paragraph_id(i),
+                    paragraph_id: encode_paragraph_id(i, has_subtitle),
                     cache_hit: c.is_some(),
                     original_preview,
                 },
@@ -235,7 +236,7 @@ impl TranslatorService {
                 let _ = app_handle.emit(
                     "translation-chunk",
                     TranslationChunk {
-                        paragraph_id: encode_paragraph_id(i),
+                        paragraph_id: encode_paragraph_id(i, has_subtitle),
                         text: postprocessed.into_iter().next().unwrap_or_default(),
                         is_complete: true,
                     },
@@ -281,30 +282,30 @@ impl TranslatorService {
                         match &mut self.client {
                             ApiClient::Gemini(client) => {
                                 client
-                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
                                     .await
                             }
                             ApiClient::OpenRouter(client) => {
                                 client
-                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
                                     .await
                             }
                             ApiClient::Antigravity(client) => {
                                 client
-                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, &prompt, app_handle)
+                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
                                     .await
                             }
                         }
                     } else {
                         let result = match &mut self.client {
                             ApiClient::Gemini(client) => {
-                                client.translate(chunk_paragraphs, &prompt).await
+                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                             ApiClient::OpenRouter(client) => {
-                                client.translate(chunk_paragraphs, &prompt).await
+                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                             ApiClient::Antigravity(client) => {
-                                client.translate(chunk_paragraphs, &prompt).await
+                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                         };
                         
@@ -321,7 +322,7 @@ impl TranslatorService {
                                         let _ = app_handle.emit(
                                             "translation-chunk",
                                             TranslationChunk {
-                                                paragraph_id: encode_paragraph_id(orig_idx),
+                                                paragraph_id: encode_paragraph_id(orig_idx, has_subtitle),
                                                 text: postprocessed[local_idx].clone(),
                                                 is_complete: true,
                                             },

@@ -180,6 +180,7 @@ export const useTranslation = () => {
 
       clearFailedParagraphIndices();
 
+      const hasSubtitle = Boolean(content.subtitle);
       const allTexts = [
         content.title,
         ...(content.subtitle ? [content.subtitle] : []),
@@ -191,7 +192,8 @@ export const useTranslation = () => {
       try {
         await invoke('translate_paragraphs_streaming', { 
           novelId: content.novel_id,
-          paragraphs: allTexts 
+          paragraphs: allTexts,
+          hasSubtitle,
         });
       } catch (err) {
         addDebugLog('error', `Translation error: ${err}`);
@@ -238,6 +240,7 @@ export const useTranslation = () => {
     paragraphs: string[],
     onChunk: (chunk: TranslationChunk) => void,
     onComplete: () => void,
+    hasSubtitle?: boolean,
     note?: string
   ) => {
     const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
@@ -251,7 +254,7 @@ export const useTranslation = () => {
     });
     
     try {
-      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { novelId, paragraphs, note });
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { novelId, paragraphs, hasSubtitle, note });
       return result.translated;
     } catch (err) {
       unlistenChunk();
@@ -373,6 +376,7 @@ await invoke('start_batch_translation', {
       await invoke('translate_paragraphs_streaming', {
         novelId: chapterContent.novel_id,
         paragraphs: failedParagraphs,
+        hasSubtitle: false,
       });
     } catch (err) {
       unlistenChunk();

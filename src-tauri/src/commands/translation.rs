@@ -45,10 +45,11 @@ pub async fn translate_text(
 pub async fn translate_paragraphs(
     novel_id: String,
     paragraphs: Vec<String>,
+    has_subtitle: Option<bool>,
     note: Option<String>,
 ) -> Result<TranslateParagraphsResult, String> {
     let mut translator = TranslatorService::new().await?;
-    let translated = translator.translate_paragraphs(&novel_id, &paragraphs, note.as_deref()).await?;
+    let translated = translator.translate_paragraphs(&novel_id, &paragraphs, has_subtitle.unwrap_or(true), note.as_deref()).await?;
     Ok(TranslateParagraphsResult { translated })
 }
 
@@ -57,11 +58,12 @@ pub async fn translate_paragraphs_streaming(
     app: AppHandle,
     novel_id: String,
     paragraphs: Vec<String>,
+    has_subtitle: Option<bool>,
     note: Option<String>,
 ) -> Result<TranslateParagraphsResult, String> {
     let mut translator = TranslatorService::new().await?;
     let translated = translator
-        .translate_paragraphs_streaming(&novel_id, &paragraphs, note.as_deref(), &app)
+        .translate_paragraphs_streaming(&novel_id, &paragraphs, has_subtitle.unwrap_or(true), note.as_deref(), &app)
         .await?;
     Ok(TranslateParagraphsResult { translated })
 }

@@ -125,7 +125,7 @@ async fn translate_single_chapter(translator: &mut TranslatorService, novel_id: 
         return Ok(vec![]);
     }
     
-    translator.translate_paragraphs(novel_id, &paragraphs, None).await
+    translator.translate_paragraphs(novel_id, &paragraphs, true, None).await
 }
 
 fn extract_paragraphs(html: &str) -> Vec<String> {
