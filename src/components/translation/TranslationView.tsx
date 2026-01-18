@@ -18,7 +18,11 @@ interface AntigravityStatus {
 
 export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
-  const chapterContent = useTranslationStore((s) => s.getChapterContent());
+  const chapter = useTranslationStore((s) => s.chapter);
+  const translatedTitle = useTranslationStore((s) => s.translatedTitle);
+  const translatedSubtitle = useTranslationStore((s) => s.translatedSubtitle);
+  const paragraphIds = useTranslationStore((s) => s.paragraphIds);
+  const translatedCount = useTranslationStore((s) => s.translatedCount);
   const isTranslating = useTranslationStore((s) => s.isTranslating);
   const setIsTranslating = useTranslationStore((s) => s.setIsTranslating);
   const setUrl = useTranslationStore((s) => s.setUrl);
@@ -55,25 +59,26 @@ export const TranslationView: React.FC = () => {
   };
 
   const handlePrevChapter = async () => {
-    if (!chapterContent?.prev_url) return;
-    setUrl(chapterContent.prev_url);
-    await parseAndTranslate(chapterContent.prev_url);
+    if (!chapter?.prevUrl) return;
+    setUrl(chapter.prevUrl);
+    await parseAndTranslate(chapter.prevUrl);
   };
 
   const handleNextChapter = async () => {
-    if (!chapterContent?.next_url) return;
-    setUrl(chapterContent.next_url);
-    await parseAndTranslate(chapterContent.next_url);
+    if (!chapter?.nextUrl) return;
+    setUrl(chapter.nextUrl);
+    await parseAndTranslate(chapter.nextUrl);
   };
 
   const handleSaveWithDialog = async (format: 'txt' | 'html' | 'md', includeOriginal: boolean) => {
+    const chapterContent = useTranslationStore.getState().getChapterContent();
     if (!chapterContent) return;
     try {
       const path = await invoke<string>('save_chapter_with_dialog', {
         request: {
           title: chapterContent.translatedTitle || chapterContent.title,
           subtitle: chapterContent.translatedSubtitle || chapterContent.subtitle,
-          paragraphs: chapterContent.paragraphs.map(p => ({
+          paragraphs: chapterContent.paragraphs.map((p: { original: string; translated?: string }) => ({
             original: p.original,
             translated: p.translated,
           })),
@@ -111,28 +116,28 @@ export const TranslationView: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        {chapterContent ? (
+        {chapter ? (
           <div className="space-y-8 pb-20">
             <header className={`border-b pb-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
               <div className="mb-2">
-                {chapterContent.translatedTitle ? (
+                {translatedTitle ? (
                   <>
-                    <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapterContent.title}</p>
-                    <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapterContent.translatedTitle}</h1>
+                    <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapter.title}</p>
+                    <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{translatedTitle}</h1>
                   </>
                 ) : (
-                  <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapterContent.title}</h1>
+                  <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapter.title}</h1>
                 )}
               </div>
-              {chapterContent.subtitle && (
+              {chapter.subtitle && (
                 <div>
-                  {chapterContent.translatedSubtitle ? (
+                  {translatedSubtitle ? (
                     <>
-                      <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapterContent.subtitle}</p>
-                      <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{chapterContent.translatedSubtitle}</h2>
+                      <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapter.subtitle}</p>
+                      <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{translatedSubtitle}</h2>
                     </>
                   ) : (
-                    <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{chapterContent.subtitle}</h2>
+                    <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{chapter.subtitle}</h2>
                   )}
                 </div>
               )}
@@ -150,7 +155,7 @@ export const TranslationView: React.FC = () => {
         )}
       </div>
 
-      {chapterContent && (
+      {chapter && (
         <div className={`py-4 px-6 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
           <div className="flex items-center gap-4">
             <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying}>
@@ -184,21 +189,21 @@ export const TranslationView: React.FC = () => {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
                   <span>
-                    {chapterContent.paragraphs.filter(p => p.translated).length} / {chapterContent.paragraphs.length}
+                    {translatedCount} / {paragraphIds.length}
                   </span>
                 </div>
                 <Button variant="danger" onClick={handleStop}>
                   번역 중지
                 </Button>
               </>
-            ) : chapterContent.paragraphs.every(p => p.translated) ? (
+            ) : translatedCount === paragraphIds.length && paragraphIds.length > 0 ? (
               <div className="flex items-center gap-2">
-                {chapterContent.prev_url && (
+                {chapter.prevUrl && (
                   <Button variant="secondary" onClick={handlePrevChapter}>
                     이전 화
                   </Button>
                 )}
-                {chapterContent.next_url && (
+                {chapter.nextUrl && (
                   <Button onClick={handleNextChapter}>
                     다음 화
                   </Button>
