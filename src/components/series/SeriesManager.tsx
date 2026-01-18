@@ -65,10 +65,22 @@ export const SeriesManager: React.FC = () => {
 
     setExporting(true);
     try {
-      await exportNovel(content.novel_id, {
-        format: exportFormat,
-        include_original: false,
-        include_notes: false
+      await exportNovel({
+        novel_id: content.novel_id,
+        novel_title: content.translatedTitle || content.title,
+        chapters: [{
+          number: 1,
+          title: content.translatedSubtitle || content.subtitle || content.title,
+          paragraphs: content.paragraphs.map(p => ({
+            original: p.original,
+            translated: p.translated ?? null,
+          })),
+        }],
+        options: {
+          format: exportFormat,
+          include_original: false,
+          include_notes: false
+        }
       });
       setShowExportModal(false);
       alert('내보내기가 완료되었습니다.');

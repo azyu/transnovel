@@ -5,7 +5,7 @@ import { useTranslationStore } from '../stores/translationStore';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import { useDebugStore } from '../stores/debugStore';
-import type { ChapterContent, Chapter, ExportOptions, TranslationChunk } from '../types';
+import type { ChapterContent, Chapter, ExportRequest, TranslationChunk } from '../types';
 
 export const useTranslation = () => {
   const setChapterContent = useTranslationStore((s) => s.setChapterContent);
@@ -392,9 +392,9 @@ await invoke('start_batch_translation', {
     }
   }, [setIsTranslating, updateParagraphTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
 
-  const exportNovel = useCallback(async (novelId: string, options: ExportOptions) => {
+  const exportNovel = useCallback(async (request: ExportRequest) => {
       try {
-          await invoke('export_novel', { request: { novel_id: novelId, options } });
+          await invoke('export_novel', { request });
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
