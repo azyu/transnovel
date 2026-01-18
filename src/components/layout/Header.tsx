@@ -3,13 +3,15 @@ import { useAppStore } from '../../stores/appStore';
 import type { TabType } from '../../types';
 
 export const Header: React.FC = () => {
-  const { currentTab, setTab, theme, toggleTheme, batchProgress, isTranslating } = useAppStore();
+  const { currentTab, setTab, theme, toggleTheme, batchProgress, isTranslating, debugMode } = useAppStore();
 
-  const tabs: { id: TabType; label: string }[] = [
+  const allTabs: { id: TabType; label: string; devOnly?: boolean }[] = [
     { id: 'translation', label: '번역' },
-    { id: 'series', label: '시리즈' },
+    { id: 'series', label: '시리즈', devOnly: true },
     { id: 'settings', label: '설정' },
   ];
+
+  const tabs = allTabs.filter(tab => !tab.devOnly || debugMode);
 
   const isDark = theme === 'dark';
   const showBatchProgress = batchProgress && isTranslating && batchProgress.status === 'translating';
