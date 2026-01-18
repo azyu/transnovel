@@ -9,9 +9,10 @@ interface ChapterListProps {
   onStartTranslation: (start: number, end: number) => void;
   onChapterDoubleClick?: (chapter: Chapter) => void;
   isLoading: boolean;
+  disabled?: boolean;
 }
 
-export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTranslation, onChapterDoubleClick, isLoading }) => {
+export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTranslation, onChapterDoubleClick, isLoading, disabled }) => {
   const [start, setStart] = useState<number>(1);
   const [end, setEnd] = useState<number>(1);
   const isDark = useAppStore((state) => state.theme) === 'dark';
@@ -57,7 +58,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
           <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             총 <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapters.length}</span> 화
           </div>
-          <Button onClick={handleStart} isLoading={isLoading}>
+          <Button onClick={handleStart} isLoading={isLoading} disabled={disabled}>
             일괄 번역 시작
           </Button>
         </div>

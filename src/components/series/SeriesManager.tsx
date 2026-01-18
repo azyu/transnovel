@@ -109,7 +109,8 @@ export const SeriesManager: React.FC = () => {
             chapters={chapterList} 
             onStartTranslation={handleStart} 
             onChapterDoubleClick={handleChapterDoubleClick}
-            isLoading={batchProgress?.status === 'translating'} 
+            isLoading={batchProgress?.status === 'translating'}
+            disabled={isTranslating}
           />
 
           <div className="fixed bottom-6 right-6 z-20">
