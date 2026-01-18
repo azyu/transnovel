@@ -530,6 +530,11 @@ pub async fn clear_cache() -> Result<i64, String> {
         .await
         .map_err(|e| e.to_string())?;
     
+    sqlx::query("DELETE FROM completed_chapters")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
     Ok(result.rows_affected() as i64)
 }
 
@@ -543,6 +548,12 @@ pub async fn clear_cache_by_novel(novel_id: String) -> Result<i64, String> {
         .await
         .map_err(|e| e.to_string())?;
     
+    sqlx::query("DELETE FROM completed_chapters WHERE novel_id = ?")
+        .bind(&novel_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
     Ok(result.rows_affected() as i64)
 }
 
@@ -551,6 +562,11 @@ pub async fn reset_all() -> Result<(), String> {
     let pool = get_pool()?;
     
     sqlx::query("DELETE FROM translation_cache")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    sqlx::query("DELETE FROM completed_chapters")
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;

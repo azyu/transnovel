@@ -161,3 +161,44 @@ pub async fn get_translation_progress(_novel_id: String) -> Result<TranslationPr
         error_message: None,
     })
 }
+
+#[tauri::command]
+pub async fn mark_chapter_complete(novel_id: String, chapter_number: i32, paragraph_count: i32) -> Result<(), String> {
+    use crate::db::get_pool;
+    
+    let pool = get_pool()?;
+    
+    sqlx::query(
+        "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count, completed_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(novel_id, chapter_number) DO UPDATE SET
+           paragraph_count = excluded.paragraph_count,
+           completed_at = CURRENT_TIMESTAMP"
+    )
+    .bind(&novel_id)
+    .bind(chapter_number)
+    .bind(paragraph_count)
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_completed_chapters(novel_id: String) -> Result<Vec<i32>, String> {
+    use crate::db::get_pool;
+    use sqlx::Row;
+    
+    let pool = get_pool()?;
+    
+    let rows = sqlx::query(
+        "SELECT chapter_number FROM completed_chapters WHERE novel_id = ? ORDER BY chapter_number"
+    )
+    .bind(&novel_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    
+    Ok(rows.iter().map(|r| r.get::<i32, _>("chapter_number")).collect())
+}

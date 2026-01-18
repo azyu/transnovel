@@ -64,8 +64,17 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS completed_chapters (
+    novel_id TEXT NOT NULL,
+    chapter_number INTEGER NOT NULL,
+    paragraph_count INTEGER NOT NULL,
+    completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (novel_id, chapter_number)
+);
+
 CREATE INDEX IF NOT EXISTS idx_chapters_novel ON chapters(novel_id);
 CREATE INDEX IF NOT EXISTS idx_chapters_status ON chapters(status);
 CREATE INDEX IF NOT EXISTS idx_translations_chapter ON translations(chapter_id);
 CREATE INDEX IF NOT EXISTS idx_cache_hash ON translation_cache(text_hash);
 CREATE INDEX IF NOT EXISTS idx_cache_novel_id ON translation_cache(novel_id);
+CREATE INDEX IF NOT EXISTS idx_completed_chapters_novel ON completed_chapters(novel_id);

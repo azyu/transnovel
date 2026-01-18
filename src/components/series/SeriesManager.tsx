@@ -72,7 +72,7 @@ export const SeriesManager: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8 pb-20">
-      <UrlInput historyKey="url_history_series" />
+      <UrlInput historyKey="url_history_series" parseOnly />
 
       {batchProgress && (
         <div className="space-y-4">

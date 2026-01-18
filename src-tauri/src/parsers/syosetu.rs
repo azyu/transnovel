@@ -12,13 +12,13 @@ pub struct SyosetuParser {
 impl SyosetuParser {
     pub fn new() -> Self {
         Self {
-            url_pattern: Regex::new(r"https?://ncode\.syosetu\.com/([a-z0-9]+)/(\d+)?/?")
+            url_pattern: Regex::new(r"https?://ncode\.syosetu\.com/([a-z0-9]+)(?:/(\d+)?)?/?")
                 .unwrap(),
         }
     }
 
     pub fn parse_url_static(url: &str) -> Option<ParsedUrl> {
-        let pattern = Regex::new(r"https?://ncode\.syosetu\.com/([a-z0-9]+)/(\d+)?/?").unwrap();
+        let pattern = Regex::new(r"https?://ncode\.syosetu\.com/([a-z0-9]+)(?:/(\d+)?)?/?").unwrap();
         let caps = pattern.captures(url)?;
 
         Some(ParsedUrl {
@@ -173,6 +173,7 @@ mod tests {
         let parser = SyosetuParser::new();
         assert!(parser.matches_url("https://ncode.syosetu.com/n4029bs/1/"));
         assert!(parser.matches_url("https://ncode.syosetu.com/n4029bs/"));
+        assert!(parser.matches_url("https://ncode.syosetu.com/n4029bs"));
         assert!(!parser.matches_url("https://syosetu.org/novel/123/1.html"));
         assert!(!parser.matches_url("https://kakuyomu.jp/works/123"));
     }

@@ -31,11 +31,12 @@ const saveUrlHistory = (key: string, url: string) => {
 
 interface UrlInputProps {
   historyKey?: string;
+  parseOnly?: boolean;
 }
 
-export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history' }) => {
+export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', parseOnly = false }) => {
   const { currentUrl, setUrl, isTranslating, theme } = useAppStore();
-  const { parseAndTranslate, loading } = useTranslation();
+  const { parseAndTranslate, parseChapter, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
   const [history, setHistory] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -67,7 +68,11 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history' }
     saveUrlHistory(historyKey, localUrl);
     setHistory(getUrlHistory(historyKey));
     setUrl(localUrl);
-    await parseAndTranslate(localUrl);
+    if (parseOnly) {
+      await parseChapter(localUrl);
+    } else {
+      await parseAndTranslate(localUrl);
+    }
   };
 
   const handleSelectHistory = (url: string) => {

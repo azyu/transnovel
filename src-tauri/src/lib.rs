@@ -27,6 +27,8 @@ pub fn run() {
             commands::series::resume_translation,
             commands::series::stop_translation,
             commands::series::get_translation_progress,
+            commands::series::mark_chapter_complete,
+            commands::series::get_completed_chapters,
             commands::export::export_novel,
             commands::export::save_chapter,
             commands::export::save_chapter_with_dialog,
