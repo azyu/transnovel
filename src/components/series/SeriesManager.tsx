@@ -3,7 +3,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { UrlInput } from '../translation/UrlInput';
 import { ChapterList } from './ChapterList';
-import { ProgressBar } from './ProgressBar';
+import { BatchTranslationModal } from './BatchTranslationModal';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import type { Chapter } from '../../types';
@@ -74,33 +74,14 @@ export const SeriesManager: React.FC = () => {
     <div className="max-w-7xl mx-auto p-6 space-y-8 pb-20">
       <UrlInput historyKey="url_history_series" parseOnly />
 
-      {batchProgress && (
-        <div className="space-y-4">
-          <ProgressBar progress={batchProgress} />
-          
-          <div className="flex justify-center gap-4">
-            {batchProgress?.status === 'translating' && !isPaused && (
-              <>
-                <Button variant="secondary" onClick={handlePause}>
-                  일시정지
-                </Button>
-                <Button variant="danger" onClick={handleStop}>
-                  중지
-                </Button>
-              </>
-            )}
-            {isPaused && (
-              <>
-                <Button onClick={handleResume}>
-                  재개
-                </Button>
-                <Button variant="danger" onClick={handleStop}>
-                  중지
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
+      {batchProgress && batchProgress.status === 'translating' && (
+        <BatchTranslationModal
+          progress={batchProgress}
+          isPaused={isPaused}
+          onPause={handlePause}
+          onResume={handleResume}
+          onStop={handleStop}
+        />
       )}
 
       {chapterList.length > 0 && (
