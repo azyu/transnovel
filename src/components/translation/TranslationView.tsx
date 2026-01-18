@@ -5,6 +5,7 @@ import { ParagraphList } from './ParagraphList';
 import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
+import { useUIStore } from '../../stores/uiStore';
 import { useAppStore } from '../../stores/appStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import type { ApiKey } from '../../types';
@@ -16,7 +17,13 @@ interface AntigravityStatus {
 }
 
 export const TranslationView: React.FC = () => {
-  const { chapterContent, isTranslating, setIsTranslating, setUrl, theme, failedParagraphIndices } = useAppStore();
+  const theme = useUIStore((s) => s.theme);
+  const chapterContent = useAppStore((s) => s.chapterContent);
+  const isTranslating = useAppStore((s) => s.isTranslating);
+  const setIsTranslating = useAppStore((s) => s.setIsTranslating);
+  const setUrl = useAppStore((s) => s.setUrl);
+  const failedParagraphIndices = useAppStore((s) => s.failedParagraphIndices);
+
   const { parseAndTranslate, retryFailedParagraphs } = useTranslation();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
