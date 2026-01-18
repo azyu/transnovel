@@ -10,6 +10,7 @@ static IS_PAUSED: AtomicBool = AtomicBool::new(false);
 static SHOULD_STOP: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchTranslateRequest {
     pub novel_id: String,
     pub site: String,
