@@ -20,35 +20,6 @@ export const useTranslation = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const decodeParagraphId = (id: string): number | null => {
-    const chars = id.split('');
-    if (chars.length === 0 || chars.length > 6) return null;
-    
-    const decodeChar = (c: string): number | null => {
-      if (c >= 'A' && c <= 'Z') return c.charCodeAt(0) - 65;
-      if (c >= 'a' && c <= 'z') return c.charCodeAt(0) - 71;
-      return null;
-    };
-    
-    if (chars.length === 1) {
-      return decodeChar(chars[0]);
-    }
-    
-    let result = 0;
-    for (let i = 0; i < chars.length; i++) {
-      const charValue = decodeChar(chars[i]);
-      if (charValue === null) return null;
-      
-      if (i === 0) {
-        result = charValue;
-      } else {
-        result = (result + 1) * 52 + charValue;
-      }
-    }
-    
-    return result;
-  };
-
   const parseChapter = useCallback(async (url: string) => {
     setLoading(true);
     setError(null);
@@ -124,49 +95,45 @@ export const useTranslation = () => {
 
       setLoading(false);
       setIsTranslating(true);
-
-      const titleOffset = content.subtitle ? 2 : 1;
       
       const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
-        const idx = decodeParagraphId(event.payload.paragraph_id);
+        const paragraphId = event.payload.paragraph_id;
         const translatedPreview = event.payload.text.slice(0, 40) + (event.payload.text.length > 40 ? '...' : '');
         
-        if (idx === null) {
-          addDebugLog('warn', `Invalid paragraph_id: ${event.payload.paragraph_id}`);
-          return;
-        }
-
         if (event.payload.text.trim() === '') {
-          addDebugLog('warn', `Empty translation received for [${event.payload.paragraph_id}→${idx}]`);
+          addDebugLog('warn', `Empty translation received for [${paragraphId}]`);
         }
         
-        if (idx === 0) {
+        if (paragraphId === 'title') {
           const originalPreview = content.title.slice(0, 30) + (content.title.length > 30 ? '...' : '');
-          addDebugLog('chunk', `[${event.payload.paragraph_id}] title: "${originalPreview}" → "${translatedPreview}"`);
+          addDebugLog('chunk', `[${paragraphId}] title: "${originalPreview}" → "${translatedPreview}"`);
           updateTitleTranslation(event.payload.text, undefined);
-        } else if (idx === 1 && content.subtitle) {
-          const originalPreview = content.subtitle.slice(0, 30) + (content.subtitle.length > 30 ? '...' : '');
-          addDebugLog('chunk', `[${event.payload.paragraph_id}] subtitle: "${originalPreview}" → "${translatedPreview}"`);
+        } else if (paragraphId === 'subtitle') {
+          const originalPreview = (content.subtitle ?? '').slice(0, 30) + ((content.subtitle?.length ?? 0) > 30 ? '...' : '');
+          addDebugLog('chunk', `[${paragraphId}] subtitle: "${originalPreview}" → "${translatedPreview}"`);
           updateTitleTranslation(undefined, event.payload.text);
-        } else {
-          const paragraphIdx = idx - titleOffset;
+        } else if (paragraphId.startsWith('p-')) {
+          const paragraphNum = parseInt(paragraphId.slice(2), 10);
+          const paragraphIdx = paragraphNum - 1;
           const original = content.paragraphs[paragraphIdx] ?? '';
           const originalPreview = original.slice(0, 30) + (original.length > 30 ? '...' : '');
-          addDebugLog('chunk', `[${event.payload.paragraph_id}] p-${paragraphIdx}: "${originalPreview}" → "${translatedPreview}"`);
+          addDebugLog('chunk', `[${paragraphId}] p-${paragraphIdx}: "${originalPreview}" → "${translatedPreview}"`);
           updateParagraphTranslation(`p-${paragraphIdx}`, event.payload.text);
+        } else {
+          addDebugLog('warn', `Unknown paragraph_id format: ${paragraphId}`);
         }
       });
 
       const unlistenFailed = await listen<{ failed_indices: number[]; total: number }>('translation-failed-paragraphs', (event) => {
-        const adjustedIndices = event.payload.failed_indices
-          .filter(idx => idx >= titleOffset)
-          .map(idx => idx - titleOffset);
-        addDebugLog('warn', `Failed paragraphs: [${adjustedIndices.join(', ')}]`);
-        setFailedParagraphIndices(adjustedIndices);
-        if (adjustedIndices.length > 0) {
+        const failedIndices = event.payload.failed_indices
+          .filter(idx => idx >= 2)
+          .map(idx => idx - 2);
+        addDebugLog('warn', `Failed paragraphs: [${failedIndices.join(', ')}]`);
+        setFailedParagraphIndices(failedIndices);
+        if (failedIndices.length > 0) {
           showError(
             '일부 문단 번역 실패',
-            `${adjustedIndices.length}개 문단 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
+            `${failedIndices.length}개 문단 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
           );
         }
       });
@@ -371,9 +338,10 @@ await invoke('start_batch_translation', {
     clearFailedParagraphIndices();
 
     const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
-      const retryIdx = decodeParagraphId(event.payload.paragraph_id);
-      if (retryIdx === null) return;
+      const paragraphId = event.payload.paragraph_id;
+      if (!paragraphId.startsWith('p-')) return;
       
+      const retryIdx = parseInt(paragraphId.slice(2), 10) - 1;
       const originalIdx = retryIndexToOriginalIndex.get(retryIdx);
       if (originalIdx !== undefined) {
         updateParagraphTranslation(`p-${originalIdx}`, event.payload.text);

@@ -283,7 +283,7 @@ impl GeminiClient {
 }
 
 fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
-    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="(title|subtitle|p-\d+)">(.*?)</p>"#).unwrap();
     let mut chunks = Vec::new();
 
     for cap in re.captures_iter(text) {
@@ -299,27 +299,15 @@ fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
     chunks
 }
 
+/// Encode paragraph index to semantic ID:
+/// - Index 0 → "title"
+/// - Index 1 → "subtitle"  
+/// - Index 2+ → "p-1", "p-2", ... (1-indexed paragraph numbers)
 pub fn encode_paragraph_id(n: usize) -> String {
-    if n >= 2756 {
-        let adjusted = n - 2756;
-        format!(
-            "{}{}",
-            encode_paragraph_id(adjusted / 2704),
-            encode_paragraph_id(adjusted % 2704 + 52)
-        )
-    } else if n < 26 {
-        char::from_u32((n + 65) as u32).unwrap().to_string()
-    } else if n < 52 {
-        char::from_u32((n + 71) as u32).unwrap().to_string()
-    } else {
-        let adjusted = n - 52;
-        let first = adjusted / 52;
-        let second = adjusted % 52;
-        format!(
-            "{}{}",
-            char::from_u32((first + if first < 26 { 65 } else { 71 }) as u32).unwrap(),
-            char::from_u32((second + if second < 26 { 65 } else { 71 }) as u32).unwrap()
-        )
+    match n {
+        0 => "title".to_string(),
+        1 => "subtitle".to_string(),
+        _ => format!("p-{}", n - 1), // n=2 → "p-1", n=3 → "p-2", etc.
     }
 }
 
@@ -329,7 +317,7 @@ pub fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<
 }
 
 pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize]) -> Result<Vec<String>, String> {
-    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
+    let re = regex::Regex::new(r#"(?s)<p id="(title|subtitle|p-\d+)">(.*?)</p>"#).unwrap();
 
     let mut results: Vec<String> = vec![String::new(); original_indices.len()];
     let mut found_count = 0;
@@ -378,37 +366,13 @@ pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[us
 }
 
 fn decode_paragraph_id(id: &str) -> Option<usize> {
-    let chars: Vec<char> = id.chars().collect();
-
-    if chars.is_empty() || chars.len() > 6 {
-        return None;
-    }
-
-    let decode_char = |c: char| -> Option<usize> {
-        if c.is_ascii_uppercase() {
-            Some((c as usize) - 65)
-        } else if c.is_ascii_lowercase() {
-            Some((c as usize) - 71)
-        } else {
-            None
+    match id {
+        "title" => Some(0),
+        "subtitle" => Some(1),
+        _ if id.starts_with("p-") => {
+            id[2..].parse::<usize>().ok().map(|n| n + 1)
         }
-    };
-
-    match chars.len() {
-        1 => decode_char(chars[0]),
-        2 => {
-            let first = decode_char(chars[0])?;
-            let second = decode_char(chars[1])?;
-            Some(52 + first * 52 + second)
-        }
-        _ => {
-            let prefix_len = chars.len() - 2;
-            let prefix: String = chars[..prefix_len].iter().collect();
-            let suffix_first = decode_char(chars[prefix_len])?;
-            let suffix_second = decode_char(chars[prefix_len + 1])?;
-            let prefix_value = decode_paragraph_id(&prefix)?;
-            Some(2756 + prefix_value * 2704 + suffix_first * 52 + suffix_second)
-        }
+        _ => None,
     }
 }
 
@@ -418,17 +382,13 @@ mod tests {
 
     #[test]
     fn test_encode_decode_paragraph_id() {
-        // Single uppercase letters (0-25)
-        assert_eq!(encode_paragraph_id(0), "A");
-        assert_eq!(encode_paragraph_id(25), "Z");
-        
-        // Single lowercase letters (26-51)
-        assert_eq!(encode_paragraph_id(26), "a");
-        assert_eq!(encode_paragraph_id(51), "z");
-        
-        // Two-letter IDs (52+)
-        assert_eq!(encode_paragraph_id(52), "AA");
-        assert_eq!(encode_paragraph_id(53), "AB");
+        // New semantic ID scheme: 0=title, 1=subtitle, 2+=p-N
+        assert_eq!(encode_paragraph_id(0), "title");
+        assert_eq!(encode_paragraph_id(1), "subtitle");
+        assert_eq!(encode_paragraph_id(2), "p-1");
+        assert_eq!(encode_paragraph_id(3), "p-2");
+        assert_eq!(encode_paragraph_id(10), "p-9");
+        assert_eq!(encode_paragraph_id(102), "p-101");
         
         // Verify round-trip
         for i in 0..200 {
@@ -440,28 +400,25 @@ mod tests {
 
     #[test]
     fn test_parse_normal_paragraphs() {
-        let text = r#"<p id="A">첫 번째 문단입니다.</p>
-<p id="B">두 번째 문단입니다.</p>
-<p id="C">세 번째 문단입니다.</p>"#;
+        let text = r#"<p id="title">제목입니다.</p>
+<p id="subtitle">부제목입니다.</p>
+<p id="p-1">첫 번째 문단입니다.</p>"#;
         
         let result = parse_translated_paragraphs(text, 3).unwrap();
         assert_eq!(result.len(), 3);
-        assert_eq!(result[0], "첫 번째 문단입니다.");
-        assert_eq!(result[1], "두 번째 문단입니다.");
-        assert_eq!(result[2], "세 번째 문단입니다.");
+        assert_eq!(result[0], "제목입니다.");
+        assert_eq!(result[1], "부제목입니다.");
+        assert_eq!(result[2], "첫 번째 문단입니다.");
     }
 
     #[test]
     fn test_parse_paragraphs_with_less_than_symbol() {
-        // This test demonstrates the bug: content with '<' character fails to parse
-        let text = r#"<p id="A">a < b 인 경우</p>
-<p id="B">x > y 이면서 y < z</p>
-<p id="C">정상 문단</p>"#;
+        let text = r#"<p id="title">a < b 인 경우</p>
+<p id="subtitle">x > y 이면서 y < z</p>
+<p id="p-1">정상 문단</p>"#;
         
         let result = parse_translated_paragraphs(text, 3).unwrap();
         
-        // BUG: Current regex [^<]* cannot match content containing '<'
-        // After fix, these assertions should pass:
         assert_eq!(result.len(), 3, "Should parse all 3 paragraphs");
         assert_eq!(result[0], "a < b 인 경우", "First paragraph with '<' should be parsed");
         assert_eq!(result[1], "x > y 이면서 y < z", "Second paragraph with '<' should be parsed");
@@ -470,8 +427,8 @@ mod tests {
 
     #[test]
     fn test_parse_paragraphs_with_math_expressions() {
-        let text = r#"<p id="A">조건: 0 < x < 10</p>
-<p id="B">결과: y >= 5</p>"#;
+        let text = r#"<p id="title">조건: 0 < x < 10</p>
+<p id="subtitle">결과: y >= 5</p>"#;
         
         let result = parse_translated_paragraphs(text, 2).unwrap();
         
@@ -482,31 +439,29 @@ mod tests {
 
     #[test]
     fn test_extract_completed_paragraphs_with_less_than() {
-        let text = r#"<p id="A">HP < 50이면 위험</p>
-<p id="B">MP가 충분하다</p>"#;
+        let text = r#"<p id="title">HP < 50이면 위험</p>
+<p id="subtitle">MP가 충분하다</p>"#;
         
         let chunks = extract_completed_paragraphs(text);
         
         assert_eq!(chunks.len(), 2, "Should extract 2 paragraphs");
-        assert_eq!(chunks[0].paragraph_id, "A");
+        assert_eq!(chunks[0].paragraph_id, "title");
         assert_eq!(chunks[0].text, "HP < 50이면 위험");
-        assert_eq!(chunks[1].paragraph_id, "B");
+        assert_eq!(chunks[1].paragraph_id, "subtitle");
         assert_eq!(chunks[1].text, "MP가 충분하다");
     }
 
     #[test]
     fn test_extract_completed_paragraphs_streaming_simulation() {
-        // Simulate streaming: text arrives incrementally
-        let partial1 = r#"<p id="A">완료된 문단</p>
-<p id="B">아직 진행"#;
+        let partial1 = r#"<p id="title">완료된 문단</p>
+<p id="subtitle">아직 진행"#;
         
         let chunks1 = extract_completed_paragraphs(partial1);
         assert_eq!(chunks1.len(), 1, "Only completed paragraph should be extracted");
-        assert_eq!(chunks1[0].paragraph_id, "A");
+        assert_eq!(chunks1[0].paragraph_id, "title");
         
-        // More text arrives
-        let partial2 = r#"<p id="A">완료된 문단</p>
-<p id="B">아직 진행 중</p>"#;
+        let partial2 = r#"<p id="title">완료된 문단</p>
+<p id="subtitle">아직 진행 중</p>"#;
         
         let chunks2 = extract_completed_paragraphs(partial2);
         assert_eq!(chunks2.len(), 2, "Both paragraphs now complete");
@@ -514,9 +469,9 @@ mod tests {
 
     #[test]
     fn test_parse_with_special_characters() {
-        let text = r#"<p id="A">"인용문" 테스트</p>
-<p id="B">괄호(테스트)와 [대괄호]</p>
-<p id="C">특수문자: !@#$%^&*()</p>"#;
+        let text = r#"<p id="title">"인용문" 테스트</p>
+<p id="subtitle">괄호(테스트)와 [대괄호]</p>
+<p id="p-1">특수문자: !@#$%^&*()</p>"#;
         
         let result = parse_translated_paragraphs(text, 3).unwrap();
         
@@ -538,9 +493,9 @@ mod tests {
 
     #[test]
     fn test_parse_out_of_order_paragraphs() {
-        let text = r#"<p id="C">세 번째</p>
-<p id="A">첫 번째</p>
-<p id="B">두 번째</p>"#;
+        let text = r#"<p id="p-1">세 번째</p>
+<p id="title">첫 번째</p>
+<p id="subtitle">두 번째</p>"#;
         
         let result = parse_translated_paragraphs(text, 3).unwrap();
         
@@ -551,14 +506,12 @@ mod tests {
 
     #[test]
     fn test_parse_with_skipped_paragraphs() {
-        // LLM skips paragraph B (index 1)
-        let text = r#"<p id="A">첫 번째</p>
-<p id="C">세 번째</p>
-<p id="D">네 번째</p>"#;
+        let text = r#"<p id="title">첫 번째</p>
+<p id="p-1">세 번째</p>
+<p id="p-2">네 번째</p>"#;
         
         let result = parse_translated_paragraphs(text, 4).unwrap();
         
-        // Should return 4 items with empty string for skipped paragraph
         assert_eq!(result.len(), 4, "Should return expected_count items");
         assert_eq!(result[0], "첫 번째");
         assert_eq!(result[1], "", "Skipped paragraph should be empty");
@@ -568,9 +521,9 @@ mod tests {
 
     #[test]
     fn test_parse_with_multiple_skipped_paragraphs() {
-        let text = r#"<p id="A">첫 번째</p>
-<p id="C">세 번째</p>
-<p id="E">다섯 번째</p>"#;
+        let text = r#"<p id="title">첫 번째</p>
+<p id="p-1">세 번째</p>
+<p id="p-3">다섯 번째</p>"#;
         
         let result = parse_translated_paragraphs(text, 5).unwrap();
         
@@ -584,11 +537,9 @@ mod tests {
 
     #[test]
     fn test_parse_by_indices_non_sequential() {
-        // Streaming case: original_indices might be [5, 6, 7, 8, 9]
-        // IDs will be F, G, H, I, J
-        let text = r#"<p id="F">다섯 번째</p>
-<p id="H">일곱 번째</p>
-<p id="J">아홉 번째</p>"#;
+        let text = r#"<p id="p-4">다섯 번째</p>
+<p id="p-6">일곱 번째</p>
+<p id="p-8">아홉 번째</p>"#;
         
         let original_indices = vec![5, 6, 7, 8, 9];
         let result = parse_translated_paragraphs_by_indices(text, &original_indices).unwrap();

@@ -5,7 +5,7 @@ use crate::commands::settings::{get_active_api_key, get_settings};
 use crate::models::translation::TranslationResult;
 use crate::services::antigravity::{AntigravityClient, TranslationChunk};
 use crate::services::cache::{cache_translations, get_cached_translations};
-use crate::services::gemini::GeminiClient;
+use crate::services::gemini::{encode_paragraph_id, GeminiClient};
 use crate::services::openrouter::OpenRouterClient;
 use crate::services::substitution::SubstitutionService;
 
@@ -14,23 +14,6 @@ pub struct DebugCacheEvent {
     pub paragraph_id: String,
     pub cache_hit: bool,
     pub original_preview: String,
-}
-
-fn encode_paragraph_id(n: usize) -> String {
-    if n < 26 {
-        char::from_u32((n + 65) as u32).unwrap().to_string()
-    } else if n < 52 {
-        char::from_u32((n + 71) as u32).unwrap().to_string()
-    } else {
-        let adjusted = n - 52;
-        let first = adjusted / 52;
-        let second = adjusted % 52;
-        format!(
-            "{}{}",
-            char::from_u32((first + if first < 26 { 65 } else { 71 }) as u32).unwrap(),
-            char::from_u32((second + if second < 26 { 65 } else { 71 }) as u32).unwrap()
-        )
-    }
 }
 
 const DEFAULT_SYSTEM_PROMPT: &str = r#"<|im_start|>system
