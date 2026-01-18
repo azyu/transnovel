@@ -6,7 +6,7 @@ import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
 import { useUIStore } from '../../stores/uiStore';
-import { useAppStore } from '../../stores/appStore';
+import { useTranslationStore } from '../../stores/translationStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import type { ApiKey } from '../../types';
 
@@ -18,11 +18,11 @@ interface AntigravityStatus {
 
 export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
-  const chapterContent = useAppStore((s) => s.chapterContent);
-  const isTranslating = useAppStore((s) => s.isTranslating);
-  const setIsTranslating = useAppStore((s) => s.setIsTranslating);
-  const setUrl = useAppStore((s) => s.setUrl);
-  const failedParagraphIndices = useAppStore((s) => s.failedParagraphIndices);
+  const chapterContent = useTranslationStore((s) => s.getChapterContent());
+  const isTranslating = useTranslationStore((s) => s.isTranslating);
+  const setIsTranslating = useTranslationStore((s) => s.setIsTranslating);
+  const setUrl = useTranslationStore((s) => s.setUrl);
+  const failedParagraphIndices = useTranslationStore((s) => s.failedParagraphIndices);
 
   const { parseAndTranslate, retryFailedParagraphs } = useTranslation();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
@@ -138,7 +138,7 @@ export const TranslationView: React.FC = () => {
               )}
             </header>
 
-            <ParagraphList paragraphs={chapterContent.paragraphs} />
+            <ParagraphList />
           </div>
         ) : (
           <div className={`h-full flex flex-col items-center justify-center space-y-4 opacity-50 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
