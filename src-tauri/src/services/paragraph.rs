@@ -1,0 +1,192 @@
+use serde::Serialize;
+
+#[derive(Clone, Serialize)]
+pub struct TranslationChunk {
+    pub paragraph_id: String,
+    pub text: String,
+    pub is_complete: bool,
+}
+
+/// Encode paragraph index to semantic ID:
+/// - Index 0 → "title"
+/// - Index 1 → "subtitle"  
+/// - Index 2+ → "p-1", "p-2", ... (1-indexed paragraph numbers)
+pub fn encode_paragraph_id(n: usize) -> String {
+    match n {
+        0 => "title".to_string(),
+        1 => "subtitle".to_string(),
+        _ => format!("p-{}", n - 1),
+    }
+}
+
+pub fn decode_paragraph_id(id: &str) -> Option<usize> {
+    match id {
+        "title" => Some(0),
+        "subtitle" => Some(1),
+        _ if id.starts_with("p-") => {
+            id[2..].parse::<usize>().ok().map(|n| n + 1)
+        }
+        _ => None,
+    }
+}
+
+pub fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
+    let re = regex::Regex::new(r#"(?s)<p id="(title|subtitle|p-\d+)">(.*?)</p>"#).unwrap();
+    let mut chunks = Vec::new();
+
+    for cap in re.captures_iter(text) {
+        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
+            chunks.push(TranslationChunk {
+                paragraph_id: id_match.as_str().to_string(),
+                text: content_match.as_str().to_string(),
+                is_complete: true,
+            });
+        }
+    }
+
+    chunks
+}
+
+pub fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
+    let sequential_indices: Vec<usize> = (0..expected_count).collect();
+    parse_translated_paragraphs_by_indices(text, &sequential_indices)
+}
+
+pub fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize]) -> Result<Vec<String>, String> {
+    let re = regex::Regex::new(r#"(?s)<p id="(title|subtitle|p-\d+)">(.*?)</p>"#).unwrap();
+
+    let mut results: Vec<String> = vec![String::new(); original_indices.len()];
+    let mut found_count = 0;
+
+    for cap in re.captures_iter(text) {
+        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
+            let id = id_match.as_str();
+            let content = content_match.as_str().to_string();
+
+            if let Some(decoded_index) = decode_paragraph_id(id) {
+                if let Some(pos) = original_indices.iter().position(|&x| x == decoded_index) {
+                    results[pos] = content;
+                    found_count += 1;
+                }
+            }
+        }
+    }
+
+    if found_count == 0 {
+        let preview = if text.len() > 200 { &text[..200] } else { text };
+        return Err(format!(
+            "응답에서 유효한 번역 태그를 찾을 수 없습니다. 응답 미리보기: {}...",
+            preview
+        ));
+    }
+
+    if found_count < original_indices.len() {
+        eprintln!(
+            "[Translation] 일부 문단 누락: {}/{} 파싱됨",
+            found_count, original_indices.len()
+        );
+        for (pos, (idx, result)) in original_indices.iter().zip(results.iter()).enumerate() {
+            if result.is_empty() {
+                eprintln!("[Translation] 누락된 문단: pos={}, original_idx={}, id={}", pos, idx, encode_paragraph_id(*idx));
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_decode_paragraph_id() {
+        assert_eq!(encode_paragraph_id(0), "title");
+        assert_eq!(encode_paragraph_id(1), "subtitle");
+        assert_eq!(encode_paragraph_id(2), "p-1");
+        assert_eq!(encode_paragraph_id(3), "p-2");
+        assert_eq!(encode_paragraph_id(10), "p-9");
+        assert_eq!(encode_paragraph_id(102), "p-101");
+        
+        for i in 0..200 {
+            let encoded = encode_paragraph_id(i);
+            let decoded = decode_paragraph_id(&encoded);
+            assert_eq!(decoded, Some(i), "Failed for index {}: encoded as '{}'", i, encoded);
+        }
+    }
+
+    #[test]
+    fn test_parse_normal_paragraphs() {
+        let text = r#"<p id="title">제목입니다.</p>
+<p id="subtitle">부제목입니다.</p>
+<p id="p-1">첫 번째 문단입니다.</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 3).unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "제목입니다.");
+        assert_eq!(result[1], "부제목입니다.");
+        assert_eq!(result[2], "첫 번째 문단입니다.");
+    }
+
+    #[test]
+    fn test_parse_paragraphs_with_less_than_symbol() {
+        let text = r#"<p id="title">a < b 인 경우</p>
+<p id="subtitle">x > y 이면서 y < z</p>
+<p id="p-1">정상 문단</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 3).unwrap();
+        
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "a < b 인 경우");
+        assert_eq!(result[1], "x > y 이면서 y < z");
+        assert_eq!(result[2], "정상 문단");
+    }
+
+    #[test]
+    fn test_extract_completed_paragraphs_streaming() {
+        let partial1 = r#"<p id="title">완료된 문단</p>
+<p id="subtitle">아직 진행"#;
+        
+        let chunks1 = extract_completed_paragraphs(partial1);
+        assert_eq!(chunks1.len(), 1);
+        assert_eq!(chunks1[0].paragraph_id, "title");
+        
+        let partial2 = r#"<p id="title">완료된 문단</p>
+<p id="subtitle">아직 진행 중</p>"#;
+        
+        let chunks2 = extract_completed_paragraphs(partial2);
+        assert_eq!(chunks2.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_with_skipped_paragraphs() {
+        let text = r#"<p id="title">첫 번째</p>
+<p id="p-1">세 번째</p>
+<p id="p-2">네 번째</p>"#;
+        
+        let result = parse_translated_paragraphs(text, 4).unwrap();
+        
+        assert_eq!(result.len(), 4);
+        assert_eq!(result[0], "첫 번째");
+        assert_eq!(result[1], "");
+        assert_eq!(result[2], "세 번째");
+        assert_eq!(result[3], "네 번째");
+    }
+
+    #[test]
+    fn test_parse_by_indices_non_sequential() {
+        let text = r#"<p id="p-4">다섯 번째</p>
+<p id="p-6">일곱 번째</p>
+<p id="p-8">아홉 번째</p>"#;
+        
+        let original_indices = vec![5, 6, 7, 8, 9];
+        let result = parse_translated_paragraphs_by_indices(text, &original_indices).unwrap();
+        
+        assert_eq!(result.len(), 5);
+        assert_eq!(result[0], "다섯 번째");
+        assert_eq!(result[1], "");
+        assert_eq!(result[2], "일곱 번째");
+        assert_eq!(result[3], "");
+        assert_eq!(result[4], "아홉 번째");
+    }
+}

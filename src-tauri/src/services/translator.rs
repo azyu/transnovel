@@ -3,10 +3,11 @@ use tauri::{AppHandle, Emitter};
 
 use crate::commands::settings::{get_active_api_key, get_settings};
 use crate::models::translation::TranslationResult;
-use crate::services::antigravity::{AntigravityClient, TranslationChunk};
+use crate::services::antigravity::AntigravityClient;
 use crate::services::cache::{cache_translations, get_cached_translations};
-use crate::services::gemini::{encode_paragraph_id, GeminiClient};
+use crate::services::gemini::GeminiClient;
 use crate::services::openrouter::OpenRouterClient;
+use crate::services::paragraph::{encode_paragraph_id, TranslationChunk};
 use crate::services::substitution::SubstitutionService;
 
 #[derive(Clone, Serialize)]

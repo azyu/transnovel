@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
 use super::cache::cache_translation;
-use super::gemini::TranslationChunk;
+use super::paragraph::{
+    encode_paragraph_id, decode_paragraph_id, extract_completed_paragraphs,
+    parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
+};
 
 const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
 
@@ -235,95 +238,4 @@ impl OpenRouterClient {
 
         parse_translated_paragraphs_by_indices(&full_text, original_indices)
     }
-}
-
-fn encode_paragraph_id(n: usize) -> String {
-    if n < 26 {
-        char::from_u32((n + 65) as u32).unwrap().to_string()
-    } else if n < 52 {
-        char::from_u32((n + 71) as u32).unwrap().to_string()
-    } else {
-        let adjusted = n - 52;
-        let first = adjusted / 52;
-        let second = adjusted % 52;
-        format!(
-            "{}{}",
-            char::from_u32((first + if first < 26 { 65 } else { 71 }) as u32).unwrap(),
-            char::from_u32((second + if second < 26 { 65 } else { 71 }) as u32).unwrap()
-        )
-    }
-}
-
-fn decode_paragraph_id(id: &str) -> Option<usize> {
-    let chars: Vec<char> = id.chars().collect();
-    if chars.is_empty() || chars.len() > 2 {
-        return None;
-    }
-
-    let decode_char = |c: char| -> Option<usize> {
-        if c.is_ascii_uppercase() {
-            Some((c as usize) - 65)
-        } else if c.is_ascii_lowercase() {
-            Some((c as usize) - 71)
-        } else {
-            None
-        }
-    };
-
-    if chars.len() == 1 {
-        decode_char(chars[0])
-    } else {
-        let first = decode_char(chars[0])?;
-        let second = decode_char(chars[1])?;
-        Some(52 + first * 52 + second)
-    }
-}
-
-fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
-    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
-    let mut chunks = Vec::new();
-
-    for cap in re.captures_iter(text) {
-        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
-            chunks.push(TranslationChunk {
-                paragraph_id: id_match.as_str().to_string(),
-                text: content_match.as_str().to_string(),
-                is_complete: true,
-            });
-        }
-    }
-
-    chunks
-}
-
-fn parse_translated_paragraphs(text: &str, expected_count: usize) -> Result<Vec<String>, String> {
-    let sequential_indices: Vec<usize> = (0..expected_count).collect();
-    parse_translated_paragraphs_by_indices(text, &sequential_indices)
-}
-
-fn parse_translated_paragraphs_by_indices(text: &str, original_indices: &[usize]) -> Result<Vec<String>, String> {
-    let re = regex::Regex::new(r#"(?s)<p id="([A-Za-z]+)">(.*?)</p>"#).unwrap();
-
-    let mut results: Vec<String> = vec![String::new(); original_indices.len()];
-    let mut found_any = false;
-
-    for cap in re.captures_iter(text) {
-        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
-            let id = id_match.as_str();
-            let content = content_match.as_str().to_string();
-
-            if let Some(decoded_index) = decode_paragraph_id(id) {
-                if let Some(pos) = original_indices.iter().position(|&x| x == decoded_index) {
-                    results[pos] = content;
-                    found_any = true;
-                }
-            }
-        }
-    }
-
-    if !found_any {
-        return Ok(vec![text.to_string()]);
-    }
-
-    Ok(results)
 }
