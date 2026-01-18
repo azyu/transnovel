@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useDebugStore } from '../../stores/debugStore';
-import { useAppStore } from '../../stores/appStore';
+import { useTranslationStore } from '../../stores/translationStore';
 import type { TabType } from '../../types';
 
 export const Header: React.FC = () => {
@@ -17,7 +17,7 @@ export const Header: React.FC = () => {
   );
 
   const batchProgress = useSeriesStore((s) => s.batchProgress);
-  const isTranslating = useAppStore((s) => s.isTranslating);
+  const isTranslating = useTranslationStore((s) => s.isTranslating);
   const debugMode = useDebugStore((s) => s.debugMode);
 
   const allTabs: { id: TabType; label: string; devOnly?: boolean }[] = [

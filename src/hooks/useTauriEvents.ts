@@ -1,10 +1,14 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { useAppStore } from '../stores/appStore';
+import { useTranslationStore } from '../stores/translationStore';
+import { useSeriesStore } from '../stores/seriesStore';
 import type { TranslationProgress } from '../types';
 
 export const useTauriEvents = () => {
-  const { setBatchProgress, updateBatchProgress, setIsTranslating, updateChapterStatus } = useAppStore();
+  const setIsTranslating = useTranslationStore((s) => s.setIsTranslating);
+  const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
+  const updateBatchProgress = useSeriesStore((s) => s.updateBatchProgress);
+  const updateChapterStatus = useSeriesStore((s) => s.updateChapterStatus);
 
   useEffect(() => {
     const unlistenProgress = listen<TranslationProgress>('translation-progress', (event) => {
