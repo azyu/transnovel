@@ -28,7 +28,33 @@ pub async fn init_db(app: &AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     
+    run_migrations(&pool).await?;
+    
     DB_POOL.set(pool).map_err(|_| "DB already initialized")?;
+    
+    Ok(())
+}
+
+async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
+    // SQLite lacks ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+    let has_novel_id: Vec<(String,)> = sqlx::query_as(
+        "SELECT name FROM pragma_table_info('translation_cache') WHERE name = 'novel_id'"
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    
+    if has_novel_id.is_empty() {
+        sqlx::query("ALTER TABLE translation_cache ADD COLUMN novel_id TEXT")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_cache_novel_id ON translation_cache(novel_id)")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
     
     Ok(())
 }

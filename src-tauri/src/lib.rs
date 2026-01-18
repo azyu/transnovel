@@ -49,7 +49,7 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::block_on(async move {
                 if let Err(e) = db::init_db(&handle).await {
                     log::error!("Failed to initialize database: {}", e);
                 }
