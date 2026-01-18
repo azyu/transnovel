@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
+import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { UrlInput } from '../translation/UrlInput';
 import { ChapterList } from './ChapterList';
@@ -9,7 +11,14 @@ import { Modal } from '../common/Modal';
 import type { Chapter } from '../../types';
 
 export const SeriesManager: React.FC = () => {
-  const { chapterList, batchProgress, isTranslating, currentUrl, theme, setTab, setUrl } = useAppStore();
+  const theme = useUIStore((s) => s.theme);
+  const setTab = useUIStore((s) => s.setTab);
+  const chapterList = useSeriesStore((s) => s.chapterList);
+  const batchProgress = useSeriesStore((s) => s.batchProgress);
+  const isTranslating = useAppStore((s) => s.isTranslating);
+  const currentUrl = useAppStore((s) => s.currentUrl);
+  const setUrl = useAppStore((s) => s.setUrl);
+  
   const { startBatchTranslation, stopBatchTranslation, pauseBatchTranslation, resumeBatchTranslation, exportNovel, parseAndTranslate } = useTranslation();
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'TxtSingle' | 'TxtChapters' | 'Epub'>('TxtSingle');
