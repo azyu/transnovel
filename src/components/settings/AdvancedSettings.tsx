@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask, message } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
+import { useDebugStore } from '../../stores/debugStore';
 
 interface NovelCacheStats {
   novel_id: string;
@@ -21,7 +22,8 @@ export const AdvancedSettings: React.FC = () => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearingNovelId, setClearingNovelId] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
-  const { theme, debugMode, setDebugMode } = useAppStore();
+  const theme = useUIStore((s) => s.theme);
+  const { debugMode, setDebugMode } = useDebugStore();
   const isDark = theme === 'dark';
 
   const loadCacheStats = async () => {

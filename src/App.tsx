@@ -4,11 +4,12 @@ import { Toast } from './components/common/Toast';
 import { TranslationView } from './components/translation/TranslationView';
 import { SeriesManager } from './components/series/SeriesManager';
 import { SettingsPanel } from './components/settings/SettingsPanel';
-import { useAppStore } from './stores/appStore';
+import { useUIStore } from './stores/uiStore';
 import { useTauriEvents } from './hooks/useTauriEvents';
 
 function App() {
-  const { currentTab, theme } = useAppStore();
+  const currentTab = useUIStore((s) => s.currentTab);
+  const theme = useUIStore((s) => s.theme);
   
   useTauriEvents();
 
