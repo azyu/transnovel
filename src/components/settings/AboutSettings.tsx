@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 export const AboutSettings: React.FC = () => {
   const [version, setVersion] = useState<string>('');
-  const { theme } = useAppStore();
+  const theme = useUIStore((state) => state.theme);
   const isDark = theme === 'dark';
 
   useEffect(() => {

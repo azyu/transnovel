@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 type Provider = 'gemini' | 'openrouter' | 'antigravity';
 
@@ -14,7 +14,7 @@ export const StatusBar: React.FC = () => {
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
   const [model, setModel] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
-  const isDark = useAppStore((state) => state.theme) === 'dark';
+  const isDark = useUIStore((state) => state.theme) === 'dark';
 
   const loadStatus = useCallback(async () => {
     try {

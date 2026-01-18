@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 type SaveFormat = 'txt' | 'html';
 
@@ -20,7 +20,7 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
   const [format, setFormat] = useState<SaveFormat>('txt');
   const [includeOriginal, setIncludeOriginal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const isDark = useAppStore((state) => state.theme) === 'dark';
+  const isDark = useUIStore((state) => state.theme) === 'dark';
 
   const handleSave = async () => {
     setIsSaving(true);

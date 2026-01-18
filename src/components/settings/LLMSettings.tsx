@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { SearchableSelect } from '../common/SearchableSelect';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 import type { ApiKey } from '../../types';
 
 const DEFAULT_PROXY_URL = 'http://127.0.0.1:8045';
@@ -53,7 +53,7 @@ const FALLBACK_OPENROUTER_MODELS: OpenRouterModel[] = [
 ];
 
 export const LLMSettings = forwardRef((_, ref) => {
-  const { theme } = useAppStore();
+  const theme = useUIStore((state) => state.theme);
   const isDark = theme === 'dark';
   
   const [keys, setKeys] = useState<ApiKey[]>([]);

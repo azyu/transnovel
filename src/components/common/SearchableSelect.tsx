@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 interface Option {
   value: string;
@@ -24,7 +24,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled = false,
   loading = false,
 }) => {
-  const { theme } = useAppStore();
+  const theme = useUIStore((state) => state.theme);
   const isDark = theme === 'dark';
   
   const [isOpen, setIsOpen] = useState(false);

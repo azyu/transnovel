@@ -2,7 +2,7 @@ import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 type DisplayLayout = 'sideBySide' | 'stacked';
 
@@ -53,8 +53,8 @@ const COLOR_PRESETS = [
 
 export const ViewSettings = forwardRef((_, ref) => {
   const [config, setConfig] = useState<ViewConfig>(DEFAULT_CONFIG);
-  const bumpViewConfigVersion = useAppStore((state) => state.bumpViewConfigVersion);
-  const isDark = useAppStore((state) => state.theme) === 'dark';
+  const bumpViewConfigVersion = useUIStore((state) => state.bumpViewConfigVersion);
+  const isDark = useUIStore((state) => state.theme) === 'dark';
 
   useImperativeHandle(ref, () => ({
     save: handleSave

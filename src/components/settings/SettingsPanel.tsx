@@ -5,7 +5,7 @@ import { ViewSettings } from './ViewSettings';
 import { AdvancedSettings } from './AdvancedSettings';
 import { AboutSettings } from './AboutSettings';
 import { Button } from '../common/Button';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced' | 'about';
 
@@ -16,7 +16,7 @@ interface SettingsHandle {
 export const SettingsPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('llm');
   const [isSaving, setIsSaving] = useState(false);
-  const { theme, showToast } = useAppStore();
+  const { theme, showToast } = useUIStore();
 
   const llmRef = useRef<SettingsHandle>(null);
   const translationRef = useRef<SettingsHandle>(null);
