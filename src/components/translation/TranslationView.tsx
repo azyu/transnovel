@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { UrlInput } from './UrlInput';
 import { ParagraphList } from './ParagraphList';
@@ -33,6 +33,7 @@ export const TranslationView: React.FC = () => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const isDark = theme === 'dark';
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkApiConfig = async () => {
@@ -61,12 +62,14 @@ export const TranslationView: React.FC = () => {
   const handlePrevChapter = async () => {
     if (!chapter?.prevUrl) return;
     setUrl(chapter.prevUrl);
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
     await parseAndTranslate(chapter.prevUrl);
   };
 
   const handleNextChapter = async () => {
     if (!chapter?.nextUrl) return;
     setUrl(chapter.nextUrl);
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
     await parseAndTranslate(chapter.nextUrl);
   };
 
@@ -115,7 +118,7 @@ export const TranslationView: React.FC = () => {
         <UrlInput historyKey="url_history_chapter" />
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-6">
         {chapter ? (
           <div className="space-y-8 pb-20">
             <header className={`border-b pb-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
