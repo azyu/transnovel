@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -15,7 +15,7 @@ export const Input: React.FC<InputProps> = ({
 }) => {
   const generatedId = React.useId();
   const inputId = id || generatedId;
-  const isDark = useAppStore((state) => state.theme) === 'dark';
+  const isDark = useUIStore((state) => state.theme) === 'dark';
 
   const baseStyles = isDark
     ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'

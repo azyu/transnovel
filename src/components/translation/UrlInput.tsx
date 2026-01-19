@@ -3,7 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { useTranslation } from '../../hooks/useTranslation';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
+import { useTranslationStore } from '../../stores/translationStore';
 
 const SUPPORTED_SITES = [
   { name: 'syosetu.com', url: 'https://syosetu.com' },
@@ -35,7 +36,11 @@ interface UrlInputProps {
 }
 
 export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', parseOnly = false }) => {
-  const { currentUrl, setUrl, isTranslating, theme } = useAppStore();
+  const theme = useUIStore((s) => s.theme);
+  const currentUrl = useTranslationStore((s) => s.currentUrl);
+  const setUrl = useTranslationStore((s) => s.setUrl);
+  const isTranslating = useTranslationStore((s) => s.isTranslating);
+
   const { parseAndTranslate, parseChapter, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
   const [history, setHistory] = useState<string[]>([]);

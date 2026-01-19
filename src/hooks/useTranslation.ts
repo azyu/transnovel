@@ -1,21 +1,26 @@
 import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useAppStore } from '../stores/appStore';
-import type { ChapterContent, Chapter, ExportOptions, TranslationChunk } from '../types';
+import { useTranslationStore } from '../stores/translationStore';
+import { useSeriesStore } from '../stores/seriesStore';
+import { useUIStore } from '../stores/uiStore';
+import { useDebugStore } from '../stores/debugStore';
+import type { ChapterContent, Chapter, ExportRequest, TranslationChunk } from '../types';
 
 export const useTranslation = () => {
-  const { 
-    setChapterContent, 
-    setChapterList, 
-    setIsTranslating,
-    updateParagraphTranslation,
-    updateTitleTranslation,
-    showError,
-    setFailedParagraphIndices,
-    clearFailedParagraphIndices,
-    addDebugLog,
-  } = useAppStore();
+  const setChapterContent = useTranslationStore((s) => s.setChapterContent);
+  const setIsTranslating = useTranslationStore((s) => s.setIsTranslating);
+  const updateParagraphTranslation = useTranslationStore((s) => s.updateParagraphTranslation);
+  const updateTitleTranslation = useTranslationStore((s) => s.updateTitleTranslation);
+  const setFailedParagraphIndices = useTranslationStore((s) => s.setFailedParagraphIndices);
+  const clearFailedParagraphIndices = useTranslationStore((s) => s.clearFailedParagraphIndices);
+  
+  const setChapterList = useSeriesStore((s) => s.setChapterList);
+  const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
+  
+  const showError = useUIStore((s) => s.showError);
+  
+  const addDebugLog = useDebugStore((s) => s.addDebugLog);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +66,7 @@ export const useTranslation = () => {
   }, [setChapterContent, setChapterList]);
 
   const parseAndTranslate = useCallback(async (url: string) => {
-    if (useAppStore.getState().isTranslating) {
+    if (useTranslationStore.getState().isTranslating) {
       showError('번역 진행 중', '현재 번역이 진행 중입니다. 완료 후 다시 시도해주세요.');
       return;
     }
@@ -156,9 +161,9 @@ export const useTranslation = () => {
             addDebugLog('info', `Chapter ${content.chapter_number} marked as completed`);
             
             const completedChapters = await invoke<number[]>('get_completed_chapters', { novelId: content.novel_id });
-            const currentChapterList = useAppStore.getState().chapterList;
+            const currentChapterList = useSeriesStore.getState().chapterList;
             if (currentChapterList.length > 0) {
-              const updatedChapters = currentChapterList.map(ch => ({
+              const updatedChapters = currentChapterList.map((ch: Chapter) => ({
                 ...ch,
                 status: completedChapters.includes(ch.number) ? 'completed' as const : ch.status,
               }));
@@ -265,7 +270,7 @@ export const useTranslation = () => {
   }, []);
 
   const startBatchTranslation = useCallback(async (novelId: string, site: string, start: number, end: number, baseUrl: string) => {
-      if (useAppStore.getState().isTranslating) {
+      if (useTranslationStore.getState().isTranslating) {
         showError('번역 진행 중', '현재 번역이 진행 중입니다. 완료 후 다시 시도해주세요.');
         return;
       }
@@ -293,13 +298,13 @@ await invoke('start_batch_translation', {
       try {
           await invoke('stop_translation');
           setIsTranslating(false);
-          useAppStore.getState().setBatchProgress(null);
+          setBatchProgress(null);
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
           showError('번역 중지 실패', errMsg);
       }
-  }, [setIsTranslating, showError]);
+  }, [setIsTranslating, showError, setBatchProgress]);
 
   const pauseBatchTranslation = useCallback(async () => {
       try {
@@ -322,19 +327,19 @@ await invoke('start_batch_translation', {
   }, [showError]);
 
   const retryFailedParagraphs = useCallback(async () => {
-    const store = useAppStore.getState();
-    const { chapterContent, failedParagraphIndices } = store;
+    const chapterContent = useTranslationStore.getState().getChapterContent();
+    const failedParagraphIndices = useTranslationStore.getState().failedParagraphIndices;
     
     if (!chapterContent || failedParagraphIndices.length === 0) return;
 
     const retryIndexToOriginalIndex = new Map<number, number>();
-    failedParagraphIndices.forEach((originalIdx, retryIdx) => {
+    failedParagraphIndices.forEach((originalIdx: number, retryIdx: number) => {
       retryIndexToOriginalIndex.set(retryIdx, originalIdx);
     });
 
     const failedParagraphs = failedParagraphIndices
-      .map(idx => chapterContent.paragraphs[idx]?.original)
-      .filter((p): p is string => Boolean(p));
+      .map((idx: number) => chapterContent.paragraphs[idx]?.original)
+      .filter((p: string | undefined): p is string => Boolean(p));
     if (failedParagraphs.length === 0) return;
 
     setIsTranslating(true);
@@ -387,9 +392,9 @@ await invoke('start_batch_translation', {
     }
   }, [setIsTranslating, updateParagraphTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
 
-  const exportNovel = useCallback(async (novelId: string, options: ExportOptions) => {
+  const exportNovel = useCallback(async (request: ExportRequest) => {
       try {
-          await invoke('export_novel', { request: { novel_id: novelId, options } });
+          await invoke('export_novel', { request });
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);

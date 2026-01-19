@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAppStore } from '../../stores/appStore';
-import type { DebugLogEntry } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
+import { useDebugStore } from '../../stores/debugStore';
+import type { DebugLogEntry } from '../../stores/debugStore';
 
 interface ExportedLog {
   timestamp: string;
@@ -32,7 +33,10 @@ const LogTypeBadgeColors: Record<DebugLogEntry['type'], string> = {
 };
 
 export const DebugPanel: React.FC = () => {
-  const { debugMode, debugLogs, clearDebugLogs, theme } = useAppStore();
+  const theme = useUIStore((s) => s.theme);
+  const debugMode = useDebugStore((s) => s.debugMode);
+  const debugLogs = useDebugStore((s) => s.debugLogs);
+  const clearDebugLogs = useDebugStore((s) => s.clearDebugLogs);
   const [isExpanded, setIsExpanded] = useState(true);
   const [filter, setFilter] = useState<DebugLogEntry['type'] | 'all'>('all');
   const [copied, setCopied] = useState(false);

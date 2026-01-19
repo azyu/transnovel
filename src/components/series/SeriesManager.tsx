@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
+import { useSeriesStore } from '../../stores/seriesStore';
+import { useTranslationStore } from '../../stores/translationStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { UrlInput } from '../translation/UrlInput';
 import { ChapterList } from './ChapterList';
@@ -9,7 +11,14 @@ import { Modal } from '../common/Modal';
 import type { Chapter } from '../../types';
 
 export const SeriesManager: React.FC = () => {
-  const { chapterList, batchProgress, isTranslating, currentUrl, theme, setTab, setUrl } = useAppStore();
+  const theme = useUIStore((s) => s.theme);
+  const setTab = useUIStore((s) => s.setTab);
+  const chapterList = useSeriesStore((s) => s.chapterList);
+  const batchProgress = useSeriesStore((s) => s.batchProgress);
+  const isTranslating = useTranslationStore((s) => s.isTranslating);
+  const currentUrl = useTranslationStore((s) => s.currentUrl);
+  const setUrl = useTranslationStore((s) => s.setUrl);
+  
   const { startBatchTranslation, stopBatchTranslation, pauseBatchTranslation, resumeBatchTranslation, exportNovel, parseAndTranslate } = useTranslation();
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'TxtSingle' | 'TxtChapters' | 'Epub'>('TxtSingle');
@@ -18,7 +27,7 @@ export const SeriesManager: React.FC = () => {
   const isDark = theme === 'dark';
 
   const handleStart = async (start: number, end: number) => {
-    const content = useAppStore.getState().chapterContent;
+    const content = useTranslationStore.getState().getChapterContent();
     if (!content) {
       alert("먼저 소설을 불러와주세요.");
       return;
@@ -51,15 +60,27 @@ export const SeriesManager: React.FC = () => {
   };
 
   const handleExport = async () => {
-    const content = useAppStore.getState().chapterContent;
+    const content = useTranslationStore.getState().getChapterContent();
     if (!content) return;
 
     setExporting(true);
     try {
-      await exportNovel(content.novel_id, {
-        format: exportFormat,
-        include_original: false,
-        include_notes: false
+      await exportNovel({
+        novel_id: content.novel_id,
+        novel_title: content.translatedTitle || content.title,
+        chapters: [{
+          number: 1,
+          title: content.translatedSubtitle || content.subtitle || content.title,
+          paragraphs: content.paragraphs.map(p => ({
+            original: p.original,
+            translated: p.translated ?? null,
+          })),
+        }],
+        options: {
+          format: exportFormat,
+          include_original: false,
+          include_notes: false
+        }
       });
       setShowExportModal(false);
       alert('내보내기가 완료되었습니다.');

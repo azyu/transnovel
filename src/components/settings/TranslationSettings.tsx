@@ -1,7 +1,7 @@
 import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 const DEFAULT_SYSTEM_PROMPT = `<|im_start|>system
 [공리]
@@ -31,7 +31,7 @@ export const TranslationSettings = forwardRef((_, ref) => {
   const [translationNote, setTranslationNote] = useState('');
   const [substitutions, setSubstitutions] = useState('');
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const isDark = useAppStore((state) => state.theme) === 'dark';
+  const isDark = useUIStore((state) => state.theme) === 'dark';
 
   useImperativeHandle(ref, () => ({
     save: handleSave

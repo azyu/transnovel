@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 export const Toast: React.FC = () => {
-  const { toast, hideToast, theme } = useAppStore();
+  const { toast, hideToast, theme } = useUIStore();
   const isDark = theme === 'dark';
 
   useEffect(() => {

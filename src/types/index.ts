@@ -59,6 +59,24 @@ export interface ExportOptions {
   output_dir?: string;
 }
 
+export interface ExportParagraph {
+  original: string;
+  translated: string | null;
+}
+
+export interface ExportChapter {
+  number: number;
+  title: string;
+  paragraphs: ExportParagraph[];
+}
+
+export interface ExportRequest {
+  novel_id: string;
+  novel_title: string;
+  chapters: ExportChapter[];
+  options: ExportOptions;
+}
+
 export interface TranslationChunk {
   paragraph_id: string;
   text: string;

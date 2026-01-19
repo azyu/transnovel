@@ -1,13 +1,13 @@
 import React from 'react';
 import type { TranslationProgress } from '../../types';
-import { useAppStore } from '../../stores/appStore';
+import { useUIStore } from '../../stores/uiStore';
 
 interface ProgressBarProps {
   progress: TranslationProgress;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({ progress }) => {
-  const isDark = useAppStore((state) => state.theme) === 'dark';
+  const isDark = useUIStore((state) => state.theme) === 'dark';
   const percentage = Math.min(
     100,
     Math.max(0, (progress.current_chapter / progress.total_chapters) * 100)

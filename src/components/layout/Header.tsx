@@ -1,9 +1,24 @@
 import React from 'react';
-import { useAppStore } from '../../stores/appStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useUIStore } from '../../stores/uiStore';
+import { useSeriesStore } from '../../stores/seriesStore';
+import { useDebugStore } from '../../stores/debugStore';
+import { useTranslationStore } from '../../stores/translationStore';
 import type { TabType } from '../../types';
 
 export const Header: React.FC = () => {
-  const { currentTab, setTab, theme, toggleTheme, batchProgress, isTranslating, debugMode } = useAppStore();
+  const { currentTab, setTab, theme, toggleTheme } = useUIStore(
+    useShallow((s) => ({
+      currentTab: s.currentTab,
+      setTab: s.setTab,
+      theme: s.theme,
+      toggleTheme: s.toggleTheme,
+    }))
+  );
+
+  const batchProgress = useSeriesStore((s) => s.batchProgress);
+  const isTranslating = useTranslationStore((s) => s.isTranslating);
+  const debugMode = useDebugStore((s) => s.debugMode);
 
   const allTabs: { id: TabType; label: string; devOnly?: boolean }[] = [
     { id: 'translation', label: '번역' },

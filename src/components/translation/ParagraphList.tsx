@@ -1,12 +1,124 @@
-import React from 'react';
-import type { Paragraph } from '../../types';
-import { useViewSettings } from '../../hooks/useViewSettings';
+import React, { memo } from 'react';
+import { useTranslationStore } from '../../stores/translationStore';
+import { useViewSettings, type ViewConfig } from '../../hooks/useViewSettings';
 
-interface ParagraphListProps {
-  paragraphs: Paragraph[];
+interface ParagraphRowProps {
+  paragraphId: string;
+  config: ViewConfig;
+  styles: ReturnType<ReturnType<typeof useViewSettings>['getStyles']>;
+  isStacked: boolean;
 }
 
-export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
+const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isStacked }) => {
+  const paragraph = useTranslationStore((s) => s.paragraphById[paragraphId]);
+  
+  if (!paragraph) return null;
+
+  return (
+    <div 
+      className="group p-4 rounded-lg transition-colors"
+      style={{ marginBottom: styles.paragraph.marginBottom }}
+    >
+      {isStacked ? (
+        <div className="space-y-2">
+          {config.showOriginal && (
+            <div className="relative">
+              <div 
+                className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
+                style={{ color: config.textColor }}
+              >
+                {paragraph.id}
+              </div>
+              <div 
+                className="leading-relaxed break-words whitespace-pre-wrap font-jp"
+                style={{
+                  opacity: styles.original.opacity,
+                  textIndent: styles.original.textIndent,
+                  color: config.textColor,
+                }}
+                dangerouslySetInnerHTML={{ __html: paragraph.original }} 
+              />
+            </div>
+          )}
+          <div className="relative min-h-[1.5em]">
+            {paragraph.translated ? (
+              <div 
+                className="leading-relaxed break-words whitespace-pre-wrap font-kr animate-fade-in"
+                style={{
+                  textIndent: styles.translated.textIndent,
+                  color: config.textColor,
+                }}
+              >
+                {config.forceDialogueBreak 
+                  ? formatDialogue(paragraph.translated)
+                  : paragraph.translated
+                }
+              </div>
+            ) : (
+              <div 
+                className="text-sm italic opacity-30"
+                style={{ color: config.textColor }}
+              >
+                번역 대기 중...
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+          {config.showOriginal && (
+            <div className="relative">
+              <div 
+                className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
+                style={{ color: config.textColor }}
+              >
+                {paragraph.id}
+              </div>
+              <div 
+                className="leading-relaxed break-words whitespace-pre-wrap font-jp"
+                style={{
+                  opacity: styles.original.opacity,
+                  textIndent: styles.original.textIndent,
+                  color: config.textColor,
+                }}
+                dangerouslySetInnerHTML={{ __html: paragraph.original }} 
+              />
+            </div>
+          )}
+
+          <div className={`relative min-h-[1.5em] ${!config.showOriginal ? 'md:col-span-2' : ''}`}>
+            {paragraph.translated ? (
+              <div 
+                className="leading-relaxed break-words whitespace-pre-wrap font-kr animate-fade-in"
+                style={{
+                  textIndent: styles.translated.textIndent,
+                  color: config.textColor,
+                }}
+              >
+                {config.forceDialogueBreak 
+                  ? formatDialogue(paragraph.translated)
+                  : paragraph.translated
+                }
+              </div>
+            ) : (
+              <div 
+                className="text-sm italic opacity-30"
+                style={{ color: config.textColor }}
+              >
+                번역 대기 중...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+ParagraphRow.displayName = 'ParagraphRow';
+
+export const ParagraphList: React.FC = () => {
+  const paragraphIds = useTranslationStore((s) => s.paragraphIds);
   const { config, getStyles } = useViewSettings();
   const styles = getStyles();
 
@@ -25,105 +137,14 @@ export const ParagraphList: React.FC<ParagraphListProps> = ({ paragraphs }) => {
         padding: styles.container.padding,
       }}
     >
-      {paragraphs.map((p) => (
-        <div 
-          key={p.id} 
-          className="group p-4 rounded-lg transition-colors"
-          style={{ marginBottom: styles.paragraph.marginBottom }}
-        >
-          {isStacked ? (
-            <div className="space-y-2">
-              {config.showOriginal && (
-                <div className="relative">
-                  <div 
-                    className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
-                    style={{ color: config.textColor }}
-                  >
-                    {p.id}
-                  </div>
-                  <div 
-                    className="leading-relaxed break-words whitespace-pre-wrap font-jp"
-                    style={{
-                      opacity: styles.original.opacity,
-                      textIndent: styles.original.textIndent,
-                      color: config.textColor,
-                    }}
-                    dangerouslySetInnerHTML={{ __html: p.original }} 
-                  />
-                </div>
-              )}
-              <div className="relative min-h-[1.5em]">
-                {p.translated ? (
-                  <div 
-                    className="leading-relaxed break-words whitespace-pre-wrap font-kr animate-fade-in"
-                    style={{
-                      textIndent: styles.translated.textIndent,
-                      color: config.textColor,
-                    }}
-                  >
-                    {config.forceDialogueBreak 
-                      ? formatDialogue(p.translated)
-                      : p.translated
-                    }
-                  </div>
-                ) : (
-                  <div 
-                    className="text-sm italic opacity-30"
-                    style={{ color: config.textColor }}
-                  >
-                    번역 대기 중...
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-              {config.showOriginal && (
-                <div className="relative">
-                  <div 
-                    className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
-                    style={{ color: config.textColor }}
-                  >
-                    {p.id}
-                  </div>
-                  <div 
-                    className="leading-relaxed break-words whitespace-pre-wrap font-jp"
-                    style={{
-                      opacity: styles.original.opacity,
-                      textIndent: styles.original.textIndent,
-                      color: config.textColor,
-                    }}
-                    dangerouslySetInnerHTML={{ __html: p.original }} 
-                  />
-                </div>
-              )}
-
-              <div className={`relative min-h-[1.5em] ${!config.showOriginal ? 'md:col-span-2' : ''}`}>
-                {p.translated ? (
-                  <div 
-                    className="leading-relaxed break-words whitespace-pre-wrap font-kr animate-fade-in"
-                    style={{
-                      textIndent: styles.translated.textIndent,
-                      color: config.textColor,
-                    }}
-                  >
-                    {config.forceDialogueBreak 
-                      ? formatDialogue(p.translated)
-                      : p.translated
-                    }
-                  </div>
-                ) : (
-                  <div 
-                    className="text-sm italic opacity-30"
-                    style={{ color: config.textColor }}
-                  >
-                    번역 대기 중...
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+      {paragraphIds.map((id) => (
+        <ParagraphRow
+          key={id}
+          paragraphId={id}
+          config={config}
+          styles={styles}
+          isStacked={isStacked}
+        />
       ))}
     </div>
   );
