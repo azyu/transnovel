@@ -368,9 +368,17 @@ impl TranslatorService {
                 }
 
                 if !success {
-                    eprintln!("[Translator] Chunk {} failed after {} retries: {:?}", 
-                        chunk_idx + 1, MAX_RETRIES, last_error);
+                    let error_msg = last_error.clone().unwrap_or_else(|| "Unknown error".to_string());
+                    eprintln!("[Translator] Chunk {} failed after {} retries: {}", 
+                        chunk_idx + 1, MAX_RETRIES, error_msg);
                     failed_indices.extend(chunk_indices.iter().cloned());
+                    
+                    let _ = app_handle.emit("debug-translation-error", serde_json::json!({
+                        "chunk_idx": chunk_idx,
+                        "failed_indices": chunk_indices,
+                        "error": error_msg,
+                        "retry_count": MAX_RETRIES
+                    }));
                 }
             }
 
@@ -381,9 +389,18 @@ impl TranslatorService {
                 }));
             }
             
-            let _ = app_handle.emit("translation-complete", true);
+            let all_success = failed_indices.is_empty();
+            let _ = app_handle.emit("translation-complete", serde_json::json!({
+                "success": all_success,
+                "total": paragraphs.len(),
+                "failed_count": failed_indices.len()
+            }));
         } else {
-            let _ = app_handle.emit("translation-complete", true);
+            let _ = app_handle.emit("translation-complete", serde_json::json!({
+                "success": true,
+                "total": paragraphs.len(),
+                "failed_count": 0
+            }));
         }
 
         Ok(results)
