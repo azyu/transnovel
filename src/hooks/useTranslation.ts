@@ -141,15 +141,28 @@ export const useTranslation = () => {
         }
       });
 
-      const unlistenComplete = await listen<boolean>('translation-complete', async () => {
-        addDebugLog('complete', `Translation complete`);
+      const unlistenDebugError = await listen<{ chunk_idx: number; failed_indices: number[]; error: string; retry_count: number }>('debug-translation-error', (event) => {
+        const { chunk_idx, failed_indices, error, retry_count } = event.payload;
+        addDebugLog('error', `[Chunk ${chunk_idx + 1}] Translation failed after ${retry_count} retries`);
+        addDebugLog('error', `  Failed indices: [${failed_indices.join(', ')}]`);
+        addDebugLog('error', `  Error: ${error}`);
+        
+        if (error.includes('input_tokens=0') || error.includes('"input_tokens": 0')) {
+          showError('콘텐츠 필터링 감지', '해당 내용이 AI 콘텐츠 정책에 의해 차단되었을 수 있습니다. 다른 모델이나 프로바이더를 시도해보세요.');
+        }
+      });
+
+      const unlistenComplete = await listen<{ success: boolean; total: number; failed_count: number }>('translation-complete', async (event) => {
+        const { success, total, failed_count } = event.payload;
+        addDebugLog('complete', `Translation complete: ${success ? 'SUCCESS' : 'PARTIAL FAILURE'} (${total - failed_count}/${total})`);
         unlistenChunk();
         unlistenFailed();
         unlistenComplete();
         unlistenCache();
+        unlistenDebugError();
         setIsTranslating(false);
         
-        if (content.chapter_number > 0) {
+        if (content.chapter_number > 0 && success) {
           try {
             await invoke('mark_chapter_complete', {
               novelId: content.novel_id,
@@ -170,6 +183,8 @@ export const useTranslation = () => {
           } catch (err) {
             addDebugLog('warn', `Failed to mark chapter complete: ${err}`);
           }
+        } else if (!success && content.chapter_number > 0) {
+          addDebugLog('warn', `Chapter ${content.chapter_number} NOT marked as completed due to ${failed_count} failed translations`);
         }
       });
 
@@ -202,6 +217,7 @@ export const useTranslation = () => {
         addDebugLog('error', `Translation error: ${err}`);
         unlistenChunk();
         unlistenFailed();
+        unlistenDebugError();
         unlistenComplete();
         unlistenCache();
         setIsTranslating(false);
@@ -250,7 +266,7 @@ export const useTranslation = () => {
       onChunk(event.payload);
     });
     
-    const unlistenComplete = await listen<boolean>('translation-complete', () => {
+    const unlistenComplete = await listen<{ success: boolean; total: number; failed_count: number }>('translation-complete', () => {
       onComplete();
       unlistenChunk();
       unlistenComplete();
@@ -398,9 +414,19 @@ await invoke('start_batch_translation', {
       }
     });
 
-    const unlistenComplete = await listen<boolean>('translation-complete', async () => {
+    const unlistenDebugError = await listen<{ chunk_idx: number; failed_indices: number[]; error: string; retry_count: number }>('debug-translation-error', (event) => {
+      const { chunk_idx, error, retry_count } = event.payload;
+      addDebugLog('error', `[Retry Chunk ${chunk_idx + 1}] Translation failed after ${retry_count} retries: ${error}`);
+      
+      if (error.includes('input_tokens=0') || error.includes('"input_tokens": 0')) {
+        showError('콘텐츠 필터링 감지', '해당 내용이 AI 콘텐츠 정책에 의해 차단되었을 수 있습니다. 다른 모델이나 프로바이더를 시도해보세요.');
+      }
+    });
+
+    const unlistenComplete = await listen<{ success: boolean; total: number; failed_count: number }>('translation-complete', async () => {
       unlistenChunk();
       unlistenFailed();
+      unlistenDebugError();
       unlistenComplete();
       setIsTranslating(false);
     });
@@ -414,6 +440,7 @@ await invoke('start_batch_translation', {
     } catch (err) {
       unlistenChunk();
       unlistenFailed();
+      unlistenDebugError();
       unlistenComplete();
       setIsTranslating(false);
       showError('재시도 실패', String(err));
