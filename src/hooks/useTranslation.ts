@@ -211,7 +211,7 @@ export const useTranslation = () => {
         ...content.paragraphs,
       ];
 
-      addDebugLog('info', `Starting translation: ${allTexts.length} items (title + ${content.subtitle ? 'subtitle + ' : ''}${content.paragraphs.length} paragraphs)`);
+      addDebugLog('info', `${url} | Starting translation: ${allTexts.length} items (title + ${content.subtitle ? 'subtitle + ' : ''}${content.paragraphs.length} paragraphs)`);
 
       try {
         await invoke('translate_paragraphs_streaming', { 
