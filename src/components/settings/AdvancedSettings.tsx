@@ -178,19 +178,8 @@ export const AdvancedSettings: React.FC = () => {
         </div>
 
         <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>개발자 모드</h3>
-          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            번역 과정에서 발생하는 이벤트를 실시간으로 확인할 수 있는 디버그 패널을 표시합니다.
-          </p>
-          <div className={`flex items-center justify-between p-4 rounded-lg border ${isDark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
-            <div>
-              <p className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                디버그 패널 표시
-              </p>
-              <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                번역 화면 하단에 로그 패널이 나타납니다
-              </p>
-            </div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>개발자 모드</h3>
             <button
               onClick={() => setDebugMode(!debugMode)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -206,6 +195,9 @@ export const AdvancedSettings: React.FC = () => {
               />
             </button>
           </div>
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            번역 과정에서 발생하는 이벤트를 실시간으로 확인할 수 있는 디버그 패널을 표시합니다.
+          </p>
         </div>
 
         <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
