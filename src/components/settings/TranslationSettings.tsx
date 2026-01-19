@@ -35,7 +35,6 @@ export const TranslationSettings = forwardRef((_, ref) => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translationNote, setTranslationNote] = useState('');
   const [substitutions, setSubstitutions] = useState('');
-  const [activeSection, setActiveSection] = useState<string | null>(null);
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
   useImperativeHandle(ref, () => ({
@@ -78,9 +77,7 @@ export const TranslationSettings = forwardRef((_, ref) => {
     }
   };
 
-  const toggleSection = (section: string) => {
-    setActiveSection(activeSection === section ? null : section);
-  };
+
 
   const textareaClass = `w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-y font-mono border ${
     isDark 
@@ -96,11 +93,11 @@ export const TranslationSettings = forwardRef((_, ref) => {
       </div>
 
       <div className={`p-6 rounded-xl border space-y-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-        <details open={activeSection === 'system'} onToggle={() => toggleSection('system')}>
-          <summary className={`text-lg font-medium cursor-pointer hover:text-blue-400 transition-colors ${isDark ? 'text-white' : 'text-slate-900'}`}>
+        <div>
+          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             시스템 프롬프트
-          </summary>
-          <div className="mt-4 space-y-3">
+          </label>
+          <div className="space-y-3">
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
@@ -118,7 +115,7 @@ export const TranslationSettings = forwardRef((_, ref) => {
               </Button>
             </div>
           </div>
-        </details>
+        </div>
 
         <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
           <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>번역 노트</label>
