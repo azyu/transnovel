@@ -130,15 +130,13 @@ export const useTranslation = () => {
       });
 
       const unlistenFailed = await listen<{ failed_indices: number[]; total: number }>('translation-failed-paragraphs', (event) => {
-        const failedIndices = event.payload.failed_indices
-          .filter(idx => idx >= 2)
-          .map(idx => idx - 2);
-        addDebugLog('warn', `Failed paragraphs: [${failedIndices.join(', ')}]`);
+        const failedIndices = event.payload.failed_indices;
+        addDebugLog('warn', `Failed indices (original): [${failedIndices.join(', ')}]`);
         setFailedParagraphIndices(failedIndices);
         if (failedIndices.length > 0) {
           showError(
-            '일부 문단 번역 실패',
-            `${failedIndices.length}개 문단 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
+            '일부 번역 실패',
+            `${failedIndices.length}개 항목 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
           );
         }
       });
@@ -328,31 +326,61 @@ await invoke('start_batch_translation', {
 
   const retryFailedParagraphs = useCallback(async () => {
     const chapterContent = useTranslationStore.getState().getChapterContent();
-    const failedParagraphIndices = useTranslationStore.getState().failedParagraphIndices;
+    const failedOriginalIndices = useTranslationStore.getState().failedParagraphIndices;
     
-    if (!chapterContent || failedParagraphIndices.length === 0) return;
+    if (!chapterContent || failedOriginalIndices.length === 0) return;
 
+    const hasSubtitle = Boolean(chapterContent.subtitle);
+    
     const retryIndexToOriginalIndex = new Map<number, number>();
-    failedParagraphIndices.forEach((originalIdx: number, retryIdx: number) => {
-      retryIndexToOriginalIndex.set(retryIdx, originalIdx);
+    const retryTexts: string[] = [];
+    
+    failedOriginalIndices.forEach((origIdx, retryIdx) => {
+      retryIndexToOriginalIndex.set(retryIdx, origIdx);
+      
+      if (origIdx === 0) {
+        retryTexts.push(chapterContent.title);
+      } else if (origIdx === 1 && hasSubtitle) {
+        retryTexts.push(chapterContent.subtitle);
+      } else {
+        const paragraphIdx = hasSubtitle ? origIdx - 2 : origIdx - 1;
+        const paragraph = chapterContent.paragraphs[paragraphIdx];
+        if (paragraph?.original) {
+          retryTexts.push(paragraph.original);
+        }
+      }
     });
 
-    const failedParagraphs = failedParagraphIndices
-      .map((idx: number) => chapterContent.paragraphs[idx]?.original)
-      .filter((p: string | undefined): p is string => Boolean(p));
-    if (failedParagraphs.length === 0) return;
+    if (retryTexts.length === 0) return;
 
     setIsTranslating(true);
     clearFailedParagraphIndices();
 
     const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
       const paragraphId = event.payload.paragraph_id;
-      if (!paragraphId.startsWith('p-')) return;
       
-      const retryIdx = parseInt(paragraphId.slice(2), 10) - 1;
+      let retryIdx: number;
+      if (paragraphId === 'title') {
+        retryIdx = 0;
+      } else if (paragraphId === 'subtitle') {
+        retryIdx = 1;
+      } else if (paragraphId.startsWith('p-')) {
+        const pNum = parseInt(paragraphId.slice(2), 10);
+        retryIdx = pNum;
+      } else {
+        return;
+      }
+      
       const originalIdx = retryIndexToOriginalIndex.get(retryIdx);
-      if (originalIdx !== undefined) {
-        updateParagraphTranslation(`p-${originalIdx + 1}`, event.payload.text);
+      if (originalIdx === undefined) return;
+      
+      if (originalIdx === 0) {
+        updateTitleTranslation(event.payload.text, undefined);
+      } else if (originalIdx === 1 && hasSubtitle) {
+        updateTitleTranslation(undefined, event.payload.text);
+      } else {
+        const paragraphIdx = hasSubtitle ? originalIdx - 2 : originalIdx - 1;
+        updateParagraphTranslation(`p-${paragraphIdx + 1}`, event.payload.text);
       }
     });
 
@@ -364,8 +392,8 @@ await invoke('start_batch_translation', {
       setFailedParagraphIndices(originalFailedIndices);
       if (originalFailedIndices.length > 0) {
         showError(
-          '일부 문단 번역 실패',
-          `${originalFailedIndices.length}개 문단이 여전히 실패했습니다.`
+          '일부 번역 실패',
+          `${originalFailedIndices.length}개 항목이 여전히 실패했습니다.`
         );
       }
     });
@@ -380,7 +408,7 @@ await invoke('start_batch_translation', {
     try {
       await invoke('translate_paragraphs_streaming', {
         novelId: chapterContent.novel_id,
-        paragraphs: failedParagraphs,
+        paragraphs: retryTexts,
         hasSubtitle: false,
       });
     } catch (err) {
@@ -390,7 +418,7 @@ await invoke('start_batch_translation', {
       setIsTranslating(false);
       showError('재시도 실패', String(err));
     }
-  }, [setIsTranslating, updateParagraphTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
+  }, [setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
 
   const exportNovel = useCallback(async (request: ExportRequest) => {
       try {

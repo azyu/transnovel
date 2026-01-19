@@ -167,7 +167,7 @@ export const TranslationView: React.FC = () => {
             {failedParagraphIndices.length > 0 && !isTranslating && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-red-500">
-                  {failedParagraphIndices.length}개 문단 실패
+                  {failedParagraphIndices.length}개 항목 실패
                 </span>
                 <Button 
                   variant="secondary" 
