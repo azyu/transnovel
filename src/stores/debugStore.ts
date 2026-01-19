@@ -17,20 +17,35 @@ interface DebugState {
   clearDebugLogs: () => void;
 }
 
+let logCounter = 0;
+let logBuffer: DebugLogEntry[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useDebugStore = create<DebugState>((set) => ({
   debugMode: false,
   setDebugMode: (enabled) => set({ debugMode: enabled }),
 
   debugLogs: [],
-  addDebugLog: (() => {
-    let counter = 0;
-    return (type: DebugLogEntry['type'], message: string, data?: unknown) =>
-      set((s) => ({
-        debugLogs: [
-          ...s.debugLogs.slice(-499),
-          { id: ++counter, timestamp: new Date(), type, message, data },
-        ],
-      }));
-  })(),
-  clearDebugLogs: () => set({ debugLogs: [] }),
+  addDebugLog: (type: DebugLogEntry['type'], message: string, data?: unknown) => {
+    logBuffer.push({ id: ++logCounter, timestamp: new Date(), type, message, data });
+    
+    if (!flushTimer) {
+      flushTimer = setTimeout(() => {
+        const logsToAdd = logBuffer;
+        logBuffer = [];
+        flushTimer = null;
+        set((s) => ({
+          debugLogs: [...s.debugLogs, ...logsToAdd].slice(-500),
+        }));
+      }, 50);
+    }
+  },
+  clearDebugLogs: () => {
+    logBuffer = [];
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    set({ debugLogs: [] });
+  },
 }));
