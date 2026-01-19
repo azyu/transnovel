@@ -57,6 +57,13 @@ struct StreamEvent {
     #[serde(rename = "type")]
     event_type: String,
     delta: Option<StreamDelta>,
+    usage: Option<UsageInfo>,
+    message: Option<StreamMessage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StreamMessage {
+    usage: Option<UsageInfo>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -171,9 +178,9 @@ impl AntigravityClient {
                 .unwrap_or(false);
             
             return if is_likely_filtered {
-                Err("API가 빈 응답을 반환했습니다. (input_tokens: 0 - 콘텐츠 필터링 가능성)".to_string())
+                Err(format!("API가 빈 응답을 반환했습니다. (input_tokens: 0 - 콘텐츠 필터링 가능성)\nResponse: {}", response_text))
             } else {
-                Err("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.".to_string())
+                Err(format!("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.\nResponse: {}", response_text))
             };
         }
 
@@ -236,6 +243,7 @@ impl AntigravityClient {
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
         let mut emitted_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut final_usage: Option<(u32, u32)> = None;
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
@@ -256,7 +264,23 @@ impl AntigravityClient {
                     }
 
                     if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
-                        if event.event_type == "content_block_delta" {
+                        if event.event_type == "message_start" {
+                            if let Some(msg) = &event.message {
+                                if let Some(usage) = &msg.usage {
+                                    final_usage = Some((
+                                        usage.input_tokens.unwrap_or(0),
+                                        usage.output_tokens.unwrap_or(0),
+                                    ));
+                                }
+                            }
+                        } else if event.event_type == "message_delta" {
+                            if let Some(usage) = &event.usage {
+                                final_usage = Some((
+                                    usage.input_tokens.unwrap_or(0),
+                                    usage.output_tokens.unwrap_or(0),
+                                ));
+                            }
+                        } else if event.event_type == "content_block_delta" {
                             if let Some(delta) = event.delta {
                                 if let Some(text) = delta.text {
                                     full_text.push_str(&text);
@@ -286,8 +310,25 @@ impl AntigravityClient {
         }
 
         if full_text.is_empty() {
-            eprintln!("[Antigravity] Streaming returned empty response");
-            return Err("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.".to_string());
+            let usage_info = if let Some((input, output)) = final_usage {
+                format!("Usage: {{\"input_tokens\": {}, \"output_tokens\": {}}}", input, output)
+            } else {
+                "Usage: not available".to_string()
+            };
+            
+            eprintln!("[Antigravity] Streaming returned empty response. {}", usage_info);
+            
+            let content_filtered = final_usage.map_or(false, |(input, _)| input == 0);
+            let filter_hint = if content_filtered {
+                " (input_tokens=0 → 콘텐츠 필터링 가능성 높음)"
+            } else {
+                ""
+            };
+            
+            return Err(format!(
+                "API가 빈 응답을 반환했습니다.{}\n{}\nBuffer: {}",
+                filter_hint, usage_info, buffer
+            ));
         }
         
         parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)
