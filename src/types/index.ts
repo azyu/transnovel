@@ -39,11 +39,6 @@ export interface ApiKey {
   is_active: boolean;
 }
 
-export interface Setting {
-  key: string;
-  value: string;
-}
-
 export interface TranslationProgress {
   current_chapter: number;
   total_chapters: number;
