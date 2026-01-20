@@ -71,11 +71,16 @@ impl NovelParser for SyosetuParser {
             .map(|el| el.text().collect::<String>().trim().to_string());
 
         let content_selector = Selector::parse(".p-novel__text").unwrap();
-        let content = document
+        let content_parts: Vec<String> = document
             .select(&content_selector)
-            .next()
             .map(|el| el.inner_html())
-            .ok_or("본문을 찾을 수 없습니다.")?;
+            .collect();
+        
+        if content_parts.is_empty() {
+            return Err("본문을 찾을 수 없습니다.".to_string());
+        }
+        
+        let content = content_parts.join("\n");
 
         let prev_selector = Selector::parse(".c-pager__item--before").unwrap();
         let prev_url = document
