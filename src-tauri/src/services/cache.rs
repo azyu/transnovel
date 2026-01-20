@@ -119,3 +119,59 @@ fn compute_hash(novel_id: &str, text: &str) -> String {
     hasher.update(text.as_bytes());
     hex::encode(hasher.finalize())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_hash_deterministic() {
+        let hash1 = compute_hash("novel1", "テスト");
+        let hash2 = compute_hash("novel1", "テスト");
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_hash_different_novels_produce_different_hashes() {
+        let hash1 = compute_hash("novel1", "テスト");
+        let hash2 = compute_hash("novel2", "テスト");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_hash_different_text_produce_different_hashes() {
+        let hash1 = compute_hash("novel1", "テスト1");
+        let hash2 = compute_hash("novel1", "テスト2");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_hash_returns_64_char_hex() {
+        let hash = compute_hash("novel", "text");
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_compute_hash_empty_inputs() {
+        let hash1 = compute_hash("", "text");
+        let hash2 = compute_hash("novel", "");
+        let hash3 = compute_hash("", "");
+        
+        assert_eq!(hash1.len(), 64);
+        assert_eq!(hash2.len(), 64);
+        assert_eq!(hash3.len(), 64);
+        assert_ne!(hash1, hash2);
+        assert_ne!(hash2, hash3);
+    }
+
+    #[test]
+    fn test_compute_hash_unicode_text() {
+        let hash1 = compute_hash("novel", "日本語テスト");
+        let hash2 = compute_hash("novel", "한국어테스트");
+        let hash3 = compute_hash("novel", "日本語テスト");
+        
+        assert_ne!(hash1, hash2);
+        assert_eq!(hash1, hash3);
+    }
+}

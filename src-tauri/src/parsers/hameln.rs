@@ -131,3 +131,62 @@ impl NovelParser for HamelnParser {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_url_with_chapter() {
+        let url = "https://syosetu.org/novel/12345/1.html";
+        let parsed = HamelnParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "hameln");
+        assert_eq!(parsed.novel_id, "12345");
+        assert_eq!(parsed.chapter, Some(1));
+    }
+
+    #[test]
+    fn test_parse_url_with_htm_extension() {
+        let url = "https://syosetu.org/novel/12345/99.htm";
+        let parsed = HamelnParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "hameln");
+        assert_eq!(parsed.novel_id, "12345");
+        assert_eq!(parsed.chapter, Some(99));
+    }
+
+    #[test]
+    fn test_parse_url_without_chapter_returns_none() {
+        let url = "https://syosetu.org/novel/12345/";
+        let parsed = HamelnParser::parse_url_static(url);
+        assert!(parsed.is_none() || parsed.unwrap().chapter.is_none());
+    }
+
+    #[test]
+    fn test_matches_url_valid() {
+        let parser = HamelnParser::new();
+        assert!(parser.matches_url("https://syosetu.org/novel/12345/1.html"));
+        assert!(parser.matches_url("https://syosetu.org/novel/99999/100.html"));
+        assert!(parser.matches_url("http://syosetu.org/novel/12345/1.html"));
+    }
+
+    #[test]
+    fn test_matches_url_invalid() {
+        let parser = HamelnParser::new();
+        assert!(!parser.matches_url("https://ncode.syosetu.com/n4029bs/1/"));
+        assert!(!parser.matches_url("https://kakuyomu.jp/works/123/episodes/456"));
+    }
+
+    #[test]
+    fn test_parse_url_large_chapter_number() {
+        let url = "https://syosetu.org/novel/12345/999.html";
+        let parsed = HamelnParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.chapter, Some(999));
+    }
+
+    #[test]
+    fn test_parse_url_large_novel_id() {
+        let url = "https://syosetu.org/novel/999999/1.html";
+        let parsed = HamelnParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.novel_id, "999999");
+    }
+}

@@ -112,3 +112,66 @@ impl NovelParser for KakuyomuParser {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_url_with_episode() {
+        let url = "https://kakuyomu.jp/works/16816452220096911498/episodes/123456789";
+        let parsed = KakuyomuParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "kakuyomu");
+        assert_eq!(parsed.novel_id, "16816452220096911498");
+        assert_eq!(parsed.chapter, Some(123456789));
+    }
+
+    #[test]
+    fn test_parse_url_series_only() {
+        let url = "https://kakuyomu.jp/works/16816452220096911498";
+        let parsed = KakuyomuParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "kakuyomu");
+        assert_eq!(parsed.novel_id, "16816452220096911498");
+        assert_eq!(parsed.chapter, None);
+    }
+
+    #[test]
+    fn test_parse_url_with_trailing_slash() {
+        let url = "https://kakuyomu.jp/works/16816452220096911498/";
+        let parsed = KakuyomuParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.novel_id, "16816452220096911498");
+        assert_eq!(parsed.chapter, None);
+    }
+
+    #[test]
+    fn test_matches_url_valid() {
+        let parser = KakuyomuParser::new();
+        assert!(parser.matches_url("https://kakuyomu.jp/works/1234567890"));
+        assert!(parser.matches_url("https://kakuyomu.jp/works/1234567890/episodes/987654321"));
+        assert!(parser.matches_url("http://kakuyomu.jp/works/1234567890"));
+    }
+
+    #[test]
+    fn test_matches_url_invalid() {
+        let parser = KakuyomuParser::new();
+        assert!(!parser.matches_url("https://ncode.syosetu.com/n4029bs/1/"));
+        assert!(!parser.matches_url("https://syosetu.org/novel/12345/1.html"));
+        assert!(!parser.matches_url("https://kakuyomu.jp/users/12345"));
+    }
+
+    #[test]
+    fn test_parse_url_short_id() {
+        let url = "https://kakuyomu.jp/works/123/episodes/456";
+        let parsed = KakuyomuParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.novel_id, "123");
+        assert_eq!(parsed.chapter, Some(456));
+    }
+
+    #[test]
+    fn test_parse_url_large_episode_id_overflow_returns_none() {
+        let url = "https://kakuyomu.jp/works/123/episodes/99999999999999999999";
+        let parsed = KakuyomuParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.novel_id, "123");
+        assert_eq!(parsed.chapter, None);
+    }
+}

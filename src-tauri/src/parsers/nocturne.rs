@@ -144,3 +144,69 @@ impl NovelParser for NocturneParser {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_url_with_chapter() {
+        let url = "https://novel18.syosetu.com/n4029bs/1/";
+        let parsed = NocturneParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "nocturne");
+        assert_eq!(parsed.novel_id, "n4029bs");
+        assert_eq!(parsed.chapter, Some(1));
+    }
+
+    #[test]
+    fn test_parse_url_without_chapter() {
+        let url = "https://novel18.syosetu.com/n4029bs/";
+        let parsed = NocturneParser::parse_url_static(url).unwrap();
+        assert_eq!(parsed.site, "nocturne");
+        assert_eq!(parsed.novel_id, "n4029bs");
+        assert_eq!(parsed.chapter, None);
+    }
+
+    #[test]
+    fn test_parse_url_without_trailing_slash_returns_none() {
+        let url = "https://novel18.syosetu.com/n4029bs";
+        let parsed = NocturneParser::parse_url_static(url);
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn test_matches_url_valid() {
+        let parser = NocturneParser::new();
+        assert!(parser.matches_url("https://novel18.syosetu.com/n4029bs/1/"));
+        assert!(parser.matches_url("https://novel18.syosetu.com/n4029bs/"));
+        assert!(parser.matches_url("http://novel18.syosetu.com/abc123/99/"));
+    }
+
+    #[test]
+    fn test_matches_url_without_slash_is_invalid() {
+        let parser = NocturneParser::new();
+        assert!(!parser.matches_url("https://novel18.syosetu.com/n4029bs"));
+    }
+
+    #[test]
+    fn test_matches_url_other_sites_invalid() {
+        let parser = NocturneParser::new();
+        assert!(!parser.matches_url("https://ncode.syosetu.com/n4029bs/1/"));
+        assert!(!parser.matches_url("https://syosetu.org/novel/123/1.html"));
+        assert!(!parser.matches_url("https://kakuyomu.jp/works/123"));
+    }
+
+    #[test]
+    fn test_parse_url_various_novel_ids() {
+        let cases = vec![
+            ("https://novel18.syosetu.com/abc123/", "abc123"),
+            ("https://novel18.syosetu.com/n1234ab/", "n1234ab"),
+            ("https://novel18.syosetu.com/xyz789/50/", "xyz789"),
+        ];
+        
+        for (url, expected_id) in cases {
+            let parsed = NocturneParser::parse_url_static(url).unwrap();
+            assert_eq!(parsed.novel_id, expected_id);
+        }
+    }
+}
