@@ -34,6 +34,11 @@ export const TranslationView: React.FC = () => {
   const [retrying, setRetrying] = useState(false);
   const isDark = theme === 'dark';
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  const isTranslationComplete = 
+    translatedCount === paragraphIds.length && 
+    failedParagraphIndices.length === 0 &&
+    paragraphIds.length > 0;
 
   useEffect(() => {
     const checkApiConfig = async () => {
@@ -161,7 +166,7 @@ export const TranslationView: React.FC = () => {
       {chapter && (
         <div className={`py-4 px-6 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
           <div className="flex items-center gap-4">
-            <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying}>
+            <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying || !isTranslationComplete}>
               저장
             </Button>
             {failedParagraphIndices.length > 0 && !isTranslating && (
