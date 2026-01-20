@@ -31,3 +31,7 @@ src-tauri/Cargo.lock
 *.db
 *.db-shm
 *.db-wal
+
+# Generated reports
+.reports/
+.sisyphus/
