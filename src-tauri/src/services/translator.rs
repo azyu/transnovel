@@ -210,7 +210,7 @@ impl TranslatorService {
         let mut uncached_paragraphs: Vec<String> = Vec::new();
         
         for (i, (p, c)) in preprocessed.iter().zip(cached.iter()).enumerate() {
-            if c.is_none() {
+            if c.is_none() && !p.trim().is_empty() {
                 uncached_indices.push(i);
                 uncached_paragraphs.push(p.clone());
             }
@@ -288,7 +288,7 @@ impl TranslatorService {
                 },
             );
             
-            if c.is_none() {
+            if c.is_none() && !p.trim().is_empty() {
                 uncached_indices.push(i);
                 uncached_paragraphs.push(p.clone());
             }
