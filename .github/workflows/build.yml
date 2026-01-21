@@ -56,6 +56,9 @@ jobs:
       - name: Type check
         run: pnpm tsc --noEmit
 
+      - name: Build frontend
+        run: pnpm build
+
       - name: Rust tests
         run: cargo test
         working-directory: src-tauri
