@@ -218,8 +218,9 @@ export const useTranslation = () => {
           addDebugLog('info', `[API Request] ${provider}/${model}`);
           addDebugLog('info', body);
         } else {
-          addDebugLog('error', `[API Response] ${provider} - Status ${status}`);
-          addDebugLog('error', body);
+          const isSuccess = status && status >= 200 && status < 300;
+          addDebugLog(isSuccess ? 'info' : 'error', `[API Response] ${provider} - Status ${status}`);
+          addDebugLog(isSuccess ? 'info' : 'error', body);
         }
       });
 
