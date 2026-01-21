@@ -8,6 +8,7 @@ use super::paragraph::{
     encode_paragraph_id, decode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
 };
+use super::translator::TokenUsage;
 
 const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
 
@@ -30,6 +31,14 @@ struct Message {
 struct OpenRouterResponse {
     choices: Option<Vec<Choice>>,
     error: Option<OpenRouterError>,
+    #[allow(dead_code)]
+    usage: Option<UsageInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UsageInfo {
+    prompt_tokens: Option<u32>,
+    completion_tokens: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,6 +65,7 @@ struct OpenRouterError {
 #[derive(Debug, Deserialize)]
 struct StreamEvent {
     choices: Option<Vec<Choice>>,
+    usage: Option<UsageInfo>,
 }
 
 pub struct OpenRouterClient {
@@ -161,7 +171,7 @@ impl OpenRouterClient {
         has_subtitle: bool,
         system_prompt: &str,
         app_handle: &AppHandle<R>,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
         let url = format!("{}/v1/chat/completions", self.base_url.trim_end_matches("/v1").trim_end_matches('/'));
 
         let numbered_text = paragraphs
@@ -210,6 +220,7 @@ impl OpenRouterClient {
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
         let mut emitted_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut final_usage: Option<TokenUsage> = None;
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
@@ -230,6 +241,12 @@ impl OpenRouterClient {
                     }
 
                     if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
+                        if let Some(usage) = event.usage {
+                            final_usage = Some(TokenUsage {
+                                input_tokens: usage.prompt_tokens.unwrap_or(0),
+                                output_tokens: usage.completion_tokens.unwrap_or(0),
+                            });
+                        }
                         if let Some(choices) = event.choices {
                             if let Some(choice) = choices.into_iter().next() {
                                 if let Some(delta) = choice.delta {
@@ -268,6 +285,7 @@ impl OpenRouterClient {
             "body": &full_text
         }));
 
-        parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)
+        let result = parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
+        Ok((result, final_usage))
     }
 }

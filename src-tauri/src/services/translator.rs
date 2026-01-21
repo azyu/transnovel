@@ -2,6 +2,12 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
 use crate::commands::settings::get_settings;
+
+#[derive(Debug, Clone, Default)]
+pub struct TokenUsage {
+    pub input_tokens: u32,
+    pub output_tokens: u32,
+}
 use crate::models::translation::TranslationResult;
 use crate::services::antigravity::AntigravityClient;
 use crate::services::cache::{cache_translations, get_cached_translations};
@@ -304,6 +310,7 @@ impl TranslatorService {
             };
             let chunk_count = uncached_paragraphs.len().div_ceil(chunk_size);
             let mut failed_indices: Vec<usize> = Vec::new();
+            let mut total_usage = TokenUsage::default();
             
             for chunk_idx in 0..chunk_count {
                 let start = chunk_idx * chunk_size;
@@ -322,7 +329,7 @@ impl TranslatorService {
                         eprintln!("[Translator] Chunk {} retry {}/{}", chunk_idx + 1, retry, MAX_RETRIES - 1);
                     }
 
-                    let translate_result = if self.use_streaming {
+                    let translate_result: Result<(Vec<String>, Option<TokenUsage>), String> = if self.use_streaming {
                         match &mut self.client {
                             ApiClient::Gemini(client) => {
                                 client
@@ -353,11 +360,15 @@ impl TranslatorService {
                             }
                         };
                         
-                        result
+                        result.map(|v| (v, None))
                     };
 
                     match translate_result {
-                        Ok(translated) => {
+                        Ok((translated, usage)) => {
+                            if let Some(u) = usage {
+                                total_usage.input_tokens += u.input_tokens;
+                                total_usage.output_tokens += u.output_tokens;
+                            }
                             let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
                             let mut chunk_failed_indices: Vec<usize> = Vec::new();
                             let mut pairs: Vec<(String, String)> = Vec::new();
@@ -465,13 +476,17 @@ impl TranslatorService {
             let _ = app_handle.emit("translation-complete", serde_json::json!({
                 "success": all_success,
                 "total": paragraphs.len(),
-                "failed_count": failed_indices.len()
+                "failed_count": failed_indices.len(),
+                "input_tokens": total_usage.input_tokens,
+                "output_tokens": total_usage.output_tokens
             }));
         } else {
             let _ = app_handle.emit("translation-complete", serde_json::json!({
                 "success": true,
                 "total": paragraphs.len(),
-                "failed_count": 0
+                "failed_count": 0,
+                "input_tokens": 0,
+                "output_tokens": 0
             }));
         }
 

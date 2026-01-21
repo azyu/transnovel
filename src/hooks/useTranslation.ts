@@ -7,6 +7,13 @@ import { useUIStore } from '../stores/uiStore';
 import { useDebugStore } from '../stores/debugStore';
 import type { ChapterContent, Chapter, ExportRequest, TranslationChunk } from '../types';
 
+const formatTokenCount = (count: number): string => {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}k`;
+  }
+  return count.toString();
+};
+
 export const useTranslation = () => {
   const setChapterContent = useTranslationStore((s) => s.setChapterContent);
   const setIsTranslating = useTranslationStore((s) => s.setIsTranslating);
@@ -19,6 +26,7 @@ export const useTranslation = () => {
   const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
   
   const showError = useUIStore((s) => s.showError);
+  const showToast = useUIStore((s) => s.showToast);
   
   const addDebugLog = useDebugStore((s) => s.addDebugLog);
   
@@ -153,8 +161,8 @@ export const useTranslation = () => {
         showError(title, message);
       });
 
-      const unlistenComplete = await listen<{ success: boolean; total: number; failed_count: number }>('translation-complete', async (event) => {
-        const { success, total, failed_count } = event.payload;
+      const unlistenComplete = await listen<{ success: boolean; total: number; failed_count: number; input_tokens: number; output_tokens: number }>('translation-complete', async (event) => {
+        const { success, total, failed_count, input_tokens, output_tokens } = event.payload;
         addDebugLog('complete', `Translation complete: ${success ? 'SUCCESS' : 'PARTIAL FAILURE'} (${total - failed_count}/${total})`);
         unlistenChunk();
         unlistenFailed();
@@ -163,6 +171,12 @@ export const useTranslation = () => {
         unlistenError();
         unlistenDebugApi();
         setIsTranslating(false);
+        
+        if (success && (input_tokens > 0 || output_tokens > 0)) {
+          showToast(`번역이 완료되었습니다. (input=${formatTokenCount(input_tokens)}, output=${formatTokenCount(output_tokens)})`);
+        } else if (success) {
+          showToast('번역이 완료되었습니다. (캐시에서 로드됨)');
+        }
         
         if (content.chapter_number > 0 && success) {
           try {
@@ -246,7 +260,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog]);
+  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog]);
 
   const translateText = useCallback(async (novelId: string, text: string, note?: string) => {
     try {

@@ -8,6 +8,7 @@ use super::paragraph::{
     encode_paragraph_id, decode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
 };
+use super::translator::TokenUsage;
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -50,6 +51,16 @@ struct SafetySetting {
 struct GeminiResponse {
     candidates: Option<Vec<Candidate>>,
     error: Option<GeminiError>,
+    #[serde(rename = "usageMetadata")]
+    usage_metadata: Option<UsageMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UsageMetadata {
+    #[serde(rename = "promptTokenCount")]
+    prompt_token_count: Option<u32>,
+    #[serde(rename = "candidatesTokenCount")]
+    candidates_token_count: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -199,7 +210,7 @@ impl GeminiClient {
         has_subtitle: bool,
         system_prompt: &str,
         app_handle: &AppHandle<R>,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
         let api_key = self.get_next_api_key()?.to_string();
 
         let url = format!(
@@ -249,6 +260,7 @@ impl GeminiClient {
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
         let mut emitted_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut final_usage: Option<TokenUsage> = None;
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
@@ -261,6 +273,12 @@ impl GeminiClient {
 
                 if let Some(data) = line.strip_prefix("data: ") {
                     if let Ok(response) = serde_json::from_str::<GeminiResponse>(data) {
+                        if let Some(usage) = response.usage_metadata {
+                            final_usage = Some(TokenUsage {
+                                input_tokens: usage.prompt_token_count.unwrap_or(0),
+                                output_tokens: usage.candidates_token_count.unwrap_or(0),
+                            });
+                        }
                         if let Some(text) = response
                             .candidates
                             .and_then(|c| c.into_iter().next())
@@ -299,6 +317,7 @@ impl GeminiClient {
             "body": &full_text
         }));
 
-        parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)
+        let result = parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
+        Ok((result, final_usage))
     }
 }
