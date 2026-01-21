@@ -124,7 +124,7 @@ export const AdvancedSettings: React.FC = () => {
                 isLoading={isClearing}
                 disabled={!cacheStats || cacheStats.total_count === 0}
               >
-                전체 초기화
+                캐시 비우기
               </Button>
             </div>
 
