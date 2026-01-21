@@ -389,11 +389,27 @@ impl TranslatorService {
                             let mut chunk_failed_indices: Vec<usize> = Vec::new();
                             let mut pairs: Vec<(String, String)> = Vec::new();
 
+                            if postprocessed.len() < chunk_indices.len() {
+                                let missing_count = chunk_indices.len() - postprocessed.len();
+                                eprintln!(
+                                    "[Translator] Output truncated: expected {} paragraphs, got {} ({} missing)",
+                                    chunk_indices.len(), postprocessed.len(), missing_count
+                                );
+                                let _ = app_handle.emit("debug-api", serde_json::json!({
+                                    "type": "warning",
+                                    "provider": "translator",
+                                    "status": 0,
+                                    "body": format!(
+                                        "출력이 잘렸습니다: {}개 문단 중 {}개만 번역됨 ({}개 누락). 모델의 출력 토큰 한도에 도달했을 수 있습니다.",
+                                        chunk_indices.len(), postprocessed.len(), missing_count
+                                    )
+                                }));
+                            }
+
                             for (local_idx, &orig_idx) in chunk_indices.iter().enumerate() {
                                 if local_idx < postprocessed.len() {
                                     let trans = &postprocessed[local_idx];
                                     
-                                    // Only mark as failed if original was non-empty but translation is empty
                                     if trans.is_empty() && !chunk_paragraphs[local_idx].is_empty() {
                                         chunk_failed_indices.push(orig_idx);
                                         eprintln!(
@@ -415,6 +431,8 @@ impl TranslatorService {
                                             );
                                         }
                                     }
+                                } else {
+                                    chunk_failed_indices.push(orig_idx);
                                 }
                             }
 

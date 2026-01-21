@@ -217,6 +217,8 @@ export const useTranslation = () => {
         if (type === 'request') {
           addDebugLog('info', `[API Request] ${provider}/${model}`);
           addDebugLog('info', body);
+        } else if (type === 'warning') {
+          addDebugLog('warn', `[${provider}] ${body}`);
         } else {
           const isSuccess = status && status >= 200 && status < 300;
           addDebugLog(isSuccess ? 'info' : 'error', `[API Response] ${provider} - Status ${status}`);
