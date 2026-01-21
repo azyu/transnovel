@@ -408,15 +408,36 @@ impl TranslatorService {
 
                 if !success {
                     let error_msg = last_error.clone().unwrap_or_else(|| "Unknown error".to_string());
-                    eprintln!("[Translator] Chunk {} failed after {} retries: {}", 
-                        chunk_idx + 1, MAX_RETRIES, error_msg);
+                    eprintln!("[Translator] Chunk {} failed: {}", chunk_idx + 1, error_msg);
                     failed_indices.extend(chunk_indices.iter().cloned());
                     
-                    let _ = app_handle.emit("debug-translation-error", serde_json::json!({
-                        "chunk_idx": chunk_idx,
-                        "failed_indices": chunk_indices,
-                        "error": error_msg,
-                        "retry_count": MAX_RETRIES
+                    let (error_type, title, message) = if error_msg.contains("input_tokens=0") 
+                        || error_msg.contains("\"input_tokens\": 0")
+                        || error_msg.contains("input_tokens\": 0") 
+                    {
+                        (
+                            "content_filtered",
+                            "콘텐츠 필터링 감지",
+                            "AI 제공자의 정책에 의해 해당 내용이 차단되었습니다. 다른 모델을 시도해보세요."
+                        )
+                    } else if error_msg.contains("API 오류") {
+                        (
+                            "api_error",
+                            "API 오류",
+                            &error_msg as &str
+                        )
+                    } else {
+                        (
+                            "unknown",
+                            "번역 오류",
+                            &error_msg as &str
+                        )
+                    };
+                    
+                    let _ = app_handle.emit("translation-error", serde_json::json!({
+                        "error_type": error_type,
+                        "title": title,
+                        "message": message
                     }));
                 }
             }

@@ -141,21 +141,10 @@ export const useTranslation = () => {
         }
       });
 
-      const unlistenDebugError = await listen<{ chunk_idx: number; failed_indices: number[]; error: string; retry_count: number }>('debug-translation-error', (event) => {
-        const { chunk_idx, failed_indices, error, retry_count } = event.payload;
-        addDebugLog('error', `[Chunk ${chunk_idx + 1}] Translation failed after ${retry_count} retries`);
-        addDebugLog('error', `  Failed indices: [${failed_indices.join(', ')}]`);
-        addDebugLog('error', `  Error: ${error}`);
-        
-        const isContentFiltered = error.includes('input_tokens=0') || 
-          error.includes('"input_tokens": 0') || 
-          error.includes('콘텐츠 필터링');
-        if (isContentFiltered) {
-          showError(
-            '콘텐츠 필터링 감지 (input_tokens=0)',
-            'AI 제공자의 정책에 의해 해당 내용이 차단되었을 수 있습니다. 다른 모델이나 프로바이더를 시도해보세요.'
-          );
-        }
+      const unlistenError = await listen<{ error_type: string; title: string; message: string }>('translation-error', (event) => {
+        const { title, message } = event.payload;
+        addDebugLog('error', `${title}: ${message}`);
+        showError(title, message);
       });
 
       const unlistenComplete = await listen<{ success: boolean; total: number; failed_count: number }>('translation-complete', async (event) => {
@@ -165,7 +154,7 @@ export const useTranslation = () => {
         unlistenFailed();
         unlistenComplete();
         unlistenCache();
-        unlistenDebugError();
+        unlistenError();
         setIsTranslating(false);
         
         if (content.chapter_number > 0 && success) {
@@ -223,7 +212,7 @@ export const useTranslation = () => {
         addDebugLog('error', `Translation error: ${err}`);
         unlistenChunk();
         unlistenFailed();
-        unlistenDebugError();
+        unlistenError();
         unlistenComplete();
         unlistenCache();
         setIsTranslating(false);
@@ -420,25 +409,16 @@ await invoke('start_batch_translation', {
       }
     });
 
-    const unlistenDebugError = await listen<{ chunk_idx: number; failed_indices: number[]; error: string; retry_count: number }>('debug-translation-error', (event) => {
-      const { chunk_idx, error, retry_count } = event.payload;
-      addDebugLog('error', `[Retry Chunk ${chunk_idx + 1}] Translation failed after ${retry_count} retries: ${error}`);
-      
-      const isContentFiltered = error.includes('input_tokens=0') || 
-        error.includes('"input_tokens": 0') || 
-        error.includes('콘텐츠 필터링');
-      if (isContentFiltered) {
-        showError(
-          '콘텐츠 필터링 감지 (input_tokens=0)',
-          'AI 제공자의 정책에 의해 해당 내용이 차단되었을 수 있습니다. 다른 모델이나 프로바이더를 시도해보세요.'
-        );
-      }
+    const unlistenError = await listen<{ error_type: string; title: string; message: string }>('translation-error', (event) => {
+      const { title, message } = event.payload;
+      addDebugLog('error', `${title}: ${message}`);
+      showError(title, message);
     });
 
     const unlistenComplete = await listen<{ success: boolean; total: number; failed_count: number }>('translation-complete', async () => {
       unlistenChunk();
       unlistenFailed();
-      unlistenDebugError();
+      unlistenError();
       unlistenComplete();
       setIsTranslating(false);
     });
@@ -452,7 +432,7 @@ await invoke('start_batch_translation', {
     } catch (err) {
       unlistenChunk();
       unlistenFailed();
-      unlistenDebugError();
+      unlistenError();
       unlistenComplete();
       setIsTranslating(false);
       showError('재시도 실패', String(err));
