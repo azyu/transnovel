@@ -95,11 +95,7 @@ impl OpenRouterClient {
     }
 
     fn build_request(&self, prompt: &str, stream: bool) -> OpenRouterRequest {
-        let max_tokens = if self.model.contains(":free") {
-            None
-        } else {
-            Some(65536)
-        };
+        let max_tokens = Some(65536);
         
         OpenRouterRequest {
             model: self.model.clone(),
