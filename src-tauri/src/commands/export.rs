@@ -68,9 +68,9 @@ async fn export_txt_single(request: &ExportRequest) -> Result<ExportResult, Stri
     content.push_str(&format!("# Novel ID: {}\n\n", request.novel_id));
 
     for chapter in &request.chapters {
-        content.push_str(&format!("─────────────────────────────────────────\n"));
+        content.push_str("─────────────────────────────────────────\n");
         content.push_str(&format!("제{}화: {}\n", chapter.number, chapter.title));
-        content.push_str(&format!("─────────────────────────────────────────\n\n"));
+        content.push_str("─────────────────────────────────────────\n\n");
 
         for para in &chapter.paragraphs {
             if request.options.include_original {
@@ -188,7 +188,7 @@ pub async fn save_chapter(request: SaveChapterRequest) -> Result<String, String>
     if let Some(subtitle) = &request.subtitle {
         content.push_str(&format!("{}\n", subtitle));
     }
-    content.push_str("\n");
+    content.push('\n');
 
     for para in &request.paragraphs {
         if let Some(translated) = &para.translated {
@@ -270,7 +270,7 @@ fn generate_txt_content(request: &SaveChapterWithDialogRequest) -> String {
     if let Some(subtitle) = &request.subtitle {
         content.push_str(&format!("{}\n", subtitle));
     }
-    content.push_str("\n");
+    content.push('\n');
 
     for para in &request.paragraphs {
         if request.include_original {

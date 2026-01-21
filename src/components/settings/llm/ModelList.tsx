@@ -1,12 +1,12 @@
 import { useUIStore } from '../../../stores/uiStore';
-import type { ProviderConfig } from './types';
+import type { ModelConfig } from './types';
 import { PROVIDER_PRESETS } from './types';
 
-interface ProviderListProps {
-  providers: ProviderConfig[];
-  activeProviderId: string | null;
+interface ModelListProps {
+  models: ModelConfig[];
+  activeModelId: string | null;
   onSelect: (id: string) => void;
-  onEdit: (provider: ProviderConfig) => void;
+  onEdit: (model: ModelConfig) => void;
   onDelete: (id: string) => void;
 }
 
@@ -22,20 +22,14 @@ const DeleteIcon = () => (
   </svg>
 );
 
-export const ProviderList: React.FC<ProviderListProps> = ({
-  providers,
-  activeProviderId,
+export const ModelList: React.FC<ModelListProps> = ({
+  models,
+  activeModelId,
   onSelect,
   onEdit,
   onDelete,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
-
-  const maskApiKey = (key: string): string => {
-    if (!key) return '(없음)';
-    if (key.length <= 8) return '****';
-    return `${key.substring(0, 6)}...${key.substring(key.length - 4)}`;
-  };
 
   const getProviderColor = (type: string): string => {
     const colors: Record<string, string> = {
@@ -49,23 +43,23 @@ export const ProviderList: React.FC<ProviderListProps> = ({
     return colors[type] || colors.custom;
   };
 
-  if (providers.length === 0) {
+  if (models.length === 0) {
     return (
       <div className={`text-center py-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        등록된 제공자가 없습니다. 제공자를 추가해주세요.
+        등록된 모델이 없습니다. 모델을 추가해주세요.
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      {providers.map((provider) => {
-        const isActive = provider.id === activeProviderId;
-        const preset = PROVIDER_PRESETS[provider.type];
+      {models.map((model) => {
+        const isActive = model.id === activeModelId;
+        const preset = PROVIDER_PRESETS[model.providerType];
         
         return (
           <div
-            key={provider.id}
+            key={model.id}
             className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
               isActive
                 ? isDark 
@@ -77,7 +71,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
             }`}
           >
             <button
-              onClick={() => onSelect(provider.id)}
+              onClick={() => onSelect(model.id)}
               className="flex items-center gap-3 flex-1 text-left"
             >
               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
@@ -88,22 +82,18 @@ export const ProviderList: React.FC<ProviderListProps> = ({
                 {isActive && <div className="w-2 h-2 rounded-full bg-white" />}
               </div>
               
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${getProviderColor(provider.type)}`}>
-                {preset?.label || provider.type.toUpperCase()}
-              </span>
-              
               <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {provider.name}
+                {model.name}
               </span>
               
-              <span className={`text-sm font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                {maskApiKey(provider.apiKey)}
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${getProviderColor(model.providerType)}`}>
+                {preset?.label || model.providerType}
               </span>
             </button>
 
             <div className="flex items-center gap-1">
               <button
-                onClick={() => onEdit(provider)}
+                onClick={() => onEdit(model)}
                 className={`p-1.5 rounded-md transition-colors ${
                   isDark 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-200' 
@@ -114,7 +104,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
                 <EditIcon />
               </button>
               <button
-                onClick={() => onDelete(provider.id)}
+                onClick={() => onDelete(model.id)}
                 className={`p-1.5 rounded-md transition-colors ${
                   isDark 
                     ? 'hover:bg-red-900/30 text-slate-400 hover:text-red-400' 

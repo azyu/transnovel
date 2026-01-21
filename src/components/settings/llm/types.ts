@@ -1,11 +1,12 @@
 export type ProviderType = 'gemini' | 'openrouter' | 'anthropic' | 'openai' | 'antigravity' | 'custom';
 
-export interface ProviderConfig {
+export interface ModelConfig {
   id: string;
-  type: ProviderType;
   name: string;
-  baseUrl: string;
+  providerType: ProviderType;
   apiKey: string;
+  baseUrl: string;
+  modelId: string;
 }
 
 export interface ProviderPreset {

@@ -60,14 +60,16 @@ pub struct TranslatorService {
 }
 
 #[derive(Debug, Deserialize)]
-struct ProviderConfig {
+struct ModelConfig {
     id: String,
-    #[serde(rename = "type")]
+    #[serde(rename = "providerType")]
     provider_type: String,
-    #[serde(rename = "baseUrl", default)]
-    base_url: String,
     #[serde(rename = "apiKey", default)]
     api_key: String,
+    #[serde(rename = "baseUrl", default)]
+    base_url: String,
+    #[serde(rename = "modelId")]
+    model_id: String,
 }
 
 struct TranslatorSettings {
@@ -114,7 +116,7 @@ impl TranslatorService {
                 }
             }
             _ => {
-                return Err("사용할 API가 설정되지 않았습니다. 설정에서 제공자를 추가해주세요.".to_string());
+                return Err("사용할 모델이 설정되지 않았습니다. 설정에서 모델을 추가해주세요.".to_string());
             }
         };
 
@@ -134,23 +136,23 @@ impl TranslatorService {
             settings.iter().find(|s| s.key == key).map(|s| s.value.clone()).filter(|v| !v.is_empty())
         };
         
-        let providers_json = get_setting("llm_providers").unwrap_or_else(|| "[]".to_string());
-        let providers: Vec<ProviderConfig> = serde_json::from_str(&providers_json).unwrap_or_default();
+        let models_json = get_setting("llm_models").unwrap_or_else(|| "[]".to_string());
+        let models: Vec<ModelConfig> = serde_json::from_str(&models_json).unwrap_or_default();
         
-        let active_provider_id = get_setting("active_provider_id");
-        let selected_model = get_setting("selected_model");
+        let active_model_id = get_setting("active_model_id");
         
-        let active_provider = active_provider_id
+        let active_model = active_model_id
             .as_ref()
-            .and_then(|id| providers.iter().find(|p| &p.id == id));
+            .and_then(|id| models.iter().find(|m| &m.id == id));
         
-        let (provider_type, api_key, base_url) = match active_provider {
-            Some(p) => (
-                p.provider_type.clone(),
-                if p.api_key.is_empty() { None } else { Some(p.api_key.clone()) },
-                if p.base_url.is_empty() { None } else { Some(p.base_url.clone()) },
+        let (provider_type, api_key, base_url, model_id) = match active_model {
+            Some(m) => (
+                m.provider_type.clone(),
+                if m.api_key.is_empty() { None } else { Some(m.api_key.clone()) },
+                if m.base_url.is_empty() { None } else { Some(m.base_url.clone()) },
+                Some(m.model_id.clone()),
             ),
-            None => ("gemini".to_string(), None, None),
+            None => ("".to_string(), None, None, None),
         };
         
         TranslatorSettings {
@@ -160,7 +162,7 @@ impl TranslatorService {
             provider_type,
             api_key,
             base_url,
-            model: selected_model,
+            model: model_id,
             use_streaming: get_setting("use_streaming").map(|v| v == "true").unwrap_or(true),
         }
     }
@@ -274,7 +276,7 @@ impl TranslatorService {
 
         for (i, cached_text) in cached.iter().enumerate() {
             if let Some(text) = cached_text {
-                let postprocessed = self.substitution.apply_to_paragraphs(&[text.clone()]);
+                let postprocessed = self.substitution.apply_to_paragraphs(std::slice::from_ref(text));
                 let _ = app_handle.emit(
                     "translation-chunk",
                     TranslationChunk {
@@ -300,7 +302,7 @@ impl TranslatorService {
             } else {
                 FALLBACK_CHUNK_SIZE
             };
-            let chunk_count = (uncached_paragraphs.len() + chunk_size - 1) / chunk_size;
+            let chunk_count = uncached_paragraphs.len().div_ceil(chunk_size);
             let mut failed_indices: Vec<usize> = Vec::new();
             
             for chunk_idx in 0..chunk_count {

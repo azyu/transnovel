@@ -126,19 +126,7 @@ pub async fn remove_api_key(id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn get_active_api_key(key_type: &str) -> Result<Option<String>, String> {
-    let pool = get_pool()?;
-    
-    let row = sqlx::query(
-        "SELECT api_key FROM api_keys WHERE key_type = ? AND is_active = 1 ORDER BY daily_usage ASC LIMIT 1"
-    )
-    .bind(key_type)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-    
-    Ok(row.map(|r| r.get("api_key")))
-}
+
 
 #[derive(Debug, Serialize)]
 pub struct AntigravityStatus {

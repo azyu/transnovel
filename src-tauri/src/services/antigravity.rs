@@ -318,7 +318,7 @@ impl AntigravityClient {
             
             eprintln!("[Antigravity] Streaming returned empty response. {}", usage_info);
             
-            let content_filtered = final_usage.map_or(false, |(input, _)| input == 0);
+            let content_filtered = final_usage.is_some_and(|(input, _)| input == 0);
             let filter_hint = if content_filtered {
                 " (input_tokens=0 → 콘텐츠 필터링 가능성 높음)"
             } else {
