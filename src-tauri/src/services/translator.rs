@@ -366,13 +366,14 @@ impl TranslatorService {
                                 if local_idx < postprocessed.len() {
                                     let trans = &postprocessed[local_idx];
                                     
-                                    if trans.is_empty() {
+                                    // Only mark as failed if original was non-empty but translation is empty
+                                    if trans.is_empty() && !chunk_paragraphs[local_idx].is_empty() {
                                         chunk_failed_indices.push(orig_idx);
                                         eprintln!(
                                             "[Translator] Empty result for paragraph {} (stream likely interrupted)",
                                             encode_paragraph_id(orig_idx, has_subtitle)
                                         );
-                                    } else {
+                                    } else if !trans.is_empty() {
                                         results[orig_idx] = trans.clone();
                                         pairs.push((chunk_paragraphs[local_idx].clone(), trans.clone()));
                                         
