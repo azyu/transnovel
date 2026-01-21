@@ -84,8 +84,8 @@ Tauri 2.0 desktop app translating Japanese web novels → Korean. React frontend
   ```bash
   pnpm run lint          # TypeScript/ESLint
   pnpm run build         # Frontend build
-  cargo test -p app_lib  # Rust tests
-  cargo clippy -p app_lib -- -D warnings  # Rust lint
+  cd src-tauri && cargo test   # Rust tests
+  cd src-tauri && cargo clippy -- -D warnings  # Rust lint
   ```
 
 ## Commands
@@ -95,7 +95,7 @@ pnpm install              # Install deps
 pnpm run tauri dev        # Dev mode
 pnpm run tauri build      # Production build
 pnpm run build            # Frontend only
-cargo test -p app_lib     # Rust tests
+cd src-tauri && cargo test  # Rust tests
 ```
 
 ## Database Tables
