@@ -6,12 +6,14 @@ import { SeriesManager } from './components/series/SeriesManager';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { useUIStore } from './stores/uiStore';
 import { useTauriEvents } from './hooks/useTauriEvents';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 function App() {
   const currentTab = useUIStore((s) => s.currentTab);
   const theme = useUIStore((s) => s.theme);
   
   useTauriEvents();
+  useKeyboardShortcuts();
 
   return (
     <div className={`flex flex-col h-screen font-sans selection:bg-blue-500/30 transition-colors duration-200 ${
