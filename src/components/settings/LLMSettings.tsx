@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
 import { ModelModal } from './llm/ModelModal';
@@ -85,8 +86,12 @@ export const LLMSettings = forwardRef((_, ref) => {
     }
   };
 
-  const handleDeleteModel = (id: string) => {
-    if (!confirm('이 모델을 삭제하시겠습니까?')) return;
+  const handleDeleteModel = async (id: string) => {
+    const confirmed = await ask('이 모델을 삭제하시겠습니까?', {
+      title: '모델 삭제',
+      kind: 'warning',
+    });
+    if (!confirmed) return;
     
     setModels(prev => prev.filter(m => m.id !== id));
     
