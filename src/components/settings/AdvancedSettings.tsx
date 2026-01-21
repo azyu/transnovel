@@ -201,15 +201,14 @@ export const AdvancedSettings: React.FC = () => {
         </div>
 
         <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>전체 초기화</h3>
-          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            모든 설정, API 키, 번역 캐시를 삭제하고 앱을 초기 상태로 되돌립니다.
-          </p>
+          <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>위험 구역</h3>
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-red-400 font-medium">위험 구역</p>
-                <p className="text-xs text-red-400/70 mt-1">이 작업은 되돌릴 수 없습니다.</p>
+                <p className="text-sm text-red-400 font-medium">전체 초기화</p>
+                <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  모든 설정, API 키, 번역 캐시를 삭제하고 앱을 초기 상태로 되돌립니다. 이 작업은 되돌릴 수 없습니다.
+                </p>
               </div>
               <Button
                 variant="danger"
@@ -217,7 +216,7 @@ export const AdvancedSettings: React.FC = () => {
                 onClick={handleResetAll}
                 isLoading={isResetting}
               >
-                전체 초기화
+                초기화
               </Button>
             </div>
           </div>
