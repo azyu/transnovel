@@ -193,6 +193,12 @@ export const LLMSettings = forwardRef((_, ref) => {
     return length.toString();
   };
 
+  const providerOptions = providers.map(p => ({
+    value: p.id,
+    label: p.name,
+    subLabel: p.type,
+  }));
+
   return (
     <div className="space-y-6">
       <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
@@ -200,6 +206,54 @@ export const LLMSettings = forwardRef((_, ref) => {
         <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
           API 제공자를 등록하고 사용할 모델을 선택합니다.
         </p>
+      </div>
+
+      <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              제공자
+            </label>
+            <SearchableSelect
+              options={providerOptions}
+              value={activeProviderId || ''}
+              onChange={handleSelectProvider}
+              placeholder={providers.length === 0 ? '제공자를 추가해주세요' : '제공자 선택...'}
+              disabled={providers.length === 0}
+            />
+          </div>
+          <div className="flex-1">
+            <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              모델
+            </label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <SearchableSelect
+                  options={models.map(m => ({
+                    value: m.id,
+                    label: m.name,
+                    subLabel: formatContextLength(m.contextLength),
+                  }))}
+                  value={selectedModel}
+                  onChange={setSelectedModel}
+                  loading={loadingModels}
+                  placeholder={!activeProvider ? '제공자를 먼저 선택' : '모델 검색...'}
+                  disabled={!activeProvider}
+                />
+              </div>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handleRefreshModels} 
+                isLoading={loadingModels}
+                disabled={!activeProvider}
+                className="shrink-0 self-start mt-0"
+              >
+                ↻
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
@@ -244,29 +298,6 @@ export const LLMSettings = forwardRef((_, ref) => {
           onDelete={handleDeleteProvider}
         />
       </div>
-
-      {activeProvider && (
-        <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>모델 선택</h3>
-            <Button variant="secondary" size="sm" onClick={handleRefreshModels} isLoading={loadingModels}>
-              새로고침
-            </Button>
-          </div>
-
-          <SearchableSelect
-            options={models.map(m => ({
-              value: m.id,
-              label: m.name,
-              subLabel: formatContextLength(m.contextLength),
-            }))}
-            value={selectedModel}
-            onChange={setSelectedModel}
-            loading={loadingModels}
-            placeholder="모델 검색..."
-          />
-        </div>
-      )}
 
       <ProviderModal
         isOpen={modalOpen}
