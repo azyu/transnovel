@@ -57,7 +57,7 @@ jobs:
         run: pnpm tsc --noEmit
 
       - name: Rust tests
-        run: cargo test -p app_lib
+        run: cargo test
         working-directory: src-tauri
 
   build:
