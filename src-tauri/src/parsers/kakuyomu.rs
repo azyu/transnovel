@@ -55,13 +55,30 @@ impl NovelParser for KakuyomuParser {
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string());
 
+        let prev_selector = Selector::parse("#contentMain-readPreviousEpisode").unwrap();
+        let prev_url = document
+            .select(&prev_selector)
+            .next()
+            .and_then(|el| el.value().attr("href"))
+            .map(|href| {
+                let clean_href = href.split('#').next().unwrap_or(href);
+                format!("https://kakuyomu.jp{}", clean_href)
+            });
+
+        let next_selector = Selector::parse("#contentMain-readNextEpisode").unwrap();
+        let next_url = document
+            .select(&next_selector)
+            .next()
+            .and_then(|el| el.value().attr("href"))
+            .map(|href| format!("https://kakuyomu.jp{}", href));
+
         Ok(ChapterContent {
             title: None,
             subtitle,
             content,
             author_note: None,
-            prev_url: None,
-            next_url: None,
+            prev_url,
+            next_url,
         })
     }
 
