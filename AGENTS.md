@@ -74,6 +74,7 @@ Tauri 2.0 desktop app translating Japanese web novels → Korean. React frontend
 | Edit `src-tauri/gen/*`                | Auto-generated, will be overwritten    |
 | Remove `#![cfg_attr(...)]` in main.rs | Causes console window on Windows       |
 | `as any`, `@ts-ignore`                | Type safety violations                 |
+| `confirm()`, `alert()`, `prompt()`    | Use `@tauri-apps/plugin-dialog` instead; native dialogs don't block properly in Tauri webview |
 
 ## Workflow
 
