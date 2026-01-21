@@ -141,9 +141,15 @@ export const useTranslation = () => {
         }
       });
 
-      const unlistenError = await listen<{ error_type: string; title: string; message: string }>('translation-error', (event) => {
-        const { title, message } = event.payload;
+      const unlistenError = await listen<{ error_type: string; title: string; message: string; request_preview?: string; response_preview?: string }>('translation-error', (event) => {
+        const { title, message, request_preview, response_preview } = event.payload;
         addDebugLog('error', `${title}: ${message}`);
+        if (request_preview) {
+          addDebugLog('error', `[Request] ${request_preview}`);
+        }
+        if (response_preview) {
+          addDebugLog('error', `[Response] ${response_preview}`);
+        }
         showError(title, message);
       });
 
@@ -155,6 +161,7 @@ export const useTranslation = () => {
         unlistenComplete();
         unlistenCache();
         unlistenError();
+        unlistenDebugApi();
         setIsTranslating(false);
         
         if (content.chapter_number > 0 && success) {
@@ -191,6 +198,17 @@ export const useTranslation = () => {
         );
       });
 
+      const unlistenDebugApi = await listen<{ type: string; provider: string; model?: string; status?: number; body: string }>('debug-api', (event) => {
+        const { type, provider, model, status, body } = event.payload;
+        if (type === 'request') {
+          addDebugLog('info', `[API Request] ${provider}/${model}`);
+          addDebugLog('info', body);
+        } else {
+          addDebugLog('error', `[API Response] ${provider} - Status ${status}`);
+          addDebugLog('error', body);
+        }
+      });
+
       clearFailedParagraphIndices();
 
       const hasSubtitle = Boolean(content.subtitle);
@@ -215,6 +233,7 @@ export const useTranslation = () => {
         unlistenError();
         unlistenComplete();
         unlistenCache();
+        unlistenDebugApi();
         setIsTranslating(false);
         throw err;
       }
@@ -409,9 +428,15 @@ await invoke('start_batch_translation', {
       }
     });
 
-    const unlistenError = await listen<{ error_type: string; title: string; message: string }>('translation-error', (event) => {
-      const { title, message } = event.payload;
+    const unlistenError = await listen<{ error_type: string; title: string; message: string; request_preview?: string; response_preview?: string }>('translation-error', (event) => {
+      const { title, message, request_preview, response_preview } = event.payload;
       addDebugLog('error', `${title}: ${message}`);
+      if (request_preview) {
+        addDebugLog('error', `[Request] ${request_preview}`);
+      }
+      if (response_preview) {
+        addDebugLog('error', `[Response] ${response_preview}`);
+      }
       showError(title, message);
     });
 

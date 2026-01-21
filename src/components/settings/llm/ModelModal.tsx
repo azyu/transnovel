@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
-import { SearchableSelect } from '../../common/SearchableSelect';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ModelConfig, ProviderType, ModelOption } from './types';
 import { PROVIDER_PRESETS, FALLBACK_MODELS } from './types';
@@ -239,22 +238,15 @@ export const ModelModal: React.FC<ModelModalProps> = ({
 
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              모델
+              모델 ID
             </label>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <SearchableSelect
-                  options={models.map(m => ({
-                    value: m.id,
-                    label: m.name,
-                    subLabel: formatContextLength(m.contextLength),
-                  }))}
-                  value={modelId}
-                  onChange={setModelId}
-                  loading={loadingModels}
-                  placeholder="모델 선택..."
-                />
-              </div>
+            <div className="flex gap-2 mb-2">
+              <Input
+                value={modelId}
+                onChange={(e) => setModelId(e.target.value)}
+                placeholder="예: gpt-4o, claude-sonnet-4, gemini-2.5-flash"
+                className="flex-1"
+              />
               <Button 
                 variant="secondary" 
                 size="sm" 
@@ -265,6 +257,29 @@ export const ModelModal: React.FC<ModelModalProps> = ({
                 ↻
               </Button>
             </div>
+            {models.length > 0 && (
+              <div className={`max-h-32 overflow-y-auto rounded-lg border ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
+                {models.map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setModelId(m.id)}
+                    className={`w-full px-3 py-1.5 text-left text-sm flex justify-between items-center transition-colors ${
+                      modelId === m.id 
+                        ? isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+                        : isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <span className="truncate">{m.name}</span>
+                    {m.contextLength && (
+                      <span className={`ml-2 text-xs shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {formatContextLength(m.contextLength)}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

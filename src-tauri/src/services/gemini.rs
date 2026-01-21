@@ -217,6 +217,14 @@ impl GeminiClient {
         let full_prompt = format!("{}\n\n{}", system_prompt, numbered_text);
         let request = self.build_request(&full_prompt);
 
+        let request_json = serde_json::to_string_pretty(&request).unwrap_or_default();
+        let _ = app_handle.emit("debug-api", serde_json::json!({
+            "type": "request",
+            "provider": "gemini",
+            "model": &self.model,
+            "body": request_json
+        }));
+
         let response = self
             .client
             .post(&url)
@@ -228,6 +236,12 @@ impl GeminiClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
+            let _ = app_handle.emit("debug-api", serde_json::json!({
+                "type": "response",
+                "provider": "gemini",
+                "status": status.as_u16(),
+                "body": &error_text
+            }));
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
@@ -277,6 +291,13 @@ impl GeminiClient {
                 }
             }
         }
+
+        let _ = app_handle.emit("debug-api", serde_json::json!({
+            "type": "response",
+            "provider": "gemini",
+            "status": 200,
+            "body": &full_text
+        }));
 
         parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)
     }

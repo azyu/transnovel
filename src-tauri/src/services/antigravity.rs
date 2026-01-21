@@ -223,6 +223,14 @@ impl AntigravityClient {
             stream: Some(true),
         };
 
+        let request_json = serde_json::to_string_pretty(&request).unwrap_or_default();
+        let _ = app_handle.emit("debug-api", serde_json::json!({
+            "type": "request",
+            "provider": "antigravity",
+            "model": &self.model,
+            "body": request_json
+        }));
+
         let response = self
             .client
             .post(&url)
@@ -236,6 +244,12 @@ impl AntigravityClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
+            let _ = app_handle.emit("debug-api", serde_json::json!({
+                "type": "response",
+                "provider": "antigravity",
+                "status": status.as_u16(),
+                "body": &error_text
+            }));
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
@@ -331,6 +345,13 @@ impl AntigravityClient {
             ));
         }
         
+        let _ = app_handle.emit("debug-api", serde_json::json!({
+            "type": "response",
+            "provider": "antigravity",
+            "status": 200,
+            "body": &full_text
+        }));
+
         parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)
     }
 }

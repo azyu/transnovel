@@ -418,26 +418,37 @@ impl TranslatorService {
                         (
                             "content_filtered",
                             "콘텐츠 필터링 감지",
-                            "AI 제공자의 정책에 의해 해당 내용이 차단되었습니다. 다른 모델을 시도해보세요."
+                            "AI 제공자의 정책에 의해 해당 내용이 차단되었습니다. 다른 모델을 시도해보세요.".to_string()
                         )
                     } else if error_msg.contains("API 오류") {
                         (
                             "api_error",
                             "API 오류",
-                            &error_msg as &str
+                            error_msg.clone()
                         )
                     } else {
                         (
                             "unknown",
                             "번역 오류",
-                            &error_msg as &str
+                            error_msg.clone()
                         )
                     };
+                    
+                    let request_preview: String = chunk_paragraphs.iter()
+                        .take(3)
+                        .map(|p| {
+                            let preview: String = p.chars().take(50).collect();
+                            if p.len() > 50 { format!("{}...", preview) } else { preview }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" | ");
                     
                     let _ = app_handle.emit("translation-error", serde_json::json!({
                         "error_type": error_type,
                         "title": title,
-                        "message": message
+                        "message": message,
+                        "request_preview": request_preview,
+                        "response_preview": error_msg
                     }));
                 }
             }
