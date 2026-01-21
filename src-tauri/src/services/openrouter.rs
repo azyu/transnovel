@@ -62,6 +62,7 @@ pub struct OpenRouterClient {
     client: Client,
     api_key: String,
     pub model: String,
+    base_url: String,
 }
 
 impl OpenRouterClient {
@@ -70,6 +71,16 @@ impl OpenRouterClient {
             client: Client::new(),
             api_key,
             model: model.unwrap_or_else(|| "anthropic/claude-sonnet-4".to_string()),
+            base_url: OPENROUTER_API_BASE.to_string(),
+        }
+    }
+
+    pub fn new_with_base_url(api_key: String, model: Option<String>, base_url: Option<String>) -> Self {
+        Self {
+            client: Client::new(),
+            api_key,
+            model: model.unwrap_or_else(|| "claude-sonnet-4-20250514".to_string()),
+            base_url: base_url.unwrap_or_else(|| OPENROUTER_API_BASE.to_string()),
         }
     }
 
@@ -93,7 +104,7 @@ impl OpenRouterClient {
     }
 
     pub async fn translate(&self, paragraphs: &[String], original_indices: &[usize], has_subtitle: bool, system_prompt: &str) -> Result<Vec<String>, String> {
-        let url = format!("{}/chat/completions", OPENROUTER_API_BASE);
+        let url = format!("{}/v1/chat/completions", self.base_url.trim_end_matches("/v1").trim_end_matches('/'));
 
         let numbered_text = paragraphs
             .iter()
@@ -151,7 +162,7 @@ impl OpenRouterClient {
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
-        let url = format!("{}/chat/completions", OPENROUTER_API_BASE);
+        let url = format!("{}/v1/chat/completions", self.base_url.trim_end_matches("/v1").trim_end_matches('/'));
 
         let numbered_text = paragraphs
             .iter()

@@ -1,7 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
-use crate::commands::settings::{get_active_api_key, get_settings};
+use crate::commands::settings::get_settings;
 use crate::models::translation::TranslationResult;
 use crate::services::antigravity::AntigravityClient;
 use crate::services::cache::{cache_translations, get_cached_translations};
@@ -59,15 +59,25 @@ pub struct TranslatorService {
     use_streaming: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct ProviderConfig {
+    id: String,
+    #[serde(rename = "type")]
+    provider_type: String,
+    #[serde(rename = "baseUrl", default)]
+    base_url: String,
+    #[serde(rename = "apiKey", default)]
+    api_key: String,
+}
+
 struct TranslatorSettings {
     system_prompt: String,
     translation_note: String,
     substitutions: String,
-    active_provider: String,
-    gemini_model: Option<String>,
-    openrouter_model: Option<String>,
-    antigravity_model: Option<String>,
-    antigravity_url: Option<String>,
+    provider_type: String,
+    api_key: Option<String>,
+    base_url: Option<String>,
+    model: Option<String>,
     use_streaming: bool,
 }
 
@@ -75,19 +85,28 @@ impl TranslatorService {
     pub async fn new() -> Result<Self, String> {
         let settings = Self::load_settings().await;
 
-        let client = match settings.active_provider.as_str() {
+        let client = match settings.provider_type.as_str() {
             "gemini" => {
-                let key = get_active_api_key("gemini").await?
+                let key = settings.api_key
                     .ok_or("Gemini API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
-                ApiClient::Gemini(GeminiClient::new(vec![key], settings.gemini_model.clone()))
+                ApiClient::Gemini(GeminiClient::new(vec![key], settings.model.clone()))
             }
             "openrouter" => {
-                let key = get_active_api_key("openrouter").await?
+                let key = settings.api_key
                     .ok_or("OpenRouter API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
-                ApiClient::OpenRouter(OpenRouterClient::new(key, settings.openrouter_model.clone()))
+                ApiClient::OpenRouter(OpenRouterClient::new(key, settings.model.clone()))
+            }
+            "anthropic" | "openai" | "custom" => {
+                let key = settings.api_key
+                    .ok_or("API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
+                ApiClient::OpenRouter(OpenRouterClient::new_with_base_url(
+                    key,
+                    settings.model.clone(),
+                    settings.base_url,
+                ))
             }
             "antigravity" => {
-                let antigravity = AntigravityClient::new(settings.antigravity_url.clone(), settings.antigravity_model.clone());
+                let antigravity = AntigravityClient::new(settings.base_url, settings.model);
                 if antigravity.check_health().await {
                     ApiClient::Antigravity(antigravity)
                 } else {
@@ -95,7 +114,7 @@ impl TranslatorService {
                 }
             }
             _ => {
-                return Err("사용할 API가 설정되지 않았습니다. 설정에서 API를 선택해주세요.".to_string());
+                return Err("사용할 API가 설정되지 않았습니다. 설정에서 제공자를 추가해주세요.".to_string());
             }
         };
 
@@ -115,15 +134,33 @@ impl TranslatorService {
             settings.iter().find(|s| s.key == key).map(|s| s.value.clone()).filter(|v| !v.is_empty())
         };
         
+        let providers_json = get_setting("llm_providers").unwrap_or_else(|| "[]".to_string());
+        let providers: Vec<ProviderConfig> = serde_json::from_str(&providers_json).unwrap_or_default();
+        
+        let active_provider_id = get_setting("active_provider_id");
+        let selected_model = get_setting("selected_model");
+        
+        let active_provider = active_provider_id
+            .as_ref()
+            .and_then(|id| providers.iter().find(|p| &p.id == id));
+        
+        let (provider_type, api_key, base_url) = match active_provider {
+            Some(p) => (
+                p.provider_type.clone(),
+                if p.api_key.is_empty() { None } else { Some(p.api_key.clone()) },
+                if p.base_url.is_empty() { None } else { Some(p.base_url.clone()) },
+            ),
+            None => ("gemini".to_string(), None, None),
+        };
+        
         TranslatorSettings {
             system_prompt: get_setting("system_prompt").unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string()),
             translation_note: get_setting("translation_note").unwrap_or_default(),
             substitutions: get_setting("substitutions").unwrap_or_default(),
-            active_provider: get_setting("active_provider").unwrap_or_else(|| "gemini".to_string()),
-            gemini_model: get_setting("gemini_model"),
-            openrouter_model: get_setting("openrouter_model"),
-            antigravity_model: get_setting("antigravity_model"),
-            antigravity_url: get_setting("antigravity_proxy_url"),
+            provider_type,
+            api_key,
+            base_url,
+            model: selected_model,
             use_streaming: get_setting("use_streaming").map(|v| v == "true").unwrap_or(true),
         }
     }
