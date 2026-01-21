@@ -1,12 +1,10 @@
 import { useUIStore } from '../../../stores/uiStore';
-import type { ModelConfig, ProviderConfig } from './types';
+import type { ProviderConfig } from './types';
+import { PROVIDER_PRESETS } from './types';
 
-interface ModelListProps {
-  models: ModelConfig[];
+interface ProviderListProps {
   providers: ProviderConfig[];
-  activeModelId: string | null;
-  onSelect: (id: string) => void;
-  onEdit: (model: ModelConfig) => void;
+  onEdit: (provider: ProviderConfig) => void;
   onDelete: (id: string) => void;
 }
 
@@ -22,11 +20,8 @@ const DeleteIcon = () => (
   </svg>
 );
 
-export const ModelList: React.FC<ModelListProps> = ({
-  models,
+export const ProviderList: React.FC<ProviderListProps> = ({
   providers,
-  activeModelId,
-  onSelect,
   onEdit,
   onDelete,
 }) => {
@@ -44,70 +39,51 @@ export const ModelList: React.FC<ModelListProps> = ({
     return colors[type] || colors.custom;
   };
 
-  const getProviderForModel = (model: ModelConfig): ProviderConfig | undefined => {
-    return providers.find(p => p.id === model.providerId);
+  const maskApiKey = (apiKey: string): string => {
+    if (!apiKey) return '(없음)';
+    if (apiKey.length <= 8) return '••••••••';
+    return `${apiKey.slice(0, 4)}••••${apiKey.slice(-4)}`;
   };
 
-  if (models.length === 0) {
+  if (providers.length === 0) {
     return (
       <div className={`text-center py-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        등록된 모델이 없습니다. 모델을 추가해주세요.
+        등록된 AI 서비스 제공자가 없습니다. 먼저 추가해주세요.
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      {models.map((model) => {
-        const isActive = model.id === activeModelId;
-        const provider = getProviderForModel(model);
-        const providerType = provider?.type;
+      {providers.map((provider) => {
+        const preset = PROVIDER_PRESETS[provider.type];
         
         return (
           <div
-            key={model.id}
+            key={provider.id}
             className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-              isActive
-                ? isDark 
-                  ? 'bg-blue-900/20 border-blue-500/50' 
-                  : 'bg-blue-50 border-blue-300'
-                : isDark 
-                  ? 'bg-slate-900/50 border-slate-700/50 hover:border-slate-600' 
-                  : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+              isDark 
+                ? 'bg-slate-900/50 border-slate-700/50 hover:border-slate-600' 
+                : 'bg-slate-50 border-slate-200 hover:border-slate-300'
             }`}
           >
-            <button
-              onClick={() => onSelect(model.id)}
-              className="flex items-center gap-3 flex-1 text-left min-w-0"
-            >
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
-                isActive
-                  ? 'border-blue-500 bg-blue-500'
-                  : isDark ? 'border-slate-600' : 'border-slate-300'
-              }`}>
-                {isActive && <div className="w-2 h-2 rounded-full bg-white" />}
-              </div>
-              
-              <span className={`font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {model.name}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getProviderColor(provider.type)}`}>
+                {preset?.label || provider.type}
               </span>
               
-              {provider && providerType && (
-                <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getProviderColor(providerType)}`}>
-                  {provider.name}
-                </span>
-              )}
+              <span className={`font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {provider.name}
+              </span>
               
-              {!provider && (
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-500/10 text-red-400 shrink-0">
-                  제공자 없음
-                </span>
-              )}
-            </button>
+              <span className={`text-xs truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                {maskApiKey(provider.apiKey)}
+              </span>
+            </div>
 
             <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => onEdit(model)}
+                onClick={() => onEdit(provider)}
                 className={`p-1.5 rounded-md transition-colors ${
                   isDark 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-200' 
@@ -118,7 +94,7 @@ export const ModelList: React.FC<ModelListProps> = ({
                 <EditIcon />
               </button>
               <button
-                onClick={() => onDelete(model.id)}
+                onClick={() => onDelete(provider.id)}
                 className={`p-1.5 rounded-md transition-colors ${
                   isDark 
                     ? 'hover:bg-red-900/30 text-slate-400 hover:text-red-400' 

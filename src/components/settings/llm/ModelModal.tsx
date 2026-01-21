@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
 import { useUIStore } from '../../../stores/uiStore';
-import type { ModelConfig, ProviderType, ModelOption } from './types';
+import type { ModelConfig, ProviderConfig, ModelOption } from './types';
 import { PROVIDER_PRESETS, FALLBACK_MODELS } from './types';
 
 interface GeminiModel {
@@ -29,6 +29,7 @@ interface ModelModalProps {
   onClose: () => void;
   onSave: (model: ModelConfig) => void;
   editingModel?: ModelConfig | null;
+  providers: ProviderConfig[];
 }
 
 export const ModelModal: React.FC<ModelModalProps> = ({
@@ -36,47 +37,51 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   onClose,
   onSave,
   editingModel,
+  providers,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   
-  const [providerType, setProviderType] = useState<ProviderType>('gemini');
+  const [providerId, setProviderId] = useState('');
   const [name, setName] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [modelId, setModelId] = useState('');
   const [saving, setSaving] = useState(false);
   
   const [models, setModels] = useState<ModelOption[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
-  const preset = PROVIDER_PRESETS[providerType];
+  const selectedProvider = providers.find(p => p.id === providerId);
+  const providerType = selectedProvider?.type;
+  const preset = providerType ? PROVIDER_PRESETS[providerType] : null;
   const isEditing = !!editingModel;
 
   useEffect(() => {
     if (editingModel) {
-      setProviderType(editingModel.providerType);
+      setProviderId(editingModel.providerId);
       setName(editingModel.name);
-      setBaseUrl(editingModel.baseUrl);
-      setApiKey(editingModel.apiKey);
       setModelId(editingModel.modelId);
     } else {
-      setProviderType('gemini');
+      setProviderId(providers[0]?.id || '');
       setName('');
-      setBaseUrl(PROVIDER_PRESETS.gemini.defaultBaseUrl);
-      setApiKey('');
       setModelId('');
     }
-  }, [editingModel, isOpen]);
+  }, [editingModel, isOpen, providers]);
 
   useEffect(() => {
-    if (!isEditing) {
-      setBaseUrl(PROVIDER_PRESETS[providerType].defaultBaseUrl);
+    if (!isEditing && providerId) {
       setModelId('');
     }
-  }, [providerType, isEditing]);
+  }, [providerId, isEditing]);
 
   const fetchModels = useCallback(async () => {
-    if (!apiKey && preset.apiKeyRequired) {
+    if (!selectedProvider || !providerType) {
+      setModels([]);
+      return;
+    }
+
+    const apiKey = selectedProvider.apiKey;
+    const baseUrl = selectedProvider.baseUrl;
+
+    if (!apiKey && preset?.apiKeyRequired) {
       setModels(FALLBACK_MODELS[providerType] || []);
       return;
     }
@@ -118,13 +123,13 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     } finally {
       setLoadingModels(false);
     }
-  }, [providerType, apiKey, baseUrl, preset.apiKeyRequired]);
+  }, [selectedProvider, providerType, preset?.apiKeyRequired]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && providerId) {
       fetchModels();
     }
-  }, [isOpen, providerType, apiKey, fetchModels]);
+  }, [isOpen, providerId, fetchModels]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -133,9 +138,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
       const model: ModelConfig = {
         id: editingModel?.id || crypto.randomUUID(),
         name: name || selectedModel?.name || modelId,
-        providerType,
-        baseUrl,
-        apiKey,
+        providerId,
         modelId,
       };
       onSave(model);
@@ -145,13 +148,8 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     }
   };
 
-  const openUrl = (url: string) => {
-    invoke('open_url', { url }).catch(console.error);
-  };
-
   const canSave = () => {
-    if (preset.apiKeyRequired && !apiKey.trim()) return false;
-    if (providerType === 'custom' && !baseUrl.trim()) return false;
+    if (!providerId) return false;
     if (!modelId.trim()) return false;
     return true;
   };
@@ -183,58 +181,31 @@ export const ModelModal: React.FC<ModelModalProps> = ({
         <div className="px-6 py-4 space-y-4">
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              AI 서비스 공급자
+              AI 서비스 제공자
             </label>
-            <select
-              value={providerType}
-              onChange={(e) => setProviderType(e.target.value as ProviderType)}
-              disabled={isEditing}
-              className={`w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:border-blue-500 ${
-                isDark 
-                  ? 'bg-slate-900 border-slate-700 text-white' 
-                  : 'bg-white border-slate-300 text-slate-900'
-              } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {Object.values(PROVIDER_PRESETS).map((p) => (
-                <option key={p.type} value={p.type}>{p.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              API 키 {!preset.apiKeyRequired && <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>(선택)</span>}
-            </label>
-            {preset.apiKeyHelpUrl && (
-              <p className={`text-xs mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                <button 
-                  onClick={() => openUrl(preset.apiKeyHelpUrl!)}
-                  className="text-blue-400 hover:underline"
-                >
-                  {preset.apiKeyHelpText}
-                </button>
+            {providers.length === 0 ? (
+              <p className={`text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                먼저 AI 서비스 제공자를 추가해주세요.
               </p>
+            ) : (
+              <select
+                value={providerId}
+                onChange={(e) => setProviderId(e.target.value)}
+                disabled={isEditing}
+                className={`w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:border-blue-500 ${
+                  isDark 
+                    ? 'bg-slate-900 border-slate-700 text-white' 
+                    : 'bg-white border-slate-300 text-slate-900'
+                } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({PROVIDER_PRESETS[p.type]?.label || p.type})
+                  </option>
+                ))}
+              </select>
             )}
-            <Input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={preset.apiKeyPlaceholder || 'API 키'}
-            />
           </div>
-
-          {(providerType === 'custom' || providerType === 'antigravity') && (
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                기본 URL
-              </label>
-              <Input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder={preset.defaultBaseUrl || 'https://...'}
-              />
-            </div>
-          )}
 
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -246,6 +217,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
                 onChange={(e) => setModelId(e.target.value)}
                 placeholder="예: gpt-4o, claude-sonnet-4, gemini-2.5-flash"
                 className="flex-1"
+                disabled={!providerId}
               />
               <Button 
                 variant="secondary" 
@@ -253,6 +225,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
                 onClick={fetchModels} 
                 isLoading={loadingModels}
                 className="shrink-0"
+                disabled={!providerId}
               >
                 ↻
               </Button>
@@ -290,6 +263,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={models.find(m => m.id === modelId)?.name || '자동 설정'}
+              disabled={!providerId}
             />
           </div>
         </div>

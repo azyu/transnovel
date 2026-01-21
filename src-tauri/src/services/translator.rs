@@ -66,14 +66,21 @@ pub struct TranslatorService {
 }
 
 #[derive(Debug, Deserialize)]
-struct ModelConfig {
+struct ProviderConfig {
     id: String,
-    #[serde(rename = "providerType")]
+    #[serde(rename = "type")]
     provider_type: String,
     #[serde(rename = "apiKey", default)]
     api_key: String,
     #[serde(rename = "baseUrl", default)]
     base_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModelConfig {
+    id: String,
+    #[serde(rename = "providerId")]
+    provider_id: String,
     #[serde(rename = "modelId")]
     model_id: String,
 }
@@ -142,6 +149,9 @@ impl TranslatorService {
             settings.iter().find(|s| s.key == key).map(|s| s.value.clone()).filter(|v| !v.is_empty())
         };
         
+        let providers_json = get_setting("llm_providers").unwrap_or_else(|| "[]".to_string());
+        let providers: Vec<ProviderConfig> = serde_json::from_str(&providers_json).unwrap_or_default();
+        
         let models_json = get_setting("llm_models").unwrap_or_else(|| "[]".to_string());
         let models: Vec<ModelConfig> = serde_json::from_str(&models_json).unwrap_or_default();
         
@@ -152,12 +162,18 @@ impl TranslatorService {
             .and_then(|id| models.iter().find(|m| &m.id == id));
         
         let (provider_type, api_key, base_url, model_id) = match active_model {
-            Some(m) => (
-                m.provider_type.clone(),
-                if m.api_key.is_empty() { None } else { Some(m.api_key.clone()) },
-                if m.base_url.is_empty() { None } else { Some(m.base_url.clone()) },
-                Some(m.model_id.clone()),
-            ),
+            Some(model) => {
+                let provider = providers.iter().find(|p| p.id == model.provider_id);
+                match provider {
+                    Some(p) => (
+                        p.provider_type.clone(),
+                        if p.api_key.is_empty() { None } else { Some(p.api_key.clone()) },
+                        if p.base_url.is_empty() { None } else { Some(p.base_url.clone()) },
+                        Some(model.model_id.clone()),
+                    ),
+                    None => ("".to_string(), None, None, None),
+                }
+            },
             None => ("".to_string(), None, None, None),
         };
         

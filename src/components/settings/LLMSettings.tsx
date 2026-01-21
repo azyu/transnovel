@@ -5,21 +5,77 @@ import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
 import { ModelModal } from './llm/ModelModal';
 import { ModelList } from './llm/ModelList';
-import type { ModelConfig } from './llm/types';
+import { ProviderModal } from './llm/ProviderModal';
+import { ProviderList } from './llm/ProviderList';
+import type { ModelConfig, ProviderConfig, ProviderType } from './llm/types';
+import { PROVIDER_PRESETS } from './llm/types';
+
+interface OldModelConfig {
+  id: string;
+  name: string;
+  providerType: ProviderType;
+  apiKey: string;
+  baseUrl: string;
+  modelId: string;
+}
+
+function migrateOldData(oldModels: OldModelConfig[]): { providers: ProviderConfig[]; models: ModelConfig[] } {
+  const providerMap = new Map<string, ProviderConfig>();
+  const newModels: ModelConfig[] = [];
+
+  for (const oldModel of oldModels) {
+    const providerKey = `${oldModel.providerType}-${oldModel.apiKey}-${oldModel.baseUrl}`;
+    
+    if (!providerMap.has(providerKey)) {
+      const preset = PROVIDER_PRESETS[oldModel.providerType];
+      providerMap.set(providerKey, {
+        id: crypto.randomUUID(),
+        type: oldModel.providerType,
+        name: preset?.label || oldModel.providerType,
+        apiKey: oldModel.apiKey,
+        baseUrl: oldModel.baseUrl,
+      });
+    }
+
+    const provider = providerMap.get(providerKey)!;
+    newModels.push({
+      id: oldModel.id,
+      name: oldModel.name,
+      providerId: provider.id,
+      modelId: oldModel.modelId,
+    });
+  }
+
+  return {
+    providers: Array.from(providerMap.values()),
+    models: newModels,
+  };
+}
+
+function isOldFormat(data: unknown): data is OldModelConfig[] {
+  if (!Array.isArray(data) || data.length === 0) return false;
+  const first = data[0];
+  return typeof first === 'object' && first !== null && 'providerType' in first && 'apiKey' in first;
+}
 
 export const LLMSettings = forwardRef((_, ref) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   
+  const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [useStreaming, setUseStreaming] = useState(true);
   
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modelModalOpen, setModelModalOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
+  
+  const [providerModalOpen, setProviderModalOpen] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null);
 
   const handleSaveAll = useCallback(async () => {
     try {
       await Promise.all([
+        invoke('set_setting', { key: 'llm_providers', value: JSON.stringify(providers) }),
         invoke('set_setting', { key: 'llm_models', value: JSON.stringify(models) }),
         invoke('set_setting', { key: 'active_model_id', value: activeModelId || '' }),
         invoke('set_setting', { key: 'use_streaming', value: useStreaming ? 'true' : 'false' }),
@@ -28,7 +84,7 @@ export const LLMSettings = forwardRef((_, ref) => {
     } catch (error) {
       console.error('Failed to save settings:', error);
     }
-  }, [models, activeModelId, useStreaming]);
+  }, [providers, models, activeModelId, useStreaming]);
 
   useImperativeHandle(ref, () => ({
     save: handleSaveAll
@@ -39,10 +95,27 @@ export const LLMSettings = forwardRef((_, ref) => {
       try {
         const settings = await invoke<{ key: string; value: string }[]>('get_settings');
         
+        const providersJson = settings.find(s => s.key === 'llm_providers')?.value;
         const modelsJson = settings.find(s => s.key === 'llm_models')?.value;
+        
+        if (providersJson) {
+          try {
+            setProviders(JSON.parse(providersJson));
+          } catch {
+            setProviders([]);
+          }
+        }
+        
         if (modelsJson) {
           try {
-            setModels(JSON.parse(modelsJson));
+            const parsedModels = JSON.parse(modelsJson);
+            if (isOldFormat(parsedModels)) {
+              const migrated = migrateOldData(parsedModels);
+              setProviders(migrated.providers);
+              setModels(migrated.models);
+            } else {
+              setModels(parsedModels);
+            }
           } catch {
             setModels([]);
           }
@@ -60,14 +133,58 @@ export const LLMSettings = forwardRef((_, ref) => {
     loadSettings();
   }, []);
 
+  const handleAddProvider = () => {
+    setEditingProvider(null);
+    setProviderModalOpen(true);
+  };
+
+  const handleEditProvider = (provider: ProviderConfig) => {
+    setEditingProvider(provider);
+    setProviderModalOpen(true);
+  };
+
+  const handleSaveProvider = (provider: ProviderConfig) => {
+    setProviders(prev => {
+      const existing = prev.findIndex(p => p.id === provider.id);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = provider;
+        return updated;
+      }
+      return [...prev, provider];
+    });
+  };
+
+  const handleDeleteProvider = async (id: string) => {
+    const associatedModels = models.filter(m => m.providerId === id);
+    const message = associatedModels.length > 0
+      ? `이 AI 서비스 제공자를 삭제하시겠습니까?\n\n연결된 모델 ${associatedModels.length}개도 함께 삭제됩니다.`
+      : '이 AI 서비스 제공자를 삭제하시겠습니까?';
+    
+    const confirmed = await ask(message, {
+      title: 'AI 서비스 제공자 삭제',
+      kind: 'warning',
+    });
+    if (!confirmed) return;
+    
+    setProviders(prev => prev.filter(p => p.id !== id));
+    setModels(prev => {
+      const remaining = prev.filter(m => m.providerId !== id);
+      if (activeModelId && !remaining.find(m => m.id === activeModelId)) {
+        setActiveModelId(remaining[0]?.id || null);
+      }
+      return remaining;
+    });
+  };
+
   const handleAddModel = () => {
     setEditingModel(null);
-    setModalOpen(true);
+    setModelModalOpen(true);
   };
 
   const handleEditModel = (model: ModelConfig) => {
     setEditingModel(model);
-    setModalOpen(true);
+    setModelModalOpen(true);
   };
 
   const handleSaveModel = (model: ModelConfig) => {
@@ -109,20 +226,36 @@ export const LLMSettings = forwardRef((_, ref) => {
       <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
         <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>LLM 설정</h2>
         <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          번역에 사용할 AI 모델을 등록하고 선택합니다.
+          번역에 사용할 AI 서비스 제공자와 모델을 등록합니다.
         </p>
       </div>
 
       <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between mb-4">
+          <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>AI 서비스 제공자</h3>
+          <Button size="sm" onClick={handleAddProvider}>
+            + 추가
+          </Button>
+        </div>
+
+        <ProviderList
+          providers={providers}
+          onEdit={handleEditProvider}
+          onDelete={handleDeleteProvider}
+        />
+      </div>
+
+      <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className="flex items-center justify-between mb-4">
           <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>모델</h3>
-          <Button size="sm" onClick={handleAddModel}>
+          <Button size="sm" onClick={handleAddModel} disabled={providers.length === 0}>
             + 추가
           </Button>
         </div>
 
         <ModelList
           models={models}
+          providers={providers}
           activeModelId={activeModelId}
           onSelect={handleSelectModel}
           onEdit={handleEditModel}
@@ -156,11 +289,19 @@ export const LLMSettings = forwardRef((_, ref) => {
         </div>
       </div>
 
+      <ProviderModal
+        isOpen={providerModalOpen}
+        onClose={() => setProviderModalOpen(false)}
+        onSave={handleSaveProvider}
+        editingProvider={editingProvider}
+      />
+
       <ModelModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        isOpen={modelModalOpen}
+        onClose={() => setModelModalOpen(false)}
         onSave={handleSaveModel}
         editingModel={editingModel}
+        providers={providers}
       />
     </div>
   );
