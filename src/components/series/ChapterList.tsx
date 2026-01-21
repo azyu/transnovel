@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Chapter } from '../../types';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -15,15 +15,16 @@ interface ChapterListProps {
 export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTranslation, onChapterDoubleClick, isLoading, disabled }) => {
   const [start, setStart] = useState<number>(1);
   const [end, setEnd] = useState<number>(1);
+  const [prevChapters, setPrevChapters] = useState(chapters);
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
-  // Sync start/end when chapters change (new series loaded)
-  useEffect(() => {
+  if (chapters !== prevChapters) {
+    setPrevChapters(chapters);
     if (chapters.length > 0) {
       setStart(chapters[0].number);
       setEnd(chapters[chapters.length - 1].number);
     }
-  }, [chapters]);
+  }
 
   const handleStart = () => {
     onStartTranslation(start, end);

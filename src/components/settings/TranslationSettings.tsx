@@ -37,6 +37,18 @@ export const TranslationSettings = forwardRef((_, ref) => {
   const [substitutions, setSubstitutions] = useState('');
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
+  const handleSave = async () => {
+    try {
+      await Promise.all([
+        invoke('set_setting', { key: 'system_prompt', value: systemPrompt }),
+        invoke('set_setting', { key: 'translation_note', value: translationNote }),
+        invoke('set_setting', { key: 'substitutions', value: substitutions }),
+      ]);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    }
+  };
+
   useImperativeHandle(ref, () => ({
     save: handleSave
   }));
@@ -58,18 +70,6 @@ export const TranslationSettings = forwardRef((_, ref) => {
     };
     loadSettings();
   }, []);
-
-  const handleSave = async () => {
-    try {
-      await Promise.all([
-        invoke('set_setting', { key: 'system_prompt', value: systemPrompt }),
-        invoke('set_setting', { key: 'translation_note', value: translationNote }),
-        invoke('set_setting', { key: 'substitutions', value: substitutions }),
-      ]);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  };
 
   const handleResetPrompt = () => {
     if (confirm('기본 시스템 프롬프트로 초기화하시겠습니까?')) {

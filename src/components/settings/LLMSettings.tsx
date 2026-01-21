@@ -155,7 +155,7 @@ export const LLMSettings = forwardRef((_, ref) => {
     return score;
   };
 
-  const checkAntigravity = async (url?: string) => {
+  const checkAntigravity = useCallback(async (url?: string) => {
     const targetUrl = url || proxyUrl;
     setCheckingAntigravity(true);
     try {
@@ -171,7 +171,7 @@ export const LLMSettings = forwardRef((_, ref) => {
     } finally {
       setCheckingAntigravity(false);
     }
-  };
+  }, [proxyUrl, fetchAntigravityModels]);
 
   const openAntigravityAuth = async () => {
     try {
@@ -228,7 +228,7 @@ export const LLMSettings = forwardRef((_, ref) => {
       }
     };
     init();
-  }, [fetchGeminiModels, fetchOpenrouterModels]);
+  }, [fetchGeminiModels, fetchOpenrouterModels, checkAntigravity]);
 
   const handleAddGeminiKey = async () => {
     if (!newGeminiKey.trim()) return;

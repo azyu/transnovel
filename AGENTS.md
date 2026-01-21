@@ -80,6 +80,13 @@ Tauri 2.0 desktop app translating Japanese web novels → Korean. React frontend
 - TDD-driven development (Red → Green → Refactor)
 - Commit after completing feature implementation or bug fix
 - Use conventional commit messages (feat:, fix:, refactor:, etc.)
+- **Verification (MANDATORY)**: Run all checks before considering work complete:
+  ```bash
+  pnpm run lint          # TypeScript/ESLint
+  pnpm run build         # Frontend build
+  cargo test -p app_lib  # Rust tests
+  cargo clippy -p app_lib -- -D warnings  # Rust lint
+  ```
 
 ## Commands
 

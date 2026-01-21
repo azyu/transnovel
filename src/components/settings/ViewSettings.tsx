@@ -56,6 +56,15 @@ export const ViewSettings = forwardRef((_, ref) => {
   const bumpViewConfigVersion = useUIStore((state) => state.bumpViewConfigVersion);
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
+  const handleSave = async () => {
+    try {
+      await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
+      bumpViewConfigVersion();
+    } catch (error) {
+      console.error('Failed to save view settings:', error);
+    }
+  };
+
   useImperativeHandle(ref, () => ({
     save: handleSave
   }));
@@ -74,15 +83,6 @@ export const ViewSettings = forwardRef((_, ref) => {
     };
     loadSettings();
   }, []);
-
-  const handleSave = async () => {
-    try {
-      await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
-      bumpViewConfigVersion();
-    } catch (error) {
-      console.error('Failed to save view settings:', error);
-    }
-  };
 
   const handleReset = () => {
     if (confirm('기본 설정으로 초기화하시겠습니까?')) {

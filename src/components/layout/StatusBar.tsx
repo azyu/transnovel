@@ -37,14 +37,10 @@ export const StatusBar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadStatus();
-    
-    const handleSettingsChange = () => loadStatus();
+    const handleSettingsChange = () => void loadStatus();
+    queueMicrotask(() => void loadStatus());
     window.addEventListener('settings-changed', handleSettingsChange);
-    
-    return () => {
-      window.removeEventListener('settings-changed', handleSettingsChange);
-    };
+    return () => window.removeEventListener('settings-changed', handleSettingsChange);
   }, [loadStatus]);
 
   const formatModelName = (name: string): string => {

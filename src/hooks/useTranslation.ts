@@ -63,7 +63,7 @@ export const useTranslation = () => {
     } finally {
       setLoading(false);
     }
-  }, [setChapterContent, setChapterList]);
+  }, [setChapterContent, setChapterList, showError]);
 
   const parseAndTranslate = useCallback(async (url: string) => {
     if (useTranslationStore.getState().isTranslating) {
@@ -238,7 +238,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
+  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog]);
 
   const translateText = useCallback(async (novelId: string, text: string, note?: string) => {
     try {
@@ -457,7 +457,7 @@ await invoke('start_batch_translation', {
       setIsTranslating(false);
       showError('재시도 실패', String(err));
     }
-  }, [setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices]);
+  }, [setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog]);
 
   const exportNovel = useCallback(async (request: ExportRequest) => {
       try {
