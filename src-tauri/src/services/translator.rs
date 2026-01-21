@@ -294,7 +294,7 @@ impl TranslatorService {
             // Dynamic chunk sizing: send all at once if small enough
             const MAX_SINGLE_BATCH_CHARS: usize = 50_000; // ~50KB threshold
             const FALLBACK_CHUNK_SIZE: usize = 50;
-            const MAX_RETRIES: u32 = 3;
+            const MAX_RETRIES: u32 = 1;
             
             let total_chars: usize = uncached_paragraphs.iter().map(|p| p.len()).sum();
             let chunk_size = if total_chars <= MAX_SINGLE_BATCH_CHARS {
