@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { UrlInput } from './UrlInput';
+import { UrlInput, saveUrlHistory } from './UrlInput';
 import { ParagraphList } from './ParagraphList';
 import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
@@ -48,10 +48,10 @@ export const TranslationView: React.FC = () => {
           invoke<AntigravityStatus>('check_antigravity_status'),
         ]);
         
-        const hasGeminiKey = keys.some(k => k.key_type === 'gemini');
+        const hasActiveKey = keys.length > 0;
         const hasAntigravity = antigravity.running && antigravity.authenticated;
         
-        setApiConfigured(hasGeminiKey || hasAntigravity);
+        setApiConfigured(hasActiveKey || hasAntigravity);
       } catch {
         setApiConfigured(false);
       }
@@ -67,6 +67,11 @@ export const TranslationView: React.FC = () => {
   const handlePrevChapter = async () => {
     if (!chapter?.prevUrl) return;
     setUrl(chapter.prevUrl);
+    saveUrlHistory('url_history_chapter', chapter.prevUrl, {
+      novelTitle: chapter.novelTitle ?? undefined,
+      chapterNumber: chapter.chapterNumber > 0 ? chapter.chapterNumber - 1 : undefined,
+      title: chapter.title,
+    });
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
     await parseAndTranslate(chapter.prevUrl);
   };
@@ -74,6 +79,11 @@ export const TranslationView: React.FC = () => {
   const handleNextChapter = async () => {
     if (!chapter?.nextUrl) return;
     setUrl(chapter.nextUrl);
+    saveUrlHistory('url_history_chapter', chapter.nextUrl, {
+      novelTitle: chapter.novelTitle ?? undefined,
+      chapterNumber: chapter.chapterNumber > 0 ? chapter.chapterNumber + 1 : undefined,
+      title: chapter.title,
+    });
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
     await parseAndTranslate(chapter.nextUrl);
   };
@@ -111,9 +121,9 @@ export const TranslationView: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div>
-            <p className="text-yellow-500 font-medium">API 설정 필요</p>
+            <p className="text-yellow-500 font-medium">LLM 설정 필요</p>
             <p className="text-yellow-500/80 text-sm mt-1">
-              번역을 사용하려면 설정 탭에서 Gemini API 키를 등록하거나 Antigravity Proxy를 실행해주세요.
+              API 서비스 제공자를 등록 후 모델을 선택해주세요.
             </p>
           </div>
         </div>

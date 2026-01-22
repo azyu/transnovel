@@ -72,6 +72,17 @@ impl NovelParser for KakuyomuParser {
             .and_then(|el| el.value().attr("href"))
             .map(|href| format!("https://kakuyomu.jp{}", href));
 
+        let novel_title_selector = Selector::parse("#contentMain-header-workTitle").unwrap();
+        let novel_title = document
+            .select(&novel_title_selector)
+            .next()
+            .map(|el| el.text().collect::<String>().trim().to_string());
+
+        let chapter_number = subtitle.as_ref().and_then(|s| {
+            let re = Regex::new(r"第(\d+)話").ok()?;
+            re.captures(s)?.get(1)?.as_str().parse::<u32>().ok()
+        });
+
         Ok(ChapterContent {
             title: None,
             subtitle,
@@ -79,6 +90,8 @@ impl NovelParser for KakuyomuParser {
             author_note: None,
             prev_url,
             next_url,
+            novel_title,
+            chapter_number,
         })
     }
 

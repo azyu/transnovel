@@ -80,6 +80,14 @@ impl NovelParser for HamelnParser {
                 }
             });
 
+        let novel_title_selector = Selector::parse("a[href='./']").unwrap();
+        let novel_title = document
+            .select(&novel_title_selector)
+            .next()
+            .map(|el| el.text().collect::<String>().trim().to_string());
+
+        let chapter_number = Self::parse_url_static(url).and_then(|p| p.chapter);
+
         Ok(ChapterContent {
             title: None,
             subtitle,
@@ -87,6 +95,8 @@ impl NovelParser for HamelnParser {
             author_note: None,
             prev_url,
             next_url,
+            novel_title,
+            chapter_number,
         })
     }
 

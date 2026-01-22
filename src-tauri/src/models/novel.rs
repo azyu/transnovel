@@ -32,6 +32,8 @@ pub struct ChapterContent {
     pub author_note: Option<String>,
     pub prev_url: Option<String>,
     pub next_url: Option<String>,
+    pub novel_title: Option<String>,
+    pub chapter_number: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

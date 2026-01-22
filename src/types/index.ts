@@ -30,6 +30,7 @@ export interface ChapterContent {
   paragraphs: string[];
   prev_url: string | null;
   next_url: string | null;
+  novel_title: string | null;
 }
 
 export interface ApiKey {

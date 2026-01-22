@@ -41,6 +41,8 @@ export const useTranslation = () => {
       setChapterContent({
         site: content.site,
         novel_id: content.novel_id,
+        novel_title: content.novel_title,
+        chapter_number: content.chapter_number,
         title: content.title,
         subtitle: content.subtitle,
         paragraphs: content.paragraphs.map((p, index) => ({
@@ -92,6 +94,8 @@ export const useTranslation = () => {
       setChapterContent({
         site: content.site,
         novel_id: content.novel_id,
+        novel_title: content.novel_title,
+        chapter_number: content.chapter_number,
         title: content.title,
         subtitle: content.subtitle,
         paragraphs,

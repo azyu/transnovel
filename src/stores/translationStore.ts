@@ -4,6 +4,8 @@ import type { Paragraph } from '../types';
 interface ChapterMeta {
   site: string;
   novelId: string;
+  novelTitle: string | null;
+  chapterNumber: number;
   title: string;
   subtitle: string;
   prevUrl: string | null;
@@ -32,6 +34,8 @@ interface TranslationState {
   setChapterContent: (content: {
     site: string;
     novel_id: string;
+    novel_title?: string | null;
+    chapter_number?: number;
     title: string;
     subtitle: string;
     paragraphs: Paragraph[];
@@ -48,6 +52,8 @@ interface TranslationState {
   getChapterContent: () => {
     site: string;
     novel_id: string;
+    novel_title: string | null;
+    chapter_number: number;
     title: string;
     subtitle: string;
     translatedTitle?: string;
@@ -104,6 +110,8 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
       chapter: {
         site: content.site,
         novelId: content.novel_id,
+        novelTitle: content.novel_title ?? null,
+        chapterNumber: content.chapter_number ?? 0,
         title: content.title,
         subtitle: content.subtitle,
         prevUrl: content.prev_url,
@@ -169,6 +177,8 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
     return {
       site: state.chapter.site,
       novel_id: state.chapter.novelId,
+      novel_title: state.chapter.novelTitle,
+      chapter_number: state.chapter.chapterNumber,
       title: state.chapter.title,
       subtitle: state.chapter.subtitle,
       translatedTitle: state.translatedTitle,

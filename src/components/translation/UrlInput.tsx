@@ -15,18 +15,31 @@ const SUPPORTED_SITES = [
 
 const MAX_HISTORY = 5;
 
-const getUrlHistory = (key: string): string[] => {
+export interface UrlHistoryItem {
+  url: string;
+  novelTitle?: string;
+  chapterNumber?: number;
+  title?: string;
+}
+
+const getUrlHistory = (key: string): UrlHistoryItem[] => {
   try {
     const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    // Migration: convert old string[] format to new object format
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+      return parsed.map((url: string) => ({ url }));
+    }
+    return parsed;
   } catch {
     return [];
   }
 };
 
-const saveUrlHistory = (key: string, url: string) => {
-  const history = getUrlHistory(key).filter(u => u !== url);
-  history.unshift(url);
+export const saveUrlHistory = (key: string, url: string, meta?: { novelTitle?: string; chapterNumber?: number; title?: string }) => {
+  const history = getUrlHistory(key).filter(item => item.url !== url);
+  history.unshift({ url, ...meta });
   localStorage.setItem(key, JSON.stringify(history.slice(0, MAX_HISTORY)));
 };
 
@@ -40,10 +53,11 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const currentUrl = useTranslationStore((s) => s.currentUrl);
   const setUrl = useTranslationStore((s) => s.setUrl);
   const isTranslating = useTranslationStore((s) => s.isTranslating);
+  const chapter = useTranslationStore((s) => s.chapter);
 
   const { parseAndTranslate, parseChapter, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<UrlHistoryItem[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDark = theme === 'dark';
@@ -55,6 +69,17 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   useEffect(() => {
     setLocalUrl(currentUrl);
   }, [currentUrl]);
+
+  useEffect(() => {
+    if (chapter && currentUrl) {
+      saveUrlHistory(historyKey, currentUrl, {
+        novelTitle: chapter.novelTitle ?? undefined,
+        chapterNumber: chapter.chapterNumber > 0 ? chapter.chapterNumber : undefined,
+        title: chapter.title,
+      });
+      setHistory(getUrlHistory(historyKey));
+    }
+  }, [chapter, currentUrl, historyKey]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -70,8 +95,6 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
     e.preventDefault();
     if (!localUrl || isTranslating) return;
     setShowDropdown(false);
-    saveUrlHistory(historyKey, localUrl);
-    setHistory(getUrlHistory(historyKey));
     setUrl(localUrl);
     if (parseOnly) {
       await parseChapter(localUrl);
@@ -99,14 +122,23 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
           />
           {showDropdown && history.length > 0 && (
             <div className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-              {history.map((url, idx) => (
+              {history.map((item, idx) => (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleSelectHistory(url)}
-                  className={`w-full px-3 py-2 text-left text-sm truncate transition-colors ${isDark ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                  onClick={() => handleSelectHistory(item.url)}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}
                 >
-                  {url}
+                  <div className="flex items-center justify-between gap-4">
+                    <span className={`truncate flex-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {item.url}
+                    </span>
+                    {item.novelTitle && (
+                      <span className={`text-xs whitespace-nowrap ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {item.novelTitle}{item.chapterNumber ? ` ${item.chapterNumber}화` : ''}
+                      </span>
+                    )}
+                  </div>
                 </button>
               ))}
             </div>

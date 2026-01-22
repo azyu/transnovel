@@ -108,6 +108,21 @@ impl NovelParser for SyosetuParser {
                 }
             });
 
+        let novel_title_selector = Selector::parse(".c-announce a").unwrap();
+        let novel_title = document
+            .select(&novel_title_selector)
+            .next()
+            .map(|el| el.text().collect::<String>().trim().to_string());
+
+        let chapter_number_selector = Selector::parse(".p-novel__number").unwrap();
+        let chapter_number = document
+            .select(&chapter_number_selector)
+            .next()
+            .and_then(|el| {
+                let text = el.text().collect::<String>();
+                text.split('/').next()?.trim().parse::<u32>().ok()
+            });
+
         Ok(ChapterContent {
             title,
             subtitle: None,
@@ -115,6 +130,8 @@ impl NovelParser for SyosetuParser {
             author_note: None,
             prev_url,
             next_url,
+            novel_title,
+            chapter_number,
         })
     }
 
