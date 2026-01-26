@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { UrlInput, saveUrlHistory } from './UrlInput';
+import { UrlInput } from './UrlInput';
+import { saveUrlHistory } from '../../utils/urlHistory';
 import { ParagraphList } from './ParagraphList';
 import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';

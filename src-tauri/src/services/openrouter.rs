@@ -1,14 +1,19 @@
+#![allow(clippy::let_underscore_future)]
+
 use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
+use super::api_logger;
 use super::cache::cache_translation;
 use super::paragraph::{
-    encode_paragraph_id, decode_paragraph_id, extract_completed_paragraphs,
+    decode_paragraph_id, encode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
 };
 use super::translator::TokenUsage;
+use crate::models::api_log::ApiLogEntry;
 
 const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
 
@@ -109,20 +114,46 @@ impl OpenRouterClient {
         }
     }
 
-    pub async fn translate(&self, paragraphs: &[String], original_indices: &[usize], has_subtitle: bool, system_prompt: &str) -> Result<Vec<String>, String> {
-        let url = format!("{}/v1/chat/completions", self.base_url.trim_end_matches("/v1").trim_end_matches('/'));
+    pub async fn translate(
+        &self,
+        paragraphs: &[String],
+        original_indices: &[usize],
+        has_subtitle: bool,
+        system_prompt: &str,
+    ) -> Result<Vec<String>, String> {
+        let path = "/v1/chat/completions";
+        let url = format!(
+            "{}{}",
+            self.base_url
+                .trim_end_matches("/v1")
+                .trim_end_matches('/'),
+            path
+        );
 
         let numbered_text = paragraphs
             .iter()
             .zip(original_indices.iter())
-            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
+            .map(|(p, &idx)| {
+                format!(
+                    "<p id=\"{}\">{}</p>",
+                    encode_paragraph_id(idx, has_subtitle),
+                    p
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
         let full_prompt = format!("{}\n\n{}", system_prompt, numbered_text);
         let request = self.build_request(&full_prompt, false);
+        let request_json = serde_json::to_string(&request).unwrap_or_default();
 
-        let response = self
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "OpenRouter", "OpenAI", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+
+        let response = match self
             .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
@@ -132,22 +163,49 @@ impl OpenRouterClient {
             .json(&request)
             .send()
             .await
-            .map_err(|e| format!("API 요청 실패: {}", e))?;
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
 
         let status = response.status();
+        log_entry.status = status.as_u16();
+
         let response_text = response.text().await.unwrap_or_default();
-        
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(response_text.clone());
+
         if !status.is_success() {
             eprintln!("[OpenRouter] API error ({}): {}", status, response_text);
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("API 오류 ({}): {}", status, response_text));
         }
 
         let openrouter_response: OpenRouterResponse = serde_json::from_str(&response_text)
             .map_err(|e| format!("응답 파싱 실패: {}", e))?;
 
+        if let Some(ref usage) = openrouter_response.usage {
+            log_entry.input_tokens = usage.prompt_tokens;
+            log_entry.output_tokens = usage.completion_tokens;
+        }
+
         if let Some(error) = openrouter_response.error {
+            log_entry.error = Some(error.message.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("OpenRouter 오류: {}", error.message));
         }
+
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
 
         let text = openrouter_response
             .choices
@@ -168,12 +226,25 @@ impl OpenRouterClient {
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
-        let url = format!("{}/v1/chat/completions", self.base_url.trim_end_matches("/v1").trim_end_matches('/'));
+        let path = "/v1/chat/completions";
+        let url = format!(
+            "{}{}",
+            self.base_url
+                .trim_end_matches("/v1")
+                .trim_end_matches('/'),
+            path
+        );
 
         let numbered_text = paragraphs
             .iter()
             .zip(original_indices.iter())
-            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
+            .map(|(p, &idx)| {
+                format!(
+                    "<p id=\"{}\">{}</p>",
+                    encode_paragraph_id(idx, has_subtitle),
+                    p
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -181,14 +252,23 @@ impl OpenRouterClient {
         let request = self.build_request(&full_prompt, true);
 
         let request_json = serde_json::to_string_pretty(&request).unwrap_or_default();
-        let _ = app_handle.emit("debug-api", serde_json::json!({
-            "type": "request",
-            "provider": "openrouter",
-            "model": &self.model,
-            "body": request_json
-        }));
+        let _ = app_handle.emit(
+            "debug-api",
+            serde_json::json!({
+                "type": "request",
+                "provider": "openrouter",
+                "model": &self.model,
+                "body": request_json
+            }),
+        );
 
-        let response = self
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "OpenRouter", "OpenAI", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+
+        let response = match self
             .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
@@ -198,17 +278,36 @@ impl OpenRouterClient {
             .json(&request)
             .send()
             .await
-            .map_err(|e| format!("API 요청 실패: {}", e))?;
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
 
         let status = response.status();
+        log_entry.status = status.as_u16();
+
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            let _ = app_handle.emit("debug-api", serde_json::json!({
-                "type": "response",
-                "provider": "openrouter",
-                "status": status.as_u16(),
-                "body": &error_text
-            }));
+            let _ = app_handle.emit(
+                "debug-api",
+                serde_json::json!({
+                    "type": "response",
+                    "provider": "openrouter",
+                    "status": status.as_u16(),
+                    "body": &error_text
+                }),
+            );
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
@@ -254,10 +353,19 @@ impl OpenRouterClient {
                                             if !emitted_ids.contains(&chunk.paragraph_id) {
                                                 emitted_ids.insert(chunk.paragraph_id.clone());
 
-                                                if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id, has_subtitle) {
-                                                    if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
+                                                if let Some(orig_idx) =
+                                                    decode_paragraph_id(&chunk.paragraph_id, has_subtitle)
+                                                {
+                                                    if let Some(pos) =
+                                                        original_indices.iter().position(|&x| x == orig_idx)
+                                                    {
                                                         if pos < paragraphs.len() {
-                                                            let _ = cache_translation(novel_id, &paragraphs[pos], &chunk.text).await;
+                                                            let _ = cache_translation(
+                                                                novel_id,
+                                                                &paragraphs[pos],
+                                                                &chunk.text,
+                                                            )
+                                                            .await;
                                                         }
                                                     }
                                                 }
@@ -274,14 +382,27 @@ impl OpenRouterClient {
             }
         }
 
-        let _ = app_handle.emit("debug-api", serde_json::json!({
-            "type": "response",
-            "provider": "openrouter",
-            "status": 200,
-            "body": &full_text
-        }));
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(full_text.clone());
+        if let Some(ref usage) = final_usage {
+            log_entry.input_tokens = Some(usage.input_tokens);
+            log_entry.output_tokens = Some(usage.output_tokens);
+        }
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
 
-        let result = parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
+        let _ = app_handle.emit(
+            "debug-api",
+            serde_json::json!({
+                "type": "response",
+                "provider": "openrouter",
+                "status": 200,
+                "body": &full_text
+            }),
+        );
+
+        let result =
+            parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
         Ok((result, final_usage))
     }
 }

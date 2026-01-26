@@ -36,3 +36,4 @@ src-tauri/Cargo.lock
 .reports/
 .sisyphus/
 .claude/
+.serena/

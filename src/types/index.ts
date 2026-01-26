@@ -78,3 +78,23 @@ export interface TranslationChunk {
   text: string;
   is_complete: boolean;
 }
+
+export interface ApiLogSummary {
+  id: string;
+  timestamp: number;
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+  model?: string;
+  provider: string;
+  protocol: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  error?: string;
+}
+
+export interface ApiLogEntry extends ApiLogSummary {
+  requestBody?: string;
+  responseBody?: string;
+}

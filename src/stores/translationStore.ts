@@ -10,6 +10,7 @@ interface ChapterMeta {
   subtitle: string;
   prevUrl: string | null;
   nextUrl: string | null;
+  sourceUrl: string;
 }
 
 interface TranslationState {
@@ -41,6 +42,7 @@ interface TranslationState {
     paragraphs: Paragraph[];
     prev_url: string | null;
     next_url: string | null;
+    source_url: string;
     translatedTitle?: string;
     translatedSubtitle?: string;
   } | null) => void;
@@ -61,6 +63,7 @@ interface TranslationState {
     paragraphs: Paragraph[];
     prev_url: string | null;
     next_url: string | null;
+    source_url: string;
   } | null;
 }
 
@@ -116,6 +119,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
         subtitle: content.subtitle,
         prevUrl: content.prev_url,
         nextUrl: content.next_url,
+        sourceUrl: content.source_url,
       },
       translatedTitle: content.translatedTitle,
       translatedSubtitle: content.translatedSubtitle,
@@ -186,6 +190,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
       paragraphs,
       prev_url: state.chapter.prevUrl,
       next_url: state.chapter.nextUrl,
+      source_url: state.chapter.sourceUrl,
     };
   },
 }));

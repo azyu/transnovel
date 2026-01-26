@@ -1,14 +1,19 @@
+#![allow(clippy::let_underscore_future)]
+
 use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
+use super::api_logger;
 use super::cache::cache_translation;
 use super::paragraph::{
-    encode_paragraph_id, decode_paragraph_id, extract_completed_paragraphs,
+    decode_paragraph_id, encode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
 };
 use super::translator::TokenUsage;
+use crate::models::api_log::ApiLogEntry;
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -152,44 +157,81 @@ impl GeminiClient {
         system_prompt: &str,
     ) -> Result<Vec<String>, String> {
         let api_key = self.get_next_api_key()?.to_string();
-
-        let url = format!(
-            "{}/models/{}:generateContent?key={}",
-            GEMINI_API_BASE, self.model, api_key
-        );
+        let path = format!("/v1beta/models/{}:generateContent", self.model);
+        let url = format!("{}{}?key={}", GEMINI_API_BASE, path, api_key);
 
         let numbered_text = paragraphs
             .iter()
             .zip(original_indices.iter())
-            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
+            .map(|(p, &idx)| {
+                format!(
+                    "<p id=\"{}\">{}</p>",
+                    encode_paragraph_id(idx, has_subtitle),
+                    p
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
         let full_prompt = format!("{}\n\n{}", system_prompt, numbered_text);
         let request = self.build_request(&full_prompt);
+        let request_json = serde_json::to_string(&request).unwrap_or_default();
 
-        let response = self
-            .client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| format!("API 요청 실패: {}", e))?;
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "Gemini", "Gemini", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+
+        let response = match self.client.post(&url).json(&request).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
 
         let status = response.status();
+        log_entry.status = status.as_u16();
+
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
-        let gemini_response: GeminiResponse = response
-            .json()
+        let response_text = response
+            .text()
             .await
-            .map_err(|e| format!("응답 파싱 실패: {}", e))?;
+            .map_err(|e| format!("응답 읽기 실패: {}", e))?;
+
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(response_text.clone());
+
+        let gemini_response: GeminiResponse =
+            serde_json::from_str(&response_text).map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+        if let Some(ref usage) = gemini_response.usage_metadata {
+            log_entry.input_tokens = usage.prompt_token_count;
+            log_entry.output_tokens = usage.candidates_token_count;
+        }
 
         if let Some(error) = gemini_response.error {
+            log_entry.error = Some(error.message.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("Gemini 오류: {}", error.message));
         }
+
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
 
         let text = gemini_response
             .candidates
@@ -212,16 +254,19 @@ impl GeminiClient {
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
         let api_key = self.get_next_api_key()?.to_string();
-
-        let url = format!(
-            "{}/models/{}:streamGenerateContent?alt=sse&key={}",
-            GEMINI_API_BASE, self.model, api_key
-        );
+        let path = format!("/v1beta/models/{}:streamGenerateContent", self.model);
+        let url = format!("{}{}?alt=sse&key={}", GEMINI_API_BASE, path, api_key);
 
         let numbered_text = paragraphs
             .iter()
             .zip(original_indices.iter())
-            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
+            .map(|(p, &idx)| {
+                format!(
+                    "<p id=\"{}\">{}</p>",
+                    encode_paragraph_id(idx, has_subtitle),
+                    p
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -229,30 +274,52 @@ impl GeminiClient {
         let request = self.build_request(&full_prompt);
 
         let request_json = serde_json::to_string_pretty(&request).unwrap_or_default();
-        let _ = app_handle.emit("debug-api", serde_json::json!({
-            "type": "request",
-            "provider": "gemini",
-            "model": &self.model,
-            "body": request_json
-        }));
+        let _ = app_handle.emit(
+            "debug-api",
+            serde_json::json!({
+                "type": "request",
+                "provider": "gemini",
+                "model": &self.model,
+                "body": request_json
+            }),
+        );
 
-        let response = self
-            .client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| format!("API 요청 실패: {}", e))?;
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "Gemini", "Gemini", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+
+        let response = match self.client.post(&url).json(&request).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
 
         let status = response.status();
+        log_entry.status = status.as_u16();
+
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            let _ = app_handle.emit("debug-api", serde_json::json!({
-                "type": "response",
-                "provider": "gemini",
-                "status": status.as_u16(),
-                "body": &error_text
-            }));
+            let _ = app_handle.emit(
+                "debug-api",
+                serde_json::json!({
+                    "type": "response",
+                    "provider": "gemini",
+                    "status": status.as_u16(),
+                    "body": &error_text
+                }),
+            );
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
@@ -287,20 +354,29 @@ impl GeminiClient {
                             .and_then(|p| p.text)
                         {
                             full_text.push_str(&text);
-                            
+
                             let chunks = extract_completed_paragraphs(&full_text);
                             for chunk in chunks {
                                 if !emitted_ids.contains(&chunk.paragraph_id) {
                                     emitted_ids.insert(chunk.paragraph_id.clone());
-                                    
-                                    if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id, has_subtitle) {
-                                        if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
+
+                                    if let Some(orig_idx) =
+                                        decode_paragraph_id(&chunk.paragraph_id, has_subtitle)
+                                    {
+                                        if let Some(pos) =
+                                            original_indices.iter().position(|&x| x == orig_idx)
+                                        {
                                             if pos < paragraphs.len() {
-                                                let _ = cache_translation(novel_id, &paragraphs[pos], &chunk.text).await;
+                                                let _ = cache_translation(
+                                                    novel_id,
+                                                    &paragraphs[pos],
+                                                    &chunk.text,
+                                                )
+                                                .await;
                                             }
                                         }
                                     }
-                                    
+
                                     let _ = app_handle.emit("translation-chunk", chunk);
                                 }
                             }
@@ -310,14 +386,27 @@ impl GeminiClient {
             }
         }
 
-        let _ = app_handle.emit("debug-api", serde_json::json!({
-            "type": "response",
-            "provider": "gemini",
-            "status": 200,
-            "body": &full_text
-        }));
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(full_text.clone());
+        if let Some(ref usage) = final_usage {
+            log_entry.input_tokens = Some(usage.input_tokens);
+            log_entry.output_tokens = Some(usage.output_tokens);
+        }
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
 
-        let result = parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
+        let _ = app_handle.emit(
+            "debug-api",
+            serde_json::json!({
+                "type": "response",
+                "provider": "gemini",
+                "status": 200,
+                "body": &full_text
+            }),
+        );
+
+        let result =
+            parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
         Ok((result, final_usage))
     }
 }

@@ -108,7 +108,7 @@ impl NovelParser for SyosetuParser {
                 }
             });
 
-        let novel_title_selector = Selector::parse(".c-announce a").unwrap();
+        let novel_title_selector = Selector::parse(".c-announce a[href^='/']").unwrap();
         let novel_title = document
             .select(&novel_title_selector)
             .next()
@@ -210,6 +210,26 @@ mod tests {
         let content = result.unwrap();
         assert!(!content.content.is_empty(), "Content should not be empty");
         assert!(content.content.contains("<p"), "Content should contain <p> tags");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network - run with: cargo test -- --ignored"]
+    async fn test_get_chapter_metadata() {
+        let parser = SyosetuParser::new();
+        let result = parser.get_chapter("https://ncode.syosetu.com/n4029bs/1/").await;
+        
+        assert!(result.is_ok(), "Failed to fetch chapter: {:?}", result.err());
+        let content = result.unwrap();
+        
+        // Verify novel_title is extracted
+        println!("novel_title: {:?}", content.novel_title);
+        assert!(content.novel_title.is_some(), "novel_title should be Some, got None");
+        assert!(!content.novel_title.as_ref().unwrap().is_empty(), "novel_title should not be empty");
+        
+        // Verify chapter_number is extracted
+        println!("chapter_number: {:?}", content.chapter_number);
+        assert!(content.chapter_number.is_some(), "chapter_number should be Some, got None");
+        assert_eq!(content.chapter_number.unwrap(), 1, "chapter_number should be 1");
     }
 
     #[tokio::test]

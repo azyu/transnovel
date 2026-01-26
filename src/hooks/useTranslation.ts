@@ -51,6 +51,7 @@ export const useTranslation = () => {
         })),
         prev_url: content.prev_url,
         next_url: content.next_url,
+        source_url: url,
       });
 
       try {
@@ -101,6 +102,7 @@ export const useTranslation = () => {
         paragraphs,
         prev_url: content.prev_url,
         next_url: content.next_url,
+        source_url: url,
       });
 
       try {

@@ -31,6 +31,7 @@ describe('useTranslationStore', () => {
         ],
         prev_url: null,
         next_url: 'https://example.com/2',
+        source_url: 'https://example.com/1',
       });
 
       const state = useTranslationStore.getState();
@@ -51,6 +52,7 @@ describe('useTranslationStore', () => {
         paragraphs: [{ id: 'p-1', original: 'テスト1' }],
         prev_url: null,
         next_url: null,
+        source_url: 'https://example.com/1',
       });
       
       setChapterContent(null);
@@ -75,6 +77,7 @@ describe('useTranslationStore', () => {
         ],
         prev_url: null,
         next_url: null,
+        source_url: 'https://example.com/1',
       });
     });
 
@@ -128,6 +131,7 @@ describe('useTranslationStore', () => {
         paragraphs: [],
         prev_url: null,
         next_url: null,
+        source_url: 'https://example.com/1',
       });
     });
 
@@ -191,6 +195,7 @@ describe('useTranslationStore', () => {
         ],
         prev_url: 'https://example.com/prev',
         next_url: 'https://example.com/next',
+        source_url: 'https://example.com/current',
       });
       
       updateTitleTranslation('번역 제목', '번역 부제목');

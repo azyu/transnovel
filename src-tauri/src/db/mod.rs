@@ -27,6 +27,11 @@ pub async fn init_db(app: &AppHandle) -> Result<(), String> {
         .execute(&pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    sqlx::query(include_str!("migrations/002_api_logs.sql"))
+        .execute(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
     
     run_migrations(&pool).await?;
     

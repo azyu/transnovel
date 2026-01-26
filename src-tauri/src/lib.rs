@@ -48,6 +48,10 @@ pub fn run() {
             commands::settings::clear_cache,
             commands::settings::clear_cache_by_novel,
             commands::settings::reset_all,
+            commands::api_logs::get_api_logs,
+            commands::api_logs::get_api_log_detail,
+            commands::api_logs::get_api_logs_count,
+            commands::api_logs::clear_api_logs,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

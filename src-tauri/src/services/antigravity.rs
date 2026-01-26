@@ -1,14 +1,19 @@
+#![allow(clippy::let_underscore_future)]
+
 use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
+use super::api_logger;
 use super::cache::cache_translation;
 use super::paragraph::{
-    encode_paragraph_id, decode_paragraph_id, extract_completed_paragraphs,
+    decode_paragraph_id, encode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
 };
 use super::translator::TokenUsage;
+use crate::models::api_log::ApiLogEntry;
 
 pub const DEFAULT_ANTIGRAVITY_URL: &str = "http://127.0.0.1:8045";
 
@@ -119,12 +124,19 @@ impl AntigravityClient {
         has_subtitle: bool,
         system_prompt: &str,
     ) -> Result<Vec<String>, String> {
-        let url = format!("{}/v1/messages", self.base_url);
+        let path = "/v1/messages";
+        let url = format!("{}{}", self.base_url, path);
 
         let numbered_text = paragraphs
             .iter()
             .zip(original_indices.iter())
-            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
+            .map(|(p, &idx)| {
+                format!(
+                    "<p id=\"{}\">{}</p>",
+                    encode_paragraph_id(idx, has_subtitle),
+                    p
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -140,7 +152,14 @@ impl AntigravityClient {
             stream: None,
         };
 
-        let response = self
+        let request_json = serde_json::to_string(&request).unwrap_or_default();
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "Antigravity", "Anthropic", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+
+        let response = match self
             .client
             .post(&url)
             .header("Authorization", "Bearer test")
@@ -148,11 +167,27 @@ impl AntigravityClient {
             .json(&request)
             .send()
             .await
-            .map_err(|e| format!("API 요청 실패: {}", e))?;
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
 
         let status = response.status();
+        log_entry.status = status.as_u16();
+
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
@@ -161,29 +196,44 @@ impl AntigravityClient {
             .await
             .map_err(|e| format!("응답 읽기 실패: {}", e))?;
 
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(response_text.clone());
+
         let antigravity_response: AntigravityResponse = serde_json::from_str(&response_text)
             .map_err(|e| format!("응답 파싱 실패: {}", e))?;
 
+        if let Some(ref usage) = antigravity_response.usage {
+            log_entry.input_tokens = usage.input_tokens;
+            log_entry.output_tokens = usage.output_tokens;
+        }
+
         if let Some(error) = antigravity_response.error {
+            log_entry.error = Some(error.message.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
             return Err(format!("Antigravity 오류: {}", error.message));
         }
 
         let content_blocks = antigravity_response.content.unwrap_or_default();
-        
+        let is_likely_filtered = log_entry.input_tokens == Some(0);
+
         if content_blocks.is_empty() {
             eprintln!("[Antigravity] Empty response: {}", response_text);
-            
-            let is_likely_filtered = antigravity_response
-                .usage
-                .map(|u| u.input_tokens == Some(0))
-                .unwrap_or(false);
-            
-            return if is_likely_filtered {
-                Err(format!("API가 빈 응답을 반환했습니다. (input_tokens: 0 - 콘텐츠 필터링 가능성)\nResponse: {}", response_text))
+
+            let error_msg = if is_likely_filtered {
+                format!("API가 빈 응답을 반환했습니다. (input_tokens: 0 - 콘텐츠 필터링 가능성)\nResponse: {}", response_text)
             } else {
-                Err(format!("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.\nResponse: {}", response_text))
+                format!("API가 빈 응답을 반환했습니다. 프록시 인증 상태나 모델 설정을 확인하세요.\nResponse: {}", response_text)
             };
+
+            log_entry.error = Some(error_msg.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(error_msg);
         }
+
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
 
         let text = content_blocks
             .into_iter()
@@ -203,12 +253,19 @@ impl AntigravityClient {
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
-        let url = format!("{}/v1/messages", self.base_url);
+        let path = "/v1/messages";
+        let url = format!("{}{}", self.base_url, path);
 
         let numbered_text = paragraphs
             .iter()
             .zip(original_indices.iter())
-            .map(|(p, &idx)| format!("<p id=\"{}\">{}</p>", encode_paragraph_id(idx, has_subtitle), p))
+            .map(|(p, &idx)| {
+                format!(
+                    "<p id=\"{}\">{}</p>",
+                    encode_paragraph_id(idx, has_subtitle),
+                    p
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -225,14 +282,23 @@ impl AntigravityClient {
         };
 
         let request_json = serde_json::to_string_pretty(&request).unwrap_or_default();
-        let _ = app_handle.emit("debug-api", serde_json::json!({
-            "type": "request",
-            "provider": "antigravity",
-            "model": &self.model,
-            "body": request_json
-        }));
+        let _ = app_handle.emit(
+            "debug-api",
+            serde_json::json!({
+                "type": "request",
+                "provider": "antigravity",
+                "model": &self.model,
+                "body": request_json
+            }),
+        );
 
-        let response = self
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "Antigravity", "Anthropic", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+
+        let response = match self
             .client
             .post(&url)
             .header("Authorization", "Bearer test")
@@ -240,17 +306,35 @@ impl AntigravityClient {
             .json(&request)
             .send()
             .await
-            .map_err(|e| format!("API 요청 실패: {}", e))?;
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                drop(tokio::spawn(async move { api_logger::save_api_log(&entry).await }));
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
 
         let status = response.status();
+        log_entry.status = status.as_u16();
+
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            let _ = app_handle.emit("debug-api", serde_json::json!({
-                "type": "response",
-                "provider": "antigravity",
-                "status": status.as_u16(),
-                "body": &error_text
-            }));
+            let _ = app_handle.emit(
+                "debug-api",
+                serde_json::json!({
+                    "type": "response",
+                    "provider": "antigravity",
+                    "status": status.as_u16(),
+                    "body": &error_text
+                }),
+            );
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&log_entry).await });
             return Err(format!("API 오류 ({}): {}", status, error_text));
         }
 
@@ -265,11 +349,11 @@ impl AntigravityClient {
             let chunk_str = String::from_utf8_lossy(&chunk);
             buffer.push_str(&chunk_str);
 
-            while let Some(pos) = buffer.find("\n") {
+            while let Some(pos) = buffer.find('\n') {
                 let line = buffer[..pos].to_string();
                 buffer = buffer[pos + 1..].to_string();
 
-                if line.is_empty() || line.starts_with("event:") || line.starts_with(":") {
+                if line.is_empty() || line.starts_with("event:") || line.starts_with(':') {
                     continue;
                 }
 
@@ -304,15 +388,24 @@ impl AntigravityClient {
                                     for chunk in chunks {
                                         if !emitted_ids.contains(&chunk.paragraph_id) {
                                             emitted_ids.insert(chunk.paragraph_id.clone());
-                                            
-                                            if let Some(orig_idx) = decode_paragraph_id(&chunk.paragraph_id, has_subtitle) {
-                                                if let Some(pos) = original_indices.iter().position(|&x| x == orig_idx) {
+
+                                            if let Some(orig_idx) =
+                                                decode_paragraph_id(&chunk.paragraph_id, has_subtitle)
+                                            {
+                                                if let Some(pos) =
+                                                    original_indices.iter().position(|&x| x == orig_idx)
+                                                {
                                                     if pos < paragraphs.len() {
-                                                        let _ = cache_translation(novel_id, &paragraphs[pos], &chunk.text).await;
+                                                        let _ = cache_translation(
+                                                            novel_id,
+                                                            &paragraphs[pos],
+                                                            &chunk.text,
+                                                        )
+                                                        .await;
                                                     }
                                                 }
                                             }
-                                            
+
                                             let _ = app_handle.emit("translation-chunk", chunk);
                                         }
                                     }
@@ -324,36 +417,58 @@ impl AntigravityClient {
             }
         }
 
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(full_text.clone());
+        if let Some(ref usage) = final_usage {
+            log_entry.input_tokens = Some(usage.input_tokens);
+            log_entry.output_tokens = Some(usage.output_tokens);
+        }
+
         if full_text.is_empty() {
             let usage_info = if let Some(ref usage) = final_usage {
-                format!("Usage: {{\"input_tokens\": {}, \"output_tokens\": {}}}", usage.input_tokens, usage.output_tokens)
+                format!(
+                    "Usage: {{\"input_tokens\": {}, \"output_tokens\": {}}}",
+                    usage.input_tokens, usage.output_tokens
+                )
             } else {
                 "Usage: not available".to_string()
             };
-            
-            eprintln!("[Antigravity] Streaming returned empty response. {}", usage_info);
-            
+
+            eprintln!(
+                "[Antigravity] Streaming returned empty response. {}",
+                usage_info
+            );
+
             let content_filtered = final_usage.as_ref().is_some_and(|u| u.input_tokens == 0);
             let filter_hint = if content_filtered {
                 " (input_tokens=0 → 콘텐츠 필터링 가능성 높음)"
             } else {
                 ""
             };
-            
-            return Err(format!(
+
+            let error_msg = format!(
                 "API가 빈 응답을 반환했습니다.{}\n{}\nBuffer: {}",
                 filter_hint, usage_info, buffer
-            ));
+            );
+            log_entry.error = Some(error_msg.clone());
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&log_entry).await });
+            return Err(error_msg);
         }
-        
-        let _ = app_handle.emit("debug-api", serde_json::json!({
-            "type": "response",
-            "provider": "antigravity",
-            "status": 200,
-            "body": &full_text
-        }));
 
-        let result = parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&log_entry).await });
+
+        let _ = app_handle.emit(
+            "debug-api",
+            serde_json::json!({
+                "type": "response",
+                "provider": "antigravity",
+                "status": 200,
+                "body": &full_text
+            }),
+        );
+
+        let result =
+            parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
         Ok((result, final_usage))
     }
 }

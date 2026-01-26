@@ -83,7 +83,7 @@ impl NovelParser for NocturneParser {
                 }
             });
 
-        let novel_title_selector = Selector::parse(".c-announce a").unwrap();
+        let novel_title_selector = Selector::parse(".c-announce a[href^='/']").unwrap();
         let novel_title = document
             .select(&novel_title_selector)
             .next()
