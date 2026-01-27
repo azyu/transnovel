@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { message } from '@tauri-apps/plugin-dialog';
 import { UrlInput } from './UrlInput';
 import { saveUrlHistory } from '../../utils/urlHistory';
 import { ParagraphList } from './ParagraphList';
@@ -105,11 +106,11 @@ export const TranslationView: React.FC = () => {
           include_original: includeOriginal,
         },
       });
-      alert(`저장 완료: ${path}`);
+      await message(`저장 완료: ${path}`, { title: '저장 완료', kind: 'info' });
     } catch (err) {
       const errorMessage = String(err);
       if (!errorMessage.includes('취소')) {
-        alert(`저장 실패: ${err}`);
+        await message(`저장 실패: ${err}`, { title: '저장 실패', kind: 'error' });
       }
     }
   };

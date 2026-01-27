@@ -1,5 +1,6 @@
 import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
 
@@ -89,8 +90,12 @@ export const TranslationSettings = forwardRef((_, ref) => {
     loadSettings();
   }, []);
 
-  const handleResetPrompt = () => {
-    if (confirm('기본 시스템 프롬프트로 초기화하시겠습니까?')) {
+  const handleResetPrompt = async () => {
+    const confirmed = await ask('기본 시스템 프롬프트로 초기화하시겠습니까?', {
+      title: '프롬프트 초기화',
+      kind: 'warning',
+    });
+    if (confirmed) {
       setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
     }
   };
