@@ -1,8 +1,10 @@
 import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { NumberStepper } from '../common/NumberStepper';
+import { Toggle } from '../common/Toggle';
 import { useUIStore } from '../../stores/uiStore';
 
 type DisplayLayout = 'sideBySide' | 'stacked';
@@ -85,8 +87,12 @@ export const ViewSettings = forwardRef((_, ref) => {
     loadSettings();
   }, []);
 
-  const handleReset = () => {
-    if (confirm('기본 설정으로 초기화하시겠습니까?')) {
+  const handleReset = async () => {
+    const confirmed = await ask('기본 설정으로 초기화하시겠습니까?', {
+      title: '설정 초기화',
+      kind: 'warning',
+    });
+    if (confirmed) {
       setConfig(DEFAULT_CONFIG);
     }
   };
@@ -111,6 +117,89 @@ export const ViewSettings = forwardRef((_, ref) => {
       </div>
 
       <div className={`p-6 rounded-xl border space-y-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div>
+          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>미리보기</h3>
+          <div
+            className={`p-4 rounded-lg border min-h-[120px] ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
+            style={{
+              fontFamily: config.fontFamily,
+              fontSize: `${config.fontSize}px`,
+              fontWeight: config.fontWeight,
+              lineHeight: config.lineHeight,
+              color: config.textColor,
+              backgroundColor: config.backgroundColor,
+              padding: `16px ${config.horizontalPadding}px`,
+            }}
+          >
+            {config.showOriginal && config.displayLayout === 'sideBySide' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <p
+                  style={{
+                    opacity: Number(config.originalOpacity) / 100,
+                    textIndent: `${config.textIndent}em`,
+                  }}
+                >
+                  これは日本語の原文テキストです。
+                </p>
+                <p style={{ textIndent: `${config.textIndent}em` }}>
+                  이것은 한국어 번역 텍스트입니다.
+                </p>
+              </div>
+            ) : (
+              <>
+                {config.showOriginal && (
+                  <p
+                    style={{
+                      opacity: Number(config.originalOpacity) / 100,
+                      marginBottom: `${config.paragraphSpacing}px`,
+                      textIndent: `${config.textIndent}em`,
+                    }}
+                  >
+                    これは日本語の原文テキストです。
+                  </p>
+                )}
+                <p style={{ textIndent: `${config.textIndent}em` }}>
+                  이것은 한국어 번역 텍스트입니다.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <Toggle
+            label="원문 표시"
+            checked={config.showOriginal}
+            onChange={(checked) => updateConfig('showOriginal', checked)}
+          />
+          <Toggle
+            label="대사 강제 개행"
+            checked={config.forceDialogueBreak}
+            onChange={(checked) => updateConfig('forceDialogueBreak', checked)}
+          />
+        </div>
+
+        <div className={config.showOriginal ? '' : 'opacity-50 pointer-events-none'}>
+          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>레이아웃</h3>
+          <div className="flex gap-2">
+            {LAYOUT_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => updateConfig('displayLayout', option.value)}
+                disabled={!config.showOriginal}
+                className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
+                  config.displayLayout === option.value
+                    ? 'border-blue-500 bg-blue-500/10'
+                    : isDark ? 'border-slate-600 hover:border-slate-500' : 'border-slate-300 hover:border-slate-400'
+                }`}
+              >
+                <span className={`block text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{option.label}</span>
+                <span className={`block text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{option.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>색상 프리셋</h3>
           <div className="flex flex-wrap gap-2">
@@ -204,34 +293,43 @@ export const ViewSettings = forwardRef((_, ref) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input
+          <NumberStepper
             label="줄 간격"
-            type="number"
-            step="0.1"
-            value={config.lineHeight}
-            onChange={(e) => updateConfig('lineHeight', e.target.value)}
+            value={parseFloat(config.lineHeight) || 1.8}
+            onChange={(value) => updateConfig('lineHeight', String(value))}
+            min={1}
+            max={4}
+            step={0.1}
           />
-          <Input
+          <NumberStepper
             label="문단 간격 (px)"
-            type="number"
-            value={config.paragraphSpacing}
-            onChange={(e) => updateConfig('paragraphSpacing', e.target.value)}
+            value={parseInt(config.paragraphSpacing, 10) || 8}
+            onChange={(value) => updateConfig('paragraphSpacing', String(value))}
+            min={0}
+            max={64}
+            step={2}
+            unit="px"
           />
-          <Input
+          <NumberStepper
             label="들여쓰기 (em)"
-            type="number"
-            step="0.5"
-            value={config.textIndent}
-            onChange={(e) => updateConfig('textIndent', e.target.value)}
+            value={parseFloat(config.textIndent) || 0}
+            onChange={(value) => updateConfig('textIndent', String(value))}
+            min={0}
+            max={4}
+            step={0.5}
+            unit="em"
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
+          <NumberStepper
             label="좌우 여백 (px)"
-            type="number"
-            value={config.horizontalPadding}
-            onChange={(e) => updateConfig('horizontalPadding', e.target.value)}
+            value={parseInt(config.horizontalPadding, 10) || 24}
+            onChange={(value) => updateConfig('horizontalPadding', String(value))}
+            min={0}
+            max={120}
+            step={4}
+            unit="px"
           />
           <div>
             <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -250,99 +348,6 @@ export const ViewSettings = forwardRef((_, ref) => {
               <span>반투명</span>
               <span>표시</span>
             </div>
-          </div>
-        </div>
-
-        <div className={`border-t pt-4 space-y-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.showOriginal}
-                onChange={(e) => updateConfig('showOriginal', e.target.checked)}
-                className={`w-4 h-4 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-0 ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white'}`}
-              />
-              <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>원문 표시</span>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.forceDialogueBreak}
-                onChange={(e) => updateConfig('forceDialogueBreak', e.target.checked)}
-                className={`w-4 h-4 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-0 ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white'}`}
-              />
-              <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>대사 강제 개행</span>
-            </label>
-          </div>
-
-          <div className={config.showOriginal ? '' : 'opacity-50 pointer-events-none'}>
-            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>레이아웃</h3>
-            <div className="flex gap-2">
-              {LAYOUT_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => updateConfig('displayLayout', option.value)}
-                  disabled={!config.showOriginal}
-                  className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
-                    config.displayLayout === option.value
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : isDark ? 'border-slate-600 hover:border-slate-500' : 'border-slate-300 hover:border-slate-400'
-                  }`}
-                >
-                  <span className={`block text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{option.label}</span>
-                  <span className={`block text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{option.description}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>미리보기</h3>
-          <div
-            className={`p-4 rounded-lg border min-h-[120px] ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
-            style={{
-              fontFamily: config.fontFamily,
-              fontSize: `${config.fontSize}px`,
-              fontWeight: config.fontWeight,
-              lineHeight: config.lineHeight,
-              color: config.textColor,
-              backgroundColor: config.backgroundColor,
-              padding: `16px ${config.horizontalPadding}px`,
-            }}
-          >
-            {config.showOriginal && config.displayLayout === 'sideBySide' ? (
-              <div className="grid grid-cols-2 gap-4">
-                <p
-                  style={{
-                    opacity: Number(config.originalOpacity) / 100,
-                    textIndent: `${config.textIndent}em`,
-                  }}
-                >
-                  これは日本語の原文テキストです。
-                </p>
-                <p style={{ textIndent: `${config.textIndent}em` }}>
-                  이것은 한국어 번역 텍스트입니다.
-                </p>
-              </div>
-            ) : (
-              <>
-                {config.showOriginal && (
-                  <p
-                    style={{
-                      opacity: Number(config.originalOpacity) / 100,
-                      marginBottom: `${config.paragraphSpacing}px`,
-                      textIndent: `${config.textIndent}em`,
-                    }}
-                  >
-                    これは日本語の原文テキストです。
-                  </p>
-                )}
-                <p style={{ textIndent: `${config.textIndent}em` }}>
-                  이것은 한국어 번역 텍스트입니다.
-                </p>
-              </>
-            )}
           </div>
         </div>
 

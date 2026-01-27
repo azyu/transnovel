@@ -10,44 +10,57 @@ interface NumberStepperProps {
   step?: number;
   unit?: string;
   className?: string;
+  decimals?: number;
 }
 
 export const NumberStepper: React.FC<NumberStepperProps> = ({
   label,
   value,
   onChange,
-  min = 1,
+  min = 0,
   max = 999,
   step = 1,
   unit,
   className = '',
+  decimals,
 }) => {
   const generatedId = React.useId();
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
+  const precision = decimals ?? (step < 1 ? String(step).split('.')[1]?.length ?? 0 : 0);
+
+  const roundToPrecision = (num: number) => {
+    return Number(num.toFixed(precision));
+  };
+
   const handleDecrement = () => {
-    const newValue = Math.max(min, value - step);
+    const newValue = roundToPrecision(Math.max(min, value - step));
     onChange(newValue);
   };
 
   const handleIncrement = () => {
-    const newValue = Math.min(max, value + step);
+    const newValue = roundToPrecision(Math.min(max, value + step));
     onChange(newValue);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
     
-    // Allow empty input for editing
-    if (inputValue === '') {
-      onChange(min);
+    if (inputValue === '' || inputValue === '-') {
       return;
     }
     
-    const numValue = parseInt(inputValue, 10);
+    const numValue = parseFloat(inputValue);
     if (!isNaN(numValue)) {
       const clampedValue = Math.max(min, Math.min(max, numValue));
-      onChange(clampedValue);
+      onChange(roundToPrecision(clampedValue));
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    if (inputValue === '' || inputValue === '-') {
+      onChange(min);
     }
   };
 
@@ -68,6 +81,8 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
   const inputStyles = isDark
     ? 'bg-slate-900 border-slate-700 text-white'
     : 'bg-white border-slate-300 text-slate-900';
+
+  const displayValue = precision > 0 ? value.toFixed(precision) : value;
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
@@ -95,10 +110,10 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           <input
             id={generatedId}
             type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={value}
+            inputMode="decimal"
+            value={displayValue}
             onChange={handleInputChange}
+            onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             className={`w-full h-10 px-3 text-center text-sm font-medium border-y focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:z-10 transition-colors ${inputStyles}`}
           />
