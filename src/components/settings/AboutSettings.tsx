@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { useUIStore } from '../../stores/uiStore';
+import appIcon from '../../assets/app-icon.png';
 
 export const AboutSettings: React.FC = () => {
   const [version, setVersion] = useState<string>('');
@@ -29,7 +30,7 @@ export const AboutSettings: React.FC = () => {
       >
         <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-lg">
           <img
-            src="/app-icon.png"
+            src={appIcon}
             alt="AI Novel Translator"
             className="w-full h-full object-cover"
           />

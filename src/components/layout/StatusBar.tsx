@@ -77,7 +77,7 @@ export const StatusBar: React.FC = () => {
   }, [loadStatus]);
 
   return (
-    <div className={`h-6 border-t px-4 flex items-center justify-end gap-4 text-xs select-none ${isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+    <div className={`min-h-6 border-t px-4 pb-[env(safe-area-inset-bottom)] flex items-center justify-end gap-4 text-xs select-none ${isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
       <div className="flex items-center gap-2">
         <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>제공자:</span>
         <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>

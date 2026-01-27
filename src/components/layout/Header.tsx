@@ -32,7 +32,7 @@ export const Header: React.FC = () => {
   const showBatchProgress = batchProgress && isTranslating && batchProgress.status === 'translating';
 
   return (
-    <header className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} border-b h-16 flex items-center justify-between px-6 shrink-0 z-50 relative transition-colors duration-200`}>
+    <header className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} border-b min-h-16 pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 shrink-0 z-50 relative transition-colors duration-200`}>
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/20">
           A
