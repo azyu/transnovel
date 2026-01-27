@@ -1,6 +1,6 @@
 name: ai-novel-translator
 options:
-  bundleIdPrefix: dev.noveltr.app
+  bundleIdPrefix: com.azyu.noveltr
   deploymentTarget:
     iOS: 14.0
 fileGroups: [../../src]
@@ -11,7 +11,7 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: AI Novel Translator
-      PRODUCT_BUNDLE_IDENTIFIER: dev.noveltr.app
+      PRODUCT_BUNDLE_IDENTIFIER: com.azyu.noveltr
 targetTemplates:
   app:
     type: application
