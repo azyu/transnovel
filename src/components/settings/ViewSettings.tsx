@@ -2,6 +2,7 @@ import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
+import { NumberStepper } from '../common/NumberStepper';
 import { useUIStore } from '../../stores/uiStore';
 
 type DisplayLayout = 'sideBySide' | 'stacked';
@@ -137,18 +138,22 @@ export const ViewSettings = forwardRef((_, ref) => {
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Input
+            <NumberStepper
               label="글자 크기 (px)"
-              type="number"
-              value={config.fontSize}
-              onChange={(e) => updateConfig('fontSize', e.target.value)}
+              value={parseInt(config.fontSize, 10) || 16}
+              onChange={(value) => updateConfig('fontSize', String(value))}
+              min={8}
+              max={72}
+              step={1}
+              unit="px"
             />
-            <Input
+            <NumberStepper
               label="글자 두께"
-              type="number"
-              value={config.fontWeight}
-              onChange={(e) => updateConfig('fontWeight', e.target.value)}
-              placeholder="400"
+              value={parseInt(config.fontWeight, 10) || 400}
+              onChange={(value) => updateConfig('fontWeight', String(value))}
+              min={100}
+              max={900}
+              step={100}
             />
           </div>
         </div>
