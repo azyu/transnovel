@@ -280,6 +280,7 @@ impl TranslatorService {
         paragraphs: &[String],
         has_subtitle: bool,
         note: Option<&str>,
+        original_indices: Option<Vec<usize>>,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
         if paragraphs.is_empty() {
@@ -288,45 +289,56 @@ impl TranslatorService {
 
         let preprocessed: Vec<String> = self.substitution.apply_to_paragraphs(paragraphs);
 
-        let cached = get_cached_translations(novel_id, &preprocessed)
-            .await
-            .unwrap_or_else(|_| vec![None; preprocessed.len()]);
+        // If original_indices provided (retry mode), skip cache and use provided indices
+        let (uncached_indices, uncached_paragraphs, mut results) = if let Some(indices) = original_indices {
+            // Retry mode: no cache check, use provided indices directly
+            let uncached: Vec<String> = preprocessed.clone();
+            let results: Vec<String> = vec![String::new(); preprocessed.len()];
+            (indices, uncached, results)
+        } else {
+            // Normal mode: check cache
+            let cached = get_cached_translations(novel_id, &preprocessed)
+                .await
+                .unwrap_or_else(|_| vec![None; preprocessed.len()]);
 
-        let mut uncached_indices: Vec<usize> = Vec::new();
-        let mut uncached_paragraphs: Vec<String> = Vec::new();
+            let mut uncached_indices: Vec<usize> = Vec::new();
+            let mut uncached_paragraphs: Vec<String> = Vec::new();
 
-        for (i, (p, c)) in preprocessed.iter().zip(cached.iter()).enumerate() {
-            let original_preview: String = p.chars().take(30).collect();
-            let _ = app_handle.emit(
-                "debug-cache",
-                DebugCacheEvent {
-                    paragraph_id: encode_paragraph_id(i, has_subtitle),
-                    cache_hit: c.is_some(),
-                    original_preview,
-                },
-            );
-            
-            if c.is_none() && !p.trim().is_empty() {
-                uncached_indices.push(i);
-                uncached_paragraphs.push(p.clone());
-            }
-        }
-
-        let mut results: Vec<String> = cached.iter().map(|c| c.clone().unwrap_or_default()).collect();
-
-        for (i, cached_text) in cached.iter().enumerate() {
-            if let Some(text) = cached_text {
-                let postprocessed = self.substitution.apply_to_paragraphs(std::slice::from_ref(text));
+            for (i, (p, c)) in preprocessed.iter().zip(cached.iter()).enumerate() {
+                let original_preview: String = p.chars().take(30).collect();
                 let _ = app_handle.emit(
-                    "translation-chunk",
-                    TranslationChunk {
+                    "debug-cache",
+                    DebugCacheEvent {
                         paragraph_id: encode_paragraph_id(i, has_subtitle),
-                        text: postprocessed.into_iter().next().unwrap_or_default(),
-                        is_complete: true,
+                        cache_hit: c.is_some(),
+                        original_preview,
                     },
                 );
+                
+                if c.is_none() && !p.trim().is_empty() {
+                    uncached_indices.push(i);
+                    uncached_paragraphs.push(p.clone());
+                }
             }
-        }
+
+            let results: Vec<String> = cached.iter().map(|c| c.clone().unwrap_or_default()).collect();
+
+            for (i, cached_text) in cached.iter().enumerate() {
+                if let Some(text) = cached_text {
+                    let postprocessed = self.substitution.apply_to_paragraphs(std::slice::from_ref(text));
+                    let _ = app_handle.emit(
+                        "translation-chunk",
+                        TranslationChunk {
+                            paragraph_id: encode_paragraph_id(i, has_subtitle),
+                            text: postprocessed.into_iter().next().unwrap_or_default(),
+                            is_complete: true,
+                        },
+                    );
+                }
+            }
+
+            (uncached_indices, uncached_paragraphs, results)
+        };
 
         if !uncached_paragraphs.is_empty() {
             let prompt = self.build_prompt(note);

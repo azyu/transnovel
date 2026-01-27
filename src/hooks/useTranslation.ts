@@ -385,12 +385,9 @@ await invoke('start_batch_translation', {
 
     const hasSubtitle = Boolean(chapterContent.subtitle);
     
-    const retryIndexToOriginalIndex = new Map<number, number>();
     const retryTexts: string[] = [];
     
-    failedOriginalIndices.forEach((origIdx, retryIdx) => {
-      retryIndexToOriginalIndex.set(retryIdx, origIdx);
-      
+    failedOriginalIndices.forEach((origIdx) => {
       if (origIdx === 0) {
         retryTexts.push(chapterContent.title);
       } else if (origIdx === 1 && hasSubtitle) {
@@ -412,20 +409,17 @@ await invoke('start_batch_translation', {
     const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
       const paragraphId = event.payload.paragraph_id;
       
-      let retryIdx: number;
+      let originalIdx: number;
       if (paragraphId === 'title') {
-        retryIdx = 0;
+        originalIdx = 0;
       } else if (paragraphId === 'subtitle') {
-        retryIdx = 1;
+        originalIdx = 1;
       } else if (paragraphId.startsWith('p-')) {
         const pNum = parseInt(paragraphId.slice(2), 10);
-        retryIdx = pNum;
+        originalIdx = hasSubtitle ? pNum + 1 : pNum;
       } else {
         return;
       }
-      
-      const originalIdx = retryIndexToOriginalIndex.get(retryIdx);
-      if (originalIdx === undefined) return;
       
       if (originalIdx === 0) {
         updateTitleTranslation(event.payload.text, undefined);
@@ -438,15 +432,11 @@ await invoke('start_batch_translation', {
     });
 
     const unlistenFailed = await listen<{ failed_indices: number[]; total: number }>('translation-failed-paragraphs', (event) => {
-      const originalFailedIndices = event.payload.failed_indices
-        .map(retryIdx => retryIndexToOriginalIndex.get(retryIdx))
-        .filter((idx): idx is number => idx !== undefined);
-      
-      setFailedParagraphIndices(originalFailedIndices);
-      if (originalFailedIndices.length > 0) {
+      setFailedParagraphIndices(event.payload.failed_indices);
+      if (event.payload.failed_indices.length > 0) {
         showError(
           '일부 번역 실패',
-          `${originalFailedIndices.length}개 항목이 여전히 실패했습니다.`
+          `${event.payload.failed_indices.length}개 항목이 여전히 실패했습니다.`
         );
       }
     });
@@ -475,7 +465,8 @@ await invoke('start_batch_translation', {
       await invoke('translate_paragraphs_streaming', {
         novelId: chapterContent.novel_id,
         paragraphs: retryTexts,
-        hasSubtitle: false,
+        hasSubtitle,
+        originalIndices: failedOriginalIndices,
       });
     } catch (err) {
       unlistenChunk();

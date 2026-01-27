@@ -60,10 +60,11 @@ pub async fn translate_paragraphs_streaming(
     paragraphs: Vec<String>,
     has_subtitle: Option<bool>,
     note: Option<String>,
+    original_indices: Option<Vec<usize>>,
 ) -> Result<TranslateParagraphsResult, String> {
     let mut translator = TranslatorService::new().await?;
     let translated = translator
-        .translate_paragraphs_streaming(&novel_id, &paragraphs, has_subtitle.unwrap_or(true), note.as_deref(), &app)
+        .translate_paragraphs_streaming(&novel_id, &paragraphs, has_subtitle.unwrap_or(true), note.as_deref(), original_indices, &app)
         .await?;
     Ok(TranslateParagraphsResult { translated })
 }
