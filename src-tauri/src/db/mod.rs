@@ -32,6 +32,20 @@ pub async fn init_db(app: &AppHandle) -> Result<(), String> {
         .execute(&pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    let has_provider: Vec<(String,)> = sqlx::query_as(
+        "SELECT name FROM pragma_table_info('api_logs') WHERE name = 'provider'"
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    
+    if has_provider.is_empty() {
+        sqlx::query(include_str!("migrations/003_api_logs_provider.sql"))
+            .execute(&pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
     
     run_migrations(&pool).await?;
     
