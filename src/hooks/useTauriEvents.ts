@@ -20,12 +20,11 @@ export const useTauriEvents = () => {
       updateBatchProgress({ status: 'completed' });
     });
 
-    const unlistenError = listen<TranslationProgress>('translation-error', (event) => {
-       console.error("Translation error:", event.payload.error_message);
+    const unlistenError = listen<{ message?: string; title?: string; error_type?: string }>('translation-error', (event) => {
+       console.error("Translation error:", event.payload.message);
        updateBatchProgress({ 
          status: 'error', 
-         error_message: event.payload.error_message ?? 'Unknown error',
-         current_chapter: event.payload.current_chapter,
+         error_message: event.payload.message ?? event.payload.title ?? 'Unknown error',
        });
     });
 

@@ -126,7 +126,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                   Tokens (I/O)
                 </p>
                 <p className={`text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {log.inputTokens !== undefined && log.outputTokens !== undefined
+                  {log.inputTokens != null && log.outputTokens != null
                     ? `${log.inputTokens.toLocaleString()} / ${log.outputTokens.toLocaleString()}`
                     : '-'}
                 </p>
