@@ -1,5 +1,6 @@
 #![allow(clippy::let_underscore_future)]
 
+use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -7,7 +8,10 @@ use tauri::{AppHandle, Emitter};
 
 use super::api_logger;
 use super::cache::cache_translation;
-use super::paragraph::{encode_paragraph_id, parse_translated_paragraphs, TranslationChunk};
+use super::paragraph::{
+    decode_paragraph_id, encode_paragraph_id, extract_completed_paragraphs,
+    parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
+};
 use super::translator::TokenUsage;
 use crate::models::api_log::ApiLogEntry;
 
@@ -68,7 +72,7 @@ struct UsageMetadata {
 struct Candidate {
     content: Option<CandidateContent>,
     #[serde(rename = "finishReason")]
-    _finish_reason: Option<String>,
+    finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -240,14 +244,28 @@ impl AntigravityClient {
             return Err(format!("Antigravity 오류: {}", error.message));
         }
 
-        let entry = log_entry;
-        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-
-        let text = antigravity_response
+        let parts = antigravity_response
             .candidates
             .and_then(|c| c.into_iter().next())
             .and_then(|c| c.content)
-            .and_then(|c| c.parts.into_iter().next())
+            .map(|c| c.parts)
+            .unwrap_or_default();
+
+        if parts.is_empty() {
+            let error_msg =
+                "콘텐츠 필터링에 의해 응답이 차단되었습니다. 다른 모델을 사용해보세요.".to_string();
+            log_entry.error = Some(error_msg.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(error_msg);
+        }
+
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+
+        let text = parts
+            .into_iter()
+            .next()
             .and_then(|p| p.text)
             .ok_or("응답에서 텍스트를 찾을 수 없습니다.")?;
 
@@ -263,29 +281,190 @@ impl AntigravityClient {
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
-        let translated = self
-            .translate(paragraphs, original_indices, has_subtitle, system_prompt)
-            .await?;
+        let path = format!("/v1beta/models/{}:streamGenerateContent?alt=sse", self.model);
+        let url = format!("{}{}", self.base_url, path);
 
-        for (local_idx, &orig_idx) in original_indices.iter().enumerate() {
-            if local_idx < translated.len() {
-                let trans = &translated[local_idx];
-                if !trans.is_empty() {
-                    let _ = cache_translation(novel_id, &paragraphs[local_idx], trans).await;
+        let numbered_text = paragraphs
+            .iter()
+            .zip(original_indices.iter())
+            .map(|(p, &idx)| {
+                format!(
+                    "<p id=\"{}\">{}",
+                    encode_paragraph_id(idx, has_subtitle),
+                    p
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
 
-                    let _ = app_handle.emit(
-                        "translation-chunk",
-                        TranslationChunk {
-                            paragraph_id: encode_paragraph_id(orig_idx, has_subtitle),
-                            text: trans.clone(),
-                            is_complete: true,
-                        },
-                    );
+        let full_prompt = format!("{}\n\n{}", system_prompt, numbered_text);
+        let request = self.build_request(&full_prompt);
+
+        let request_json = serde_json::to_string(&request).unwrap_or_default();
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "Antigravity", "Gemini", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+
+        let response = match self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
+
+        let status = response.status();
+        log_entry.status = status.as_u16();
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(format!("API 오류 ({}): {}", status, error_text));
+        }
+
+        let mut full_text = String::new();
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+        let mut emitted_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut final_usage: Option<TokenUsage> = None;
+        let mut last_finish_reason: Option<String> = None;
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
+            let chunk_str = String::from_utf8_lossy(&chunk);
+            buffer.push_str(&chunk_str);
+
+            while let Some(pos) = buffer.find("\n\n") {
+                let line = buffer[..pos].to_string();
+                buffer = buffer[pos + 2..].to_string();
+
+                if let Some(data) = line.strip_prefix("data: ") {
+                    if let Ok(response) = serde_json::from_str::<AntigravityResponse>(data) {
+                        if let Some(usage) = response.usage_metadata {
+                            final_usage = Some(TokenUsage {
+                                input_tokens: usage.prompt_token_count.unwrap_or(0),
+                                output_tokens: usage.candidates_token_count.unwrap_or(0),
+                            });
+                        }
+
+                        if let Some(candidates) = &response.candidates {
+                            if let Some(candidate) = candidates.first() {
+                                if let Some(reason) = &candidate.finish_reason {
+                                    last_finish_reason = Some(reason.clone());
+                                }
+                            }
+                        }
+
+                        if let Some(text) = response
+                            .candidates
+                            .and_then(|c| c.into_iter().next())
+                            .and_then(|c| c.content)
+                            .and_then(|c| c.parts.into_iter().next())
+                            .and_then(|p| p.text)
+                        {
+                            full_text.push_str(&text);
+
+                            let chunks = extract_completed_paragraphs(&full_text);
+                            for chunk in chunks {
+                                if !emitted_ids.contains(&chunk.paragraph_id) {
+                                    emitted_ids.insert(chunk.paragraph_id.clone());
+
+                                    if let Some(orig_idx) =
+                                        decode_paragraph_id(&chunk.paragraph_id, has_subtitle)
+                                    {
+                                        if let Some(pos) =
+                                            original_indices.iter().position(|&x| x == orig_idx)
+                                        {
+                                            if pos < paragraphs.len() {
+                                                let _ = cache_translation(
+                                                    novel_id,
+                                                    &paragraphs[pos],
+                                                    &chunk.text,
+                                                )
+                                                .await;
+                                            }
+                                        }
+                                    }
+
+                                    let _ = app_handle.emit("translation-chunk", chunk);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        Ok((translated, None))
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(full_text.clone());
+        if let Some(ref usage) = final_usage {
+            log_entry.input_tokens = Some(usage.input_tokens);
+            log_entry.output_tokens = Some(usage.output_tokens);
+        }
+
+        if let Some(reason) = &last_finish_reason {
+            match reason.as_str() {
+                "SAFETY" => {
+                    log_entry.error = Some("Content filtered (SAFETY)".to_string());
+                    let entry = log_entry;
+                    let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                    return Err(
+                        "콘텐츠 필터링에 의해 응답이 차단되었습니다. 다른 모델을 사용해보세요."
+                            .to_string(),
+                    );
+                }
+                "RECITATION" => {
+                    log_entry.error = Some("Content filtered (RECITATION)".to_string());
+                    let entry = log_entry;
+                    let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                    return Err("저작권 문제로 응답이 차단되었습니다.".to_string());
+                }
+                _ => {}
+            }
+        }
+
+        if full_text.is_empty() {
+            let error_msg = match last_finish_reason.as_deref() {
+                Some("SAFETY") => {
+                    "콘텐츠 필터링에 의해 응답이 차단되었습니다. 다른 모델을 사용해보세요."
+                }
+                Some("RECITATION") => "저작권 문제로 응답이 차단되었습니다.",
+                Some(reason) => {
+                    log_entry.error = Some(format!("Empty response, finishReason: {}", reason));
+                    let entry = log_entry;
+                    let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                    return Err(format!("응답이 비어있습니다. (finishReason: {})", reason));
+                }
+                None => "응답이 비어있습니다.",
+            };
+            log_entry.error = Some(error_msg.to_string());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(error_msg.to_string());
+        }
+
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+
+        let result =
+            parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
+        Ok((result, final_usage))
     }
 }
 
