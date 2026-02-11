@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { message } from '@tauri-apps/plugin-dialog';
 import { UrlInput } from './UrlInput';
@@ -10,13 +10,6 @@ import { DebugPanel } from '../common/DebugPanel';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
 import { useTranslation } from '../../hooks/useTranslation';
-import type { ApiKey } from '../../types';
-
-interface AntigravityStatus {
-  running: boolean;
-  authenticated: boolean;
-  url: string;
-}
 
 export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
@@ -42,25 +35,40 @@ export const TranslationView: React.FC = () => {
     failedParagraphIndices.length === 0 &&
     paragraphIds.length > 0;
 
-  useEffect(() => {
-    const checkApiConfig = async () => {
-      try {
-        const [keys, antigravity] = await Promise.all([
-          invoke<ApiKey[]>('get_api_keys'),
-          invoke<AntigravityStatus>('check_antigravity_status'),
-        ]);
-        
-        const hasActiveKey = keys.length > 0;
-        const hasAntigravity = antigravity.running && antigravity.authenticated;
-        
-        setApiConfigured(hasActiveKey || hasAntigravity);
-      } catch {
+  const checkApiConfig = useCallback(async () => {
+    try {
+      const settings = await invoke<{ key: string; value: string }[]>('get_settings');
+      const activeModelId = settings.find(s => s.key === 'active_model_id')?.value;
+      
+      if (!activeModelId) {
         setApiConfigured(false);
+        return;
       }
-    };
-    
-    checkApiConfig();
+      
+      const modelsJson = settings.find(s => s.key === 'llm_models')?.value;
+      const providersJson = settings.find(s => s.key === 'llm_providers')?.value;
+      
+      let models: { id: string; providerId: string }[] = [];
+      let providers: { id: string }[] = [];
+      
+      try { models = modelsJson ? JSON.parse(modelsJson) : []; } catch { models = []; }
+      try { providers = providersJson ? JSON.parse(providersJson) : []; } catch { providers = []; }
+      
+      const model = models.find(m => m.id === activeModelId);
+      const hasValidConfig = !!model && providers.some(p => p.id === model.providerId);
+      
+      setApiConfigured(hasValidConfig);
+    } catch {
+      setApiConfigured(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const handleSettingsChange = () => void checkApiConfig();
+    void checkApiConfig();
+    window.addEventListener('settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('settings-changed', handleSettingsChange);
+  }, [checkApiConfig]);
 
   const handleStop = () => {
     setIsTranslating(false);
