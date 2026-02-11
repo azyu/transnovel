@@ -83,6 +83,9 @@ struct CandidateContent {
 #[derive(Debug, Deserialize)]
 struct ResponsePart {
     text: Option<String>,
+    /// Gemini thinking models return reasoning parts with `thought: true`.
+    /// These must be filtered out to get only the actual model output.
+    thought: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -157,8 +160,7 @@ impl GeminiClient {
         system_prompt: &str,
     ) -> Result<Vec<String>, String> {
         let api_key = self.get_next_api_key()?.to_string();
-        let path = format!("/v1beta/models/{}:generateContent", self.model);
-        let url = format!("{}{}?key={}", GEMINI_API_BASE, path, api_key);
+        let url = format!("{}/models/{}:generateContent?key={}", GEMINI_API_BASE, self.model, api_key);
 
         let numbered_text = paragraphs
             .iter()
@@ -237,8 +239,16 @@ impl GeminiClient {
             .candidates
             .and_then(|c| c.into_iter().next())
             .and_then(|c| c.content)
-            .and_then(|c| c.parts.into_iter().next())
-            .and_then(|p| p.text)
+            .map(|c| {
+                c.parts
+                    .into_iter()
+                    .filter(|p| !p.thought.unwrap_or(false))
+                    .filter_map(|p| p.text)
+                    .filter(|t| !t.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("")
+            })
+            .filter(|t| !t.is_empty())
             .ok_or("응답에서 텍스트를 찾을 수 없습니다.")?;
 
         parse_translated_paragraphs(&text, paragraphs.len(), has_subtitle)
@@ -254,8 +264,7 @@ impl GeminiClient {
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
         let api_key = self.get_next_api_key()?.to_string();
-        let path = format!("/v1beta/models/{}:streamGenerateContent", self.model);
-        let url = format!("{}{}?alt=sse&key={}", GEMINI_API_BASE, path, api_key);
+        let url = format!("{}/models/{}:streamGenerateContent?alt=sse&key={}", GEMINI_API_BASE, self.model, api_key);
 
         let numbered_text = paragraphs
             .iter()
@@ -331,7 +340,7 @@ impl GeminiClient {
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
-            let chunk_str = String::from_utf8_lossy(&chunk);
+            let chunk_str = String::from_utf8_lossy(&chunk).replace("\r\n", "\n").replace('\r', "\n");
             buffer.push_str(&chunk_str);
 
             while let Some(pos) = buffer.find("\n\n") {
@@ -350,8 +359,16 @@ impl GeminiClient {
                             .candidates
                             .and_then(|c| c.into_iter().next())
                             .and_then(|c| c.content)
-                            .and_then(|c| c.parts.into_iter().next())
-                            .and_then(|p| p.text)
+                            .map(|c| {
+                                c.parts
+                                    .into_iter()
+                                    .filter(|p| !p.thought.unwrap_or(false))
+                                    .filter_map(|p| p.text)
+                                    .filter(|t| !t.is_empty())
+                                    .collect::<Vec<_>>()
+                                    .join("")
+                            })
+                            .filter(|t| !t.is_empty())
                         {
                             full_text.push_str(&text);
 
