@@ -30,7 +30,7 @@ export const SeriesManager: React.FC = () => {
   const handleStart = async (start: number, end: number) => {
     const content = useTranslationStore.getState().getChapterContent();
     if (!content) {
-      await message("먼저 소설을 불러와주세요.", { title: '알림', kind: 'warning' });
+      await message('먼저 소설을 불러와주세요.', { title: '알림', kind: 'warning' });
       return;
     }
 
@@ -86,7 +86,7 @@ export const SeriesManager: React.FC = () => {
       setShowExportModal(false);
       await message('내보내기가 완료되었습니다.', { title: '완료', kind: 'info' });
     } catch (e) {
-      await message('내보내기 실패: ' + e, { title: '오류', kind: 'error' });
+      await message(`내보내기 실패: ${e}`, { title: '오류', kind: 'error' });
     } finally {
       setExporting(false);
     }
