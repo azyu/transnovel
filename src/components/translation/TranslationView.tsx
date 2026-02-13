@@ -13,13 +13,13 @@ import { useTranslation } from '../../hooks/useTranslation';
 
 export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
+  const showError = useUIStore((s) => s.showError);
   const chapter = useTranslationStore((s) => s.chapter);
   const translatedTitle = useTranslationStore((s) => s.translatedTitle);
   const translatedSubtitle = useTranslationStore((s) => s.translatedSubtitle);
   const paragraphIds = useTranslationStore((s) => s.paragraphIds);
   const translatedCount = useTranslationStore((s) => s.translatedCount);
   const isTranslating = useTranslationStore((s) => s.isTranslating);
-  const setIsTranslating = useTranslationStore((s) => s.setIsTranslating);
   const setUrl = useTranslationStore((s) => s.setUrl);
   const failedParagraphIndices = useTranslationStore((s) => s.failedParagraphIndices);
 
@@ -70,8 +70,12 @@ export const TranslationView: React.FC = () => {
     return () => window.removeEventListener('settings-changed', handleSettingsChange);
   }, [checkApiConfig]);
 
-  const handleStop = () => {
-    setIsTranslating(false);
+  const handleStop = async () => {
+    try {
+      await invoke('stop_translation');
+    } catch (err) {
+      showError('번역 중지 실패', String(err));
+    }
   };
 
   const handlePrevChapter = async () => {
@@ -114,11 +118,11 @@ export const TranslationView: React.FC = () => {
           include_original: includeOriginal,
         },
       });
-      await message(`저장 완료: ${path}`, { title: '저장 완료', kind: 'info' });
+      await message(`저장 완료: ${path}`, { title: '저장 완료' });
     } catch (err) {
       const errorMessage = String(err);
       if (!errorMessage.includes('취소')) {
-        await message(`저장 실패: ${err}`, { title: '저장 실패', kind: 'error' });
+        await message(`저장 실패: ${err}`, { title: '오류', kind: 'error' });
       }
     }
   };
