@@ -65,7 +65,7 @@ export const TranslationView: React.FC = () => {
 
   useEffect(() => {
     const handleSettingsChange = () => void checkApiConfig();
-    void checkApiConfig();
+    queueMicrotask(handleSettingsChange);
     window.addEventListener('settings-changed', handleSettingsChange);
     return () => window.removeEventListener('settings-changed', handleSettingsChange);
   }, [checkApiConfig]);
