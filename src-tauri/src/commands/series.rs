@@ -12,6 +12,15 @@ use crate::services::translator::TranslatorService;
 static IS_PAUSED: AtomicBool = AtomicBool::new(false);
 static SHOULD_STOP: AtomicBool = AtomicBool::new(false);
 
+pub(crate) fn reset_translation_control_flags() {
+    SHOULD_STOP.store(false, Ordering::SeqCst);
+    IS_PAUSED.store(false, Ordering::SeqCst);
+}
+
+pub(crate) fn should_stop_translation() -> bool {
+    SHOULD_STOP.load(Ordering::SeqCst)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchTranslateRequest {
@@ -35,8 +44,7 @@ pub async fn start_batch_translation(
         return Err("Kakuyomu는 현재 배치 번역을 지원하지 않습니다. 개별 챕터 번역을 이용해주세요.".to_string());
     }
     
-    SHOULD_STOP.store(false, Ordering::SeqCst);
-    IS_PAUSED.store(false, Ordering::SeqCst);
+    reset_translation_control_flags();
     
     let completed: HashSet<u32> = get_completed_chapters_internal(&request.novel_id)
         .await?
@@ -68,6 +76,10 @@ pub async fn start_batch_translation(
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
 
+        if SHOULD_STOP.load(Ordering::SeqCst) {
+            break;
+        }
+
         app.emit(
             "translation-progress",
             TranslationProgress {
@@ -83,7 +95,14 @@ pub async fn start_batch_translation(
         let chapter_url = build_chapter_url(&request.base_url, &request.site, &request.novel_id, chapter_num);
         
         match translate_single_chapter(&mut translator, &request.novel_id, &chapter_url).await {
-            Ok(_) => {
+            Ok(translated) => {
+                mark_chapter_complete(
+                    request.novel_id.clone(),
+                    chapter_num as i32,
+                    translated.len() as i32,
+                )
+                .await?;
+
                 app.emit(
                     "chapter-completed",
                     serde_json::json!({

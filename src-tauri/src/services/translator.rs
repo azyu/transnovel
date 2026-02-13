@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
+use crate::commands::series::should_stop_translation;
 use crate::commands::settings::get_settings;
 
 #[derive(Debug, Clone, Default)]
@@ -293,7 +294,8 @@ impl TranslatorService {
         let (uncached_indices, uncached_paragraphs, mut results) = if let Some(indices) = original_indices {
             // Retry mode: no cache check, use provided indices directly
             let uncached: Vec<String> = preprocessed.clone();
-            let results: Vec<String> = vec![String::new(); preprocessed.len()];
+            let result_len = indices.iter().copied().max().map_or(0, |max_idx| max_idx + 1);
+            let results: Vec<String> = vec![String::new(); result_len];
             (indices, uncached, results)
         } else {
             // Normal mode: check cache
@@ -356,11 +358,17 @@ impl TranslatorService {
             };
             let chunk_count = uncached_paragraphs.len().div_ceil(chunk_size);
             let mut failed_indices: Vec<usize> = Vec::new();
+            let mut stopped = false;
             let mut total_usage = TokenUsage::default();
             
             for chunk_idx in 0..chunk_count {
                 let start = chunk_idx * chunk_size;
                 let end = std::cmp::min(start + chunk_size, uncached_paragraphs.len());
+
+                if should_stop_translation() {
+                    stopped = true;
+                    break;
+                }
                 
                 let chunk_paragraphs = &uncached_paragraphs[start..end];
                 let chunk_indices = &uncached_indices[start..end];
@@ -369,6 +377,11 @@ impl TranslatorService {
                 let mut success = false;
 
                 for retry in 0..MAX_RETRIES {
+                    if should_stop_translation() {
+                        stopped = true;
+                        break;
+                    }
+
                     if retry > 0 {
                         let delay_secs = 2u64.pow(retry);
                         tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
@@ -482,6 +495,10 @@ impl TranslatorService {
                     }
                 }
 
+                if stopped {
+                    break;
+                }
+
                 if !success {
                     let error_msg = last_error.clone().unwrap_or_else(|| "Unknown error".to_string());
                     eprintln!("[Translator] Chunk {} failed: {}", chunk_idx + 1, error_msg);
@@ -527,6 +544,18 @@ impl TranslatorService {
                         "response_preview": error_msg
                     }));
                 }
+            }
+
+            if stopped {
+                let _ = app_handle.emit("translation-complete", serde_json::json!({
+                    "success": false,
+                    "total": paragraphs.len(),
+                    "failed_count": 0,
+                    "input_tokens": total_usage.input_tokens,
+                    "output_tokens": total_usage.output_tokens,
+                    "stopped": true
+                }));
+                return Ok(results);
             }
 
             if !failed_indices.is_empty() {

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
+use crate::commands::series::reset_translation_control_flags;
 use crate::models::translation::TranslationResult;
 use crate::services::translator::TranslatorService;
 
@@ -62,6 +63,8 @@ pub async fn translate_paragraphs_streaming(
     note: Option<String>,
     original_indices: Option<Vec<usize>>,
 ) -> Result<TranslateParagraphsResult, String> {
+    reset_translation_control_flags();
+
     let mut translator = TranslatorService::new().await?;
     let translated = translator
         .translate_paragraphs_streaming(&novel_id, &paragraphs, has_subtitle.unwrap_or(true), note.as_deref(), original_indices, &app)
