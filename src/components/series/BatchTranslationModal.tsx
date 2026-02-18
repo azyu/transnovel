@@ -30,7 +30,13 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
     progress.status === 'completed' ? '완료' : '번역 중...';
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/60 backdrop-blur-sm p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/60 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="일괄 번역 진행 상태"
+      aria-live="polite"
+    >
       <div className={`relative w-full max-w-md rounded-xl shadow-2xl ${isDark ? 'bg-slate-800 ring-1 ring-white/10' : 'bg-white ring-1 ring-black/10'}`}>
         <div className={`p-6 space-y-6`}>
           <div className="text-center">

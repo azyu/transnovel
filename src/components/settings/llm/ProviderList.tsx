@@ -83,7 +83,9 @@ export const ProviderList: React.FC<ProviderListProps> = ({
 
             <div className="flex items-center gap-1 shrink-0">
               <button
+                type="button"
                 onClick={() => onEdit(provider)}
+                aria-label={`${provider.name} 수정`}
                 className={`p-1.5 rounded-md transition-colors ${
                   isDark 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-200' 
@@ -94,7 +96,9 @@ export const ProviderList: React.FC<ProviderListProps> = ({
                 <EditIcon />
               </button>
               <button
+                type="button"
                 onClick={() => onDelete(provider.id)}
+                aria-label={`${provider.name} 삭제`}
                 className={`p-1.5 rounded-md transition-colors ${
                   isDark 
                     ? 'hover:bg-red-900/30 text-slate-400 hover:text-red-400' 
