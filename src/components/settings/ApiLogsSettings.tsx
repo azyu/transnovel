@@ -183,6 +183,15 @@ export const ApiLogsSettings: React.FC = () => {
                     <tr
                       key={log.id}
                       onClick={() => handleLogClick(log)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          void handleLogClick(log);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`API 로그 상세 보기: ${log.provider} ${log.model || ''} ${log.status || 'N/A'}`}
                       className={`cursor-pointer border-t transition-colors ${
                         isDark
                           ? 'border-slate-700/50 hover:bg-slate-700/50'

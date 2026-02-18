@@ -80,6 +80,15 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
                 key={chapter.number} 
                 className={`transition-colors cursor-pointer ${isDark ? 'hover:bg-slate-700/30' : 'hover:bg-slate-50'} ${chapter.number >= start && chapter.number <= end ? 'bg-blue-500/5' : ''}`}
                 onDoubleClick={() => onChapterDoubleClick?.(chapter)}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ' ') && onChapterDoubleClick) {
+                    e.preventDefault();
+                    onChapterDoubleClick(chapter);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`${chapter.number}화 열기`}
               >
                 <td className="px-4 py-3 w-12 text-center">
                   {chapter.status === 'completed' && <span className="text-green-500">✓</span>}
