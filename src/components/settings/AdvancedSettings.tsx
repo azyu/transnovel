@@ -181,7 +181,11 @@ export const AdvancedSettings: React.FC = () => {
           <div className="flex items-center justify-between mb-2">
             <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>개발자 모드</h3>
             <button
+              type="button"
               onClick={() => setDebugMode(!debugMode)}
+              role="switch"
+              aria-checked={debugMode}
+              aria-label="개발자 모드"
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 debugMode 
                   ? 'bg-blue-600' 

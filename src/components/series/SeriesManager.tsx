@@ -151,7 +151,9 @@ export const SeriesManager: React.FC = () => {
               {(['TxtSingle', 'TxtChapters', 'Epub'] as const).map((fmt) => (
                 <button
                   key={fmt}
+                  type="button"
                   onClick={() => setExportFormat(fmt)}
+                  aria-pressed={exportFormat === fmt}
                   className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
                     exportFormat === fmt
                       ? 'bg-blue-600 border-blue-500 text-white'

@@ -1,4 +1,4 @@
-import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useId, useState, forwardRef, useImperativeHandle } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
@@ -54,6 +54,9 @@ export const TranslationSettings = forwardRef((_, ref) => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translationNote, setTranslationNote] = useState('');
   const [substitutions, setSubstitutions] = useState('');
+  const systemPromptId = useId();
+  const translationNoteId = useId();
+  const substitutionsId = useId();
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
   const handleSave = async () => {
@@ -117,11 +120,12 @@ export const TranslationSettings = forwardRef((_, ref) => {
 
       <div className={`p-6 rounded-xl border space-y-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <label htmlFor={systemPromptId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             시스템 프롬프트
           </label>
           <div className="space-y-3">
             <textarea
+              id={systemPromptId}
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={10}
@@ -141,8 +145,9 @@ export const TranslationSettings = forwardRef((_, ref) => {
         </div>
 
         <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>번역 노트</label>
+          <label htmlFor={translationNoteId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>번역 노트</label>
           <textarea
+            id={translationNoteId}
             value={translationNote}
             onChange={(e) => setTranslationNote(e.target.value)}
             rows={4}
@@ -159,8 +164,9 @@ export const TranslationSettings = forwardRef((_, ref) => {
         </div>
 
         <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>치환 규칙</label>
+          <label htmlFor={substitutionsId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>치환 규칙</label>
           <textarea
+            id={substitutionsId}
             value={substitutions}
             onChange={(e) => setSubstitutions(e.target.value)}
             rows={6}

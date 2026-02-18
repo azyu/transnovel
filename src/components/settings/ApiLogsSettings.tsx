@@ -103,7 +103,9 @@ export const ApiLogsSettings: React.FC = () => {
             {FILTERS.map((f) => (
               <button
                 key={f.value}
+                type="button"
                 onClick={() => setFilter(f.value)}
+                aria-pressed={filter === f.value}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                   filter === f.value
                     ? 'bg-blue-600 text-white'

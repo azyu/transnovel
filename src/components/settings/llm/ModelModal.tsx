@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
@@ -49,6 +49,9 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   
   const [models, setModels] = useState<ModelOption[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const providerIdInputId = useId();
+  const modelIdInputId = useId();
+  const modelNameInputId = useId();
 
   const selectedProvider = providers.find(p => p.id === providerId);
   const providerType = selectedProvider?.type;
@@ -180,7 +183,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     >
       <div className="space-y-4">
         <div>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <label htmlFor={providerIdInputId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             AI 서비스 제공자
           </label>
           {providers.length === 0 ? (
@@ -189,6 +192,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
             </p>
           ) : (
             <select
+              id={providerIdInputId}
               value={providerId}
               onChange={(e) => setProviderId(e.target.value)}
               disabled={isEditing}
@@ -208,11 +212,12 @@ export const ModelModal: React.FC<ModelModalProps> = ({
         </div>
 
         <div>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <label htmlFor={modelIdInputId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             모델 ID
           </label>
           <div className="flex gap-2 mb-2">
             <Input
+              id={modelIdInputId}
               value={modelId}
               onChange={(e) => setModelId(e.target.value)}
               placeholder="예: gpt-4o, claude-sonnet-4, gemini-2.5-flash"
@@ -256,10 +261,11 @@ export const ModelModal: React.FC<ModelModalProps> = ({
         </div>
 
         <div>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <label htmlFor={modelNameInputId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             표시 이름 <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>(선택)</span>
           </label>
           <Input
+            id={modelNameInputId}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={models.find(m => m.id === modelId)?.name || '자동 설정'}

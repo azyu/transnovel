@@ -15,6 +15,8 @@ export const Input: React.FC<InputProps> = ({
 }) => {
   const generatedId = React.useId();
   const inputId = id || generatedId;
+  const errorId = `${inputId}-error`;
+  const ariaDescribedBy = [props['aria-describedby'], error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
   const baseStyles = isDark
@@ -32,8 +34,10 @@ export const Input: React.FC<InputProps> = ({
         id={inputId}
         className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${baseStyles} ${className} ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
         {...props}
+        aria-invalid={error ? true : props['aria-invalid']}
+        aria-describedby={ariaDescribedBy}
       />
-      {error && <span className="text-xs text-red-500">{error}</span>}
+      {error && <span id={errorId} className="text-xs text-red-500">{error}</span>}
     </div>
   );
 };

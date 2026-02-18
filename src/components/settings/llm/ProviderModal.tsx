@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
@@ -27,6 +27,10 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const providerTypeId = useId();
+  const providerNameId = useId();
+  const providerApiKeyId = useId();
+  const providerBaseUrlId = useId();
 
   const preset = PROVIDER_PRESETS[providerType];
   const isEditing = !!editingProvider;
@@ -98,10 +102,11 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
     >
       <div className="space-y-4">
         <div>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <label htmlFor={providerTypeId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             종류
           </label>
           <select
+            id={providerTypeId}
             value={providerType}
             onChange={(e) => setProviderType(e.target.value as ProviderType)}
             disabled={isEditing}
@@ -118,10 +123,11 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
         </div>
 
         <div>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <label htmlFor={providerNameId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             표시 이름
           </label>
           <Input
+            id={providerNameId}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={preset.label}
@@ -129,7 +135,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
         </div>
 
         <div>
-          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <label htmlFor={providerApiKeyId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             API 키 {!preset.apiKeyRequired && <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>(선택)</span>}
           </label>
           {preset.apiKeyHelpUrl && (
@@ -144,6 +150,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
             </p>
           )}
           <Input
+            id={providerApiKeyId}
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
@@ -153,10 +160,11 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
 
         {(providerType === 'custom' || providerType === 'antigravity') && (
           <div>
-            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <label htmlFor={providerBaseUrlId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               기본 URL
             </label>
             <Input
+              id={providerBaseUrlId}
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder={preset.defaultBaseUrl || 'https://...'}
