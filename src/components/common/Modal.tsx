@@ -46,7 +46,9 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                     {title}
                   </DialogTitle>
                   <button
+                    type="button"
                     onClick={onClose}
+                    aria-label="닫기"
                     className={`rounded-lg p-1 transition-colors ${isDark ? 'text-slate-400 hover:bg-slate-700 hover:text-white' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
                   >
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

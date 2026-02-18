@@ -78,14 +78,37 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
             {chapters.map((chapter) => (
               <tr 
                 key={chapter.number} 
-                className={`transition-colors cursor-pointer ${isDark ? 'hover:bg-slate-700/30' : 'hover:bg-slate-50'} ${chapter.number >= start && chapter.number <= end ? 'bg-blue-500/5' : ''}`}
-                onDoubleClick={() => onChapterDoubleClick?.(chapter)}
+                className={`transition-colors ${isDark ? 'hover:bg-slate-700/30' : 'hover:bg-slate-50'} ${chapter.number >= start && chapter.number <= end ? 'bg-blue-500/5' : ''}`}
               >
                 <td className="px-4 py-3 w-12 text-center">
                   {chapter.status === 'completed' && <span className="text-green-500">✓</span>}
                 </td>
                 <td className={`px-4 py-3 w-20 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>#{chapter.number}</td>
-                <td className={`px-4 py-3 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{chapter.title}</td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    disabled={!onChapterDoubleClick}
+                    onDoubleClick={() => onChapterDoubleClick?.(chapter)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && onChapterDoubleClick) {
+                        e.preventDefault();
+                        onChapterDoubleClick(chapter);
+                      }
+                    }}
+                    onKeyUp={(e) => {
+                      if (e.key === ' ' && onChapterDoubleClick) {
+                        e.preventDefault();
+                        onChapterDoubleClick(chapter);
+                      }
+                    }}
+                    aria-label={`${chapter.number}화: ${chapter.title} 열기`}
+                    className={`w-full text-left bg-transparent border-0 p-0 ${isDark ? 'text-slate-200' : 'text-slate-700'} ${
+                      onChapterDoubleClick ? 'cursor-pointer' : 'cursor-default'
+                    }`}
+                  >
+                    {chapter.title}
+                  </button>
+                </td>
               </tr>
             ))}
             {chapters.length === 0 && (

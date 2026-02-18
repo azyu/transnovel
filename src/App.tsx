@@ -22,14 +22,38 @@ function App() {
       <Header />
       
       <main className="flex-1 overflow-hidden relative">
-        <div className={`absolute inset-0 transition-opacity duration-300 ${currentTab === 'translation' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+        <div
+          id="panel-translation"
+          role="tabpanel"
+          aria-labelledby="tab-translation"
+          aria-hidden={currentTab !== 'translation'}
+          className={`absolute inset-0 transition-opacity duration-300 ${
+            currentTab === 'translation' ? 'opacity-100 z-10 visible' : 'opacity-0 z-0 invisible pointer-events-none'
+          }`}
+        >
           <TranslationView />
         </div>
-        <div className={`absolute inset-0 transition-opacity duration-300 ${currentTab === 'series' ? 'opacity-100 z-10 overflow-y-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-           {currentTab === 'series' && <SeriesManager />}
+        <div
+          id="panel-series"
+          role="tabpanel"
+          aria-labelledby="tab-series"
+          aria-hidden={currentTab !== 'series'}
+          className={`absolute inset-0 transition-opacity duration-300 ${
+            currentTab === 'series' ? 'opacity-100 z-10 overflow-y-auto visible' : 'opacity-0 z-0 invisible pointer-events-none'
+          }`}
+        >
+          {currentTab === 'series' && <SeriesManager />}
         </div>
-        <div className={`absolute inset-0 transition-opacity duration-300 ${currentTab === 'settings' ? 'opacity-100 z-10 overflow-y-auto' : 'opacity-0 z-0 pointer-events-none'}`}>
-           {currentTab === 'settings' && <SettingsPanel />}
+        <div
+          id="panel-settings"
+          role="tabpanel"
+          aria-labelledby="tab-settings"
+          aria-hidden={currentTab !== 'settings'}
+          className={`absolute inset-0 transition-opacity duration-300 ${
+            currentTab === 'settings' ? 'opacity-100 z-10 overflow-y-auto visible' : 'opacity-0 z-0 invisible pointer-events-none'
+          }`}
+        >
+          {currentTab === 'settings' && <SettingsPanel />}
         </div>
       </main>
       

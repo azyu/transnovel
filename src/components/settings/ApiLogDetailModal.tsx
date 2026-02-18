@@ -64,7 +64,12 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="API 로그 상세"
+    >
       <div
         className={`relative w-full max-w-4xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col ${
           isDark ? 'bg-slate-800 ring-1 ring-white/10' : 'bg-white ring-1 ring-black/10'
@@ -91,7 +96,9 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
             </span>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="닫기"
             className={`p-1 rounded-lg transition-colors ${
               isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
             }`}
@@ -175,6 +182,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                   Request Payload
                 </p>
                 <button
+                  type="button"
                   onClick={() => handleCopy(log.requestBody, 'request')}
                   disabled={!log.requestBody}
                   className={`text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 ${
@@ -203,6 +211,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                   Response Payload
                 </p>
                 <button
+                  type="button"
                   onClick={() => handleCopy(log.responseBody, 'response')}
                   disabled={!log.responseBody}
                   className={`text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 ${

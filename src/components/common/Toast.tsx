@@ -19,7 +19,12 @@ export const Toast: React.FC = () => {
   const isError = toast.type === 'error';
 
   return createPortal(
-    <div className="fixed top-4 right-4 z-50 animate-fade-in max-w-md">
+    <div
+      className="fixed top-4 right-4 z-50 animate-fade-in max-w-md"
+      role={isError ? 'alert' : 'status'}
+      aria-live={isError ? 'assertive' : 'polite'}
+      aria-atomic="true"
+    >
       <div
         className={`px-4 py-3 rounded-lg shadow-lg border ${
           isError
@@ -74,7 +79,9 @@ export const Toast: React.FC = () => {
             )}
           </div>
           <button
+            type="button"
             onClick={hideToast}
+            aria-label="알림 닫기"
             className={`flex-shrink-0 ${
               isError
                 ? isDark ? 'text-red-400 hover:text-red-200' : 'text-red-500 hover:text-red-700'

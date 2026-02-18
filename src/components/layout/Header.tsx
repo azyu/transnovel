@@ -42,11 +42,20 @@ export const Header: React.FC = () => {
         </h1>
       </div>
 
-      <nav className={`flex items-center p-1 rounded-xl ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'}`}>
+      <nav
+        role="tablist"
+        aria-label="메인 탭"
+        className={`flex items-center p-1 rounded-xl ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'}`}
+      >
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setTab(tab.id)}
+            id={`tab-${tab.id}`}
+            role="tab"
+            aria-selected={currentTab === tab.id}
+            aria-controls={`panel-${tab.id}`}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
               currentTab === tab.id
                 ? 'bg-blue-600 text-white shadow-md'
@@ -73,6 +82,7 @@ export const Header: React.FC = () => {
           </div>
         )}
         <button
+          type="button"
           onClick={toggleTheme}
           className={`p-2 rounded-lg transition-colors ${
             isDark 
