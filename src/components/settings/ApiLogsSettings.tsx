@@ -184,28 +184,22 @@ export const ApiLogsSettings: React.FC = () => {
                   logs.map((log) => (
                     <tr
                       key={log.id}
-                      onClick={() => handleLogClick(log)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          void handleLogClick(log);
-                        }
-                      }}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`API 로그 상세 보기: ${log.provider} ${log.model || ''} ${log.status || 'N/A'}`}
-                      className={`cursor-pointer border-t transition-colors ${
+                      className={`border-t transition-colors ${
                         isDark
                           ? 'border-slate-700/50 hover:bg-slate-700/50'
                           : 'border-slate-100 hover:bg-slate-50'
                       } ${loadingDetail ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                       <td className="px-3 py-2">
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-xs font-bold text-white ${getStatusColor(log.status)}`}
+                        <button
+                          type="button"
+                          onClick={() => handleLogClick(log)}
+                          disabled={loadingDetail}
+                          aria-label={`API 로그 상세 보기: ${log.provider} ${log.model || ''} ${log.status || 'N/A'}`}
+                          className={`px-1.5 py-0.5 rounded text-xs font-bold text-white disabled:opacity-50 ${getStatusColor(log.status)}`}
                         >
                           {log.status || 'N/A'}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-3 py-2">
                         <span
@@ -249,6 +243,7 @@ export const ApiLogsSettings: React.FC = () => {
             </span>
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setPage(currentPage - 1)}
                 disabled={currentPage <= 1}
                 className={`px-3 py-1 text-sm rounded transition-colors disabled:opacity-50 ${
@@ -258,6 +253,7 @@ export const ApiLogsSettings: React.FC = () => {
                 이전
               </button>
               <button
+                type="button"
                 onClick={() => setPage(currentPage + 1)}
                 disabled={currentPage >= totalPages}
                 className={`px-3 py-1 text-sm rounded transition-colors disabled:opacity-50 ${

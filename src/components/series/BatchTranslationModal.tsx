@@ -35,7 +35,6 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="일괄 번역 진행 상태"
-      aria-live="polite"
     >
       <div className={`relative w-full max-w-md rounded-xl shadow-2xl ${isDark ? 'bg-slate-800 ring-1 ring-white/10' : 'bg-white ring-1 ring-black/10'}`}>
         <div className={`p-6 space-y-6`}>
@@ -81,7 +80,10 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
                 style={{ width: `${percentage}%` }}
               />
             </div>
-            <div className={`text-center mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <div
+              className={`text-center mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
+              aria-live="polite"
+            >
               {Math.round(percentage)}% 완료
             </div>
           </div>

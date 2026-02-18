@@ -87,21 +87,14 @@ export const DebugPanel: React.FC = () => {
 
   return (
     <div className={`border-t ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
-      <div 
-        className={`flex items-center justify-between px-4 py-2 cursor-pointer ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
-        onClick={() => setIsExpanded(!isExpanded)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsExpanded(!isExpanded);
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-expanded={isExpanded}
-        aria-controls="debug-log-content"
-      >
-        <div className="flex items-center gap-2">
+      <div className={`flex items-center justify-between px-4 py-2 ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}>
+        <button
+          type="button"
+          className="flex items-center gap-2 bg-transparent border-0 p-0 text-left cursor-pointer"
+          onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+          aria-controls="debug-log-content"
+        >
           <svg 
             className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''} ${isDark ? 'text-slate-400' : 'text-slate-500'}`} 
             fill="none" 
@@ -116,9 +109,10 @@ export const DebugPanel: React.FC = () => {
           <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-600'}`}>
             {debugLogs.length}
           </span>
-        </div>
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+        </button>
+        <div className="flex items-center gap-2">
           <select
+            aria-label="Filter logs by type"
             value={filter}
             onChange={(e) => setFilter(e.target.value as DebugLogEntry['type'] | 'all')}
             className={`text-xs px-2 py-1 rounded border ${
@@ -135,6 +129,7 @@ export const DebugPanel: React.FC = () => {
             <option value="info">Info</option>
           </select>
           <button
+            type="button"
             onClick={handleCopyJson}
             disabled={debugLogs.length === 0}
             className={`text-xs px-2 py-1 rounded disabled:opacity-50 ${
@@ -148,6 +143,7 @@ export const DebugPanel: React.FC = () => {
             {copied ? 'Copied!' : 'Copy JSON'}
           </button>
           <button
+            type="button"
             onClick={clearDebugLogs}
             className={`text-xs px-2 py-1 rounded ${
               isDark 

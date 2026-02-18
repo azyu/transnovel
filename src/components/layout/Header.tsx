@@ -82,6 +82,7 @@ export const Header: React.FC = () => {
           </div>
         )}
         <button
+          type="button"
           onClick={toggleTheme}
           className={`p-2 rounded-lg transition-colors ${
             isDark 
