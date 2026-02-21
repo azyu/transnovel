@@ -48,16 +48,49 @@ pub fn decode_paragraph_id(id: &str, has_subtitle: bool) -> Option<usize> {
 }
 
 pub fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
-    let re = regex::Regex::new(r#"(?s)<p id="(title|subtitle|p-\d+)">(.*?)</p>"#).unwrap();
+    let open_re = regex::Regex::new(r#"<p id="(title|subtitle|p-\d+)">"#).unwrap();
     let mut chunks = Vec::new();
 
-    for cap in re.captures_iter(text) {
-        if let (Some(id_match), Some(content_match)) = (cap.get(1), cap.get(2)) {
+    let matches: Vec<_> = open_re.find_iter(text).collect();
+    for (i, m) in matches.iter().enumerate() {
+        let cap = open_re.captures(&text[m.start()..]).unwrap();
+        let id = cap.get(1).unwrap().as_str();
+        let content_start = m.end();
+        let remaining = &text[content_start..];
+
+        if let Some(next_match) = matches.get(i + 1) {
+            // Next <p tag exists → this paragraph is complete
+            let span = next_match.start() - content_start;
+            let content_end = if let Some(close_pos) = remaining[..span].find("</p>") {
+                content_start + close_pos
+            } else {
+                // No </p> before next <p — use boundary before next tag
+                next_match.start()
+            };
+            let content = text[content_start..content_end].trim().to_string();
             chunks.push(TranslationChunk {
-                paragraph_id: id_match.as_str().to_string(),
-                text: content_match.as_str().to_string(),
+                paragraph_id: id.to_string(),
+                text: content,
                 is_complete: true,
             });
+        } else {
+            // Last paragraph — only complete if terminated by </p> or </main>
+            if let Some(close_pos) = remaining.find("</p>") {
+                let content = remaining[..close_pos].trim().to_string();
+                chunks.push(TranslationChunk {
+                    paragraph_id: id.to_string(),
+                    text: content,
+                    is_complete: true,
+                });
+            } else if let Some(main_pos) = remaining.find("</main>") {
+                let content = remaining[..main_pos].trim().to_string();
+                chunks.push(TranslationChunk {
+                    paragraph_id: id.to_string(),
+                    text: content,
+                    is_complete: true,
+                });
+            }
+            // Neither found → paragraph still streaming, don't emit
         }
     }
 
@@ -344,5 +377,58 @@ mod tests {
         assert_eq!(result[0], "제목");
         assert_eq!(result[1], "부제목");
         assert_eq!(result[2], "세 번째 문단");
+    }
+
+    #[test]
+    fn test_extract_completed_paragraphs_no_closing_tags() {
+        // given: model outputs without </p> tags (Codex/GPT-5.2 pattern)
+        let text = r#"<p id="title">제목
+<p id="subtitle">부제목
+<p id="p-1">첫 번째 문단
+<p id="p-2">두 번째 문단</main>"#;
+
+        let chunks = extract_completed_paragraphs(text);
+        // All 4 paragraphs should be extracted
+        assert_eq!(chunks.len(), 4);
+        assert_eq!(chunks[0].paragraph_id, "title");
+        assert_eq!(chunks[0].text, "제목");
+        assert_eq!(chunks[1].paragraph_id, "subtitle");
+        assert_eq!(chunks[1].text, "부제목");
+        assert_eq!(chunks[2].paragraph_id, "p-1");
+        assert_eq!(chunks[2].text, "첫 번째 문단");
+        assert_eq!(chunks[3].paragraph_id, "p-2");
+        assert_eq!(chunks[3].text, "두 번째 문단");
+    }
+
+    #[test]
+    fn test_extract_completed_paragraphs_no_closing_tags_streaming() {
+        // given: streaming partial — last paragraph has no terminator yet
+        let text = r#"<p id="title">제목
+<p id="subtitle">부제목
+<p id="p-1">아직 진행 중"#;
+
+        let chunks = extract_completed_paragraphs(text);
+        // Only first 2 should be extracted; p-1 is still streaming (no next <p or </main>)
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].paragraph_id, "title");
+        assert_eq!(chunks[0].text, "제목");
+        assert_eq!(chunks[1].paragraph_id, "subtitle");
+        assert_eq!(chunks[1].text, "부제목");
+    }
+
+    #[test]
+    fn test_extract_completed_paragraphs_mixed_tags() {
+        // given: mix of </p> and no </p> — some paragraphs have closing tags, some don't
+        let text = r#"<p id="title">제목</p>
+<p id="subtitle">부제목
+<p id="p-1">첫 번째</p>
+<p id="p-2">두 번째</main>"#;
+
+        let chunks = extract_completed_paragraphs(text);
+        assert_eq!(chunks.len(), 4);
+        assert_eq!(chunks[0].text, "제목");
+        assert_eq!(chunks[1].text, "부제목");
+        assert_eq!(chunks[2].text, "첫 번째");
+        assert_eq!(chunks[3].text, "두 번째");
     }
 }

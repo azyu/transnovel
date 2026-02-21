@@ -64,11 +64,11 @@ export const PROVIDER_PRESETS: Record<ProviderType, ProviderPreset> = {
   },
   'openai-oauth': {
     type: 'openai-oauth',
-    label: 'OpenAI (ChatGPT)',
-    defaultBaseUrl: 'https://api.openai.com',
+    label: 'OpenAI (Codex)',
+    defaultBaseUrl: 'https://chatgpt.com',
     apiKeyRequired: false,
     apiKeyPlaceholder: '',
-    apiKeyHelpText: 'ChatGPT 계정으로 로그인하여 인증',
+    apiKeyHelpText: 'ChatGPT 계정으로 로그인하여 인증 (Codex Backend API)',
   },
   antigravity: {
     type: 'antigravity',
@@ -116,10 +116,11 @@ export const FALLBACK_MODELS: Record<ProviderType, ModelOption[]> = {
     { id: 'gpt-4o', name: 'GPT-4o', contextLength: 128000 },
   ],
   'openai-oauth': [
-    { id: 'gpt-5.2', name: 'GPT-5.2', contextLength: 400000 },
-    { id: 'gpt-5', name: 'GPT-5', contextLength: 400000 },
-    { id: 'gpt-5-mini', name: 'GPT-5 Mini', contextLength: 400000 },
-    { id: 'gpt-4o', name: 'GPT-4o', contextLength: 128000 },
+    { id: 'gpt-5.2-codex', name: 'GPT-5.2 Codex', contextLength: 400000 },
+    { id: 'gpt-5.1-codex', name: 'GPT-5.1 Codex', contextLength: 400000 },
+    { id: 'gpt-5-codex', name: 'GPT-5 Codex', contextLength: 400000 },
+    { id: 'gpt-5.1-codex-mini', name: 'GPT-5.1 Codex Mini', contextLength: 400000 },
+    { id: 'codex-mini-latest', name: 'Codex Mini Latest', contextLength: 400000 },
   ],
   antigravity: [
     { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5' },

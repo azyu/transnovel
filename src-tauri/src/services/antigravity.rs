@@ -175,7 +175,7 @@ impl AntigravityClient {
             .zip(original_indices.iter())
             .map(|(p, &idx)| {
                 format!(
-                    "<p id=\"{}\">{}",
+                    "<p id=\"{}\">{}</p>",
                     encode_paragraph_id(idx, has_subtitle),
                     p
                 )
@@ -298,7 +298,7 @@ impl AntigravityClient {
             .zip(original_indices.iter())
             .map(|(p, &idx)| {
                 format!(
-                    "<p id=\"{}\">{}",
+                    "<p id=\"{}\">{}</p>",
                     encode_paragraph_id(idx, has_subtitle),
                     p
                 )

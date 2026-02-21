@@ -12,6 +12,7 @@ pub struct TokenUsage {
 use crate::models::translation::TranslationResult;
 use crate::services::antigravity::AntigravityClient;
 use crate::services::cache::{cache_translations, get_cached_translations};
+use crate::services::codex::CodexClient;
 use crate::services::gemini::GeminiClient;
 use crate::services::openrouter::OpenRouterClient;
 use crate::services::paragraph::{encode_paragraph_id, TranslationChunk};
@@ -74,6 +75,7 @@ pub enum ApiClient {
     Gemini(GeminiClient),
     OpenRouter(OpenRouterClient),
     Antigravity(AntigravityClient),
+    Codex(CodexClient),
 }
 
 pub struct TranslatorService {
@@ -144,11 +146,7 @@ impl TranslatorService {
                 let provider_id = settings.provider_id
                     .ok_or("OpenAI OAuth 프로바이더를 찾을 수 없습니다.")?;
                 let fresh_token = crate::services::openai_oauth::ensure_valid_token(&provider_id).await?;
-                ApiClient::OpenRouter(OpenRouterClient::new_with_base_url(
-                    fresh_token,
-                    settings.model.clone(),
-                    Some("https://api.openai.com".to_string()),
-                ))
+                ApiClient::Codex(CodexClient::new(fresh_token, settings.model.clone()))
             }
             "antigravity" => {
                 let antigravity = AntigravityClient::new(settings.base_url, settings.model);
@@ -257,6 +255,7 @@ impl TranslatorService {
                 ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
                 ApiClient::OpenRouter(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
                 ApiClient::Antigravity(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
+                ApiClient::Codex(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
             };
             
             let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
@@ -418,6 +417,11 @@ impl TranslatorService {
                                     .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
                                     .await
                             }
+                            ApiClient::Codex(client) => {
+                                client
+                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
+                                    .await
+                            }
                         }
                     } else {
                         let result = match &mut self.client {
@@ -428,6 +432,9 @@ impl TranslatorService {
                                 client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                             ApiClient::Antigravity(client) => {
+                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
+                            }
+                            ApiClient::Codex(client) => {
                                 client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                         };

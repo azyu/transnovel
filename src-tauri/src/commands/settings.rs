@@ -117,49 +117,38 @@ pub async fn refresh_openai_token(provider_id: String) -> Result<(), String> {
 pub async fn fetch_openai_oauth_models(
     provider_id: String,
 ) -> Result<Vec<OpenRouterModel>, String> {
-    let access_token = openai_oauth::ensure_valid_token(&provider_id).await?;
+    // Validate the token is still valid
+    let _access_token = openai_oauth::ensure_valid_token(&provider_id).await?;
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let response = client
-        .get("https://api.openai.com/v1/models")
-        .header("Authorization", format!("Bearer {}", access_token))
-        .send()
-        .await
-        .map_err(|e| format!("API 요청 실패: {}", e))?;
-
-    if !response.status().is_success() {
-        let error_text = response.text().await.unwrap_or_default();
-        return Err(format!("API 오류: {}", error_text));
-    }
-
-    let models_response: OpenRouterModelsResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("응답 파싱 실패: {}", e))?;
-
-    let mut models: Vec<OpenRouterModel> = models_response
-        .data
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|m| {
-            let id = m.id.to_lowercase();
-            id.starts_with("gpt-")
-                || id.starts_with("o1")
-                || id.starts_with("o3")
-                || id.starts_with("o4")
-        })
-        .map(|m| OpenRouterModel {
-            id: m.id.clone(),
-            name: m.name.unwrap_or_else(|| format_model_name(&m.id)),
-            context_length: m.context_length.unwrap_or(0),
-        })
-        .collect();
-
-    models.sort_by(|a, b| a.id.cmp(&b.id));
+    // Codex Backend API doesn't expose a /models endpoint.
+    // Return hardcoded list of known Codex models.
+    let models = vec![
+        OpenRouterModel {
+            id: "gpt-5.2-codex".to_string(),
+            name: "GPT-5.2 Codex".to_string(),
+            context_length: 400000,
+        },
+        OpenRouterModel {
+            id: "gpt-5.1-codex".to_string(),
+            name: "GPT-5.1 Codex".to_string(),
+            context_length: 400000,
+        },
+        OpenRouterModel {
+            id: "gpt-5-codex".to_string(),
+            name: "GPT-5 Codex".to_string(),
+            context_length: 400000,
+        },
+        OpenRouterModel {
+            id: "gpt-5.1-codex-mini".to_string(),
+            name: "GPT-5.1 Codex Mini".to_string(),
+            context_length: 400000,
+        },
+        OpenRouterModel {
+            id: "codex-mini-latest".to_string(),
+            name: "Codex Mini Latest".to_string(),
+            context_length: 400000,
+        },
+    ];
 
     Ok(models)
 }
