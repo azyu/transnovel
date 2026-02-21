@@ -1,4 +1,4 @@
-export type ProviderType = 'gemini' | 'openrouter' | 'anthropic' | 'openai' | 'antigravity' | 'custom';
+export type ProviderType = 'gemini' | 'openrouter' | 'anthropic' | 'openai' | 'openai-oauth' | 'antigravity' | 'custom';
 
 export interface ProviderConfig {
   id: string;
@@ -62,6 +62,14 @@ export const PROVIDER_PRESETS: Record<ProviderType, ProviderPreset> = {
     apiKeyHelpUrl: 'https://platform.openai.com/api-keys',
     apiKeyHelpText: 'OpenAI Platform에서 발급',
   },
+  'openai-oauth': {
+    type: 'openai-oauth',
+    label: 'OpenAI (ChatGPT)',
+    defaultBaseUrl: 'https://api.openai.com',
+    apiKeyRequired: false,
+    apiKeyPlaceholder: '',
+    apiKeyHelpText: 'ChatGPT 계정으로 로그인하여 인증',
+  },
   antigravity: {
     type: 'antigravity',
     label: 'Antigravity',
@@ -103,6 +111,12 @@ export const FALLBACK_MODELS: Record<ProviderType, ModelOption[]> = {
   openai: [
     { id: 'gpt-4o', name: 'GPT-4o' },
     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+  ],
+  'openai-oauth': [
+    { id: 'gpt-5.2', name: 'GPT-5.2', contextLength: 400000 },
+    { id: 'gpt-5', name: 'GPT-5', contextLength: 400000 },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini', contextLength: 400000 },
+    { id: 'gpt-4o', name: 'GPT-4o', contextLength: 128000 },
   ],
   antigravity: [
     { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5' },

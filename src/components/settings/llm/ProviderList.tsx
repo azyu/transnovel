@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ProviderConfig } from './types';
 import { PROVIDER_PRESETS } from './types';
@@ -20,6 +22,24 @@ const DeleteIcon = () => (
   </svg>
 );
 
+const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
+  const isDark = useUIStore((state) => state.theme) === 'dark';
+  const [status, setStatus] = useState<'checking' | 'authenticated' | 'expired'>('checking');
+
+  useEffect(() => {
+    invoke<{ authenticated: boolean }>('check_openai_oauth_status', { providerId })
+      .then((r) => setStatus(r.authenticated ? 'authenticated' : 'expired'))
+      .catch(() => setStatus('expired'));
+  }, [providerId]);
+
+  const label = status === 'checking' ? '...' : status === 'authenticated' ? '인증됨' : '만료됨';
+  const color = status === 'authenticated'
+    ? isDark ? 'text-green-400' : 'text-green-600'
+    : isDark ? 'text-amber-400' : 'text-amber-600';
+
+  return <span className={`text-xs ${color}`}>{label}</span>;
+};
+
 export const ProviderList: React.FC<ProviderListProps> = ({
   providers,
   onEdit,
@@ -33,6 +53,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
       openrouter: 'bg-purple-500/10 text-purple-400',
       anthropic: 'bg-orange-500/10 text-orange-400',
       openai: 'bg-green-500/10 text-green-400',
+      'openai-oauth': 'bg-emerald-500/10 text-emerald-400',
       antigravity: 'bg-cyan-500/10 text-cyan-400',
       custom: 'bg-slate-500/10 text-slate-400',
     };
@@ -77,7 +98,11 @@ export const ProviderList: React.FC<ProviderListProps> = ({
               </span>
               
               <span className={`text-xs truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                {maskApiKey(provider.apiKey)}
+                {provider.type === 'openai-oauth' ? (
+                  <OAuthStatusBadge providerId={provider.id} />
+                ) : (
+                  maskApiKey(provider.apiKey)
+                )}
               </span>
             </div>
 

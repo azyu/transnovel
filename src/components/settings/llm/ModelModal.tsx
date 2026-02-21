@@ -114,6 +114,15 @@ export const ModelModal: React.FC<ModelModalProps> = ({
           id: m.id,
           name: `${m.name} (${m.provider})`,
         }));
+      } else if (providerType === 'openai-oauth') {
+        const result = await invoke<OpenRouterModel[]>('fetch_openai_oauth_models', {
+          providerId: selectedProvider.id,
+        });
+        fetchedModels = result.map(m => ({
+          id: m.id,
+          name: m.name,
+          contextLength: m.context_length,
+        }));
       }
       
       if (fetchedModels.length > 0) {
