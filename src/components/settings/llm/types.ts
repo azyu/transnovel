@@ -102,6 +102,7 @@ export const FALLBACK_MODELS: Record<ProviderType, ModelOption[]> = {
   openrouter: [
     { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', contextLength: 200000 },
     { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', contextLength: 200000 },
+    { id: 'openai/gpt-5.2', name: 'GPT-5.2', contextLength: 400000 },
     { id: 'openai/gpt-4o', name: 'GPT-4o', contextLength: 128000 },
   ],
   anthropic: [
@@ -109,8 +110,10 @@ export const FALLBACK_MODELS: Record<ProviderType, ModelOption[]> = {
     { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
   ],
   openai: [
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+    { id: 'gpt-5.2', name: 'GPT-5.2', contextLength: 400000 },
+    { id: 'gpt-5', name: 'GPT-5', contextLength: 400000 },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini', contextLength: 400000 },
+    { id: 'gpt-4o', name: 'GPT-4o', contextLength: 128000 },
   ],
   'openai-oauth': [
     { id: 'gpt-5.2', name: 'GPT-5.2', contextLength: 400000 },
