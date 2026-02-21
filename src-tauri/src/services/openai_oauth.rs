@@ -348,11 +348,11 @@ fn extract_identity_from_jwt(token: &str) -> Option<String> {
         })
         .ok()?;
     let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
-    // Try email first, then name, then sub
+    // Only use human-readable fields, not sub (which is an opaque ID like "windowslive|abc123")
     json.get("email")
         .or_else(|| json.get("name"))
-        .or_else(|| json.get("sub"))
         .and_then(|v| v.as_str())
+        .filter(|s| !s.contains('|'))
         .map(|s| s.to_string())
 }
 
@@ -382,16 +382,20 @@ pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
     eprintln!("[openai_oauth] userinfo response keys: {:?}", json.as_object().map(|o| o.keys().collect::<Vec<_>>()));
     json.get("email")
         .or_else(|| json.get("name"))
-        .or_else(|| json.get("sub"))
         .and_then(|v| v.as_str())
+        .filter(|s| !s.contains('|'))
         .map(|s| s.to_string())
 }
 
 /// Get the stored email for a provider, fetching from userinfo if not cached.
 pub async fn get_or_fetch_email(provider_id: &str, access_token: &str) -> Option<String> {
-    // Try stored first
+    // Try stored first (skip if it looks like an opaque ID)
     if let Some(email) = get_stored_email(provider_id).await {
-        return Some(email);
+        if !email.contains('|') {
+            return Some(email);
+        }
+        // Clear bad cached value
+        let _ = set_setting(settings_key_email(provider_id), String::new()).await;
     }
     // Try decoding the access_token itself as JWT
     if let Some(identity) = extract_identity_from_jwt(access_token) {
