@@ -2,6 +2,7 @@ pub mod antigravity;
 pub mod api_logger;
 pub mod cache;
 pub mod gemini;
+pub mod openai_oauth;
 pub mod openrouter;
 pub mod paragraph;
 pub mod substitution;
