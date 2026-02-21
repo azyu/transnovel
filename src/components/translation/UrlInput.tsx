@@ -42,9 +42,9 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   }, [currentUrl]);
 
   useEffect(() => {
-    if (chapter && currentUrl && chapter.novelTitle && chapter.sourceUrl === currentUrl) {
+    if (chapter && currentUrl && chapter.sourceUrl === currentUrl) {
       saveUrlHistory(historyKey, currentUrl, {
-        novelTitle: chapter.novelTitle,
+        novelTitle: chapter.novelTitle ?? undefined,
         chapterNumber: chapter.chapterNumber > 0 ? chapter.chapterNumber : undefined,
         title: chapter.title,
       });
