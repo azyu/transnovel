@@ -27,6 +27,7 @@ pub struct OAuthTokens {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_in: u64,
+    pub email: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -224,11 +225,13 @@ async fn exchange_code_for_tokens(
         .refresh_token
         .ok_or("응답에 refresh_token이 없습니다.")?;
     let expires_in = token_resp.expires_in.unwrap_or(3600);
+    let email = token_resp.id_token.as_deref().and_then(extract_email_from_jwt);
 
     Ok(OAuthTokens {
         access_token,
         refresh_token,
         expires_in,
+        email,
     })
 }
 
@@ -286,6 +289,7 @@ pub async fn refresh_access_token(refresh_token: &str) -> Result<OAuthTokens, St
         access_token,
         refresh_token: new_refresh_token,
         expires_in,
+        email: None, // refresh flow doesn't return id_token
     })
 }
 
@@ -320,6 +324,35 @@ fn settings_key_expires(provider_id: &str) -> String {
     format!("openai_oauth_{}_expires_at", provider_id)
 }
 
+fn settings_key_email(provider_id: &str) -> String {
+    format!("openai_oauth_{}_email", provider_id)
+}
+
+/// Extract email from a JWT id_token by decoding its payload (no signature verification needed).
+fn extract_email_from_jwt(id_token: &str) -> Option<String> {
+    let parts: Vec<&str> = id_token.split('.').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    // JWT payload is base64url-encoded; pad if necessary
+    let payload = parts[1];
+    let decoded = URL_SAFE_NO_PAD.decode(payload).ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    json.get("email")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Get the stored email for a provider from settings.
+pub async fn get_stored_email(provider_id: &str) -> Option<String> {
+    let settings = get_settings().await.unwrap_or_default();
+    settings
+        .iter()
+        .find(|s| s.key == settings_key_email(provider_id))
+        .map(|s| s.value.clone())
+        .filter(|v| !v.is_empty())
+}
+
 /// Store OAuth tokens in the settings table and update the provider's apiKey.
 pub async fn store_tokens(provider_id: &str, tokens: &OAuthTokens) -> Result<(), String> {
     let expires_at = now_epoch_secs() + tokens.expires_in;
@@ -330,6 +363,11 @@ pub async fn store_tokens(provider_id: &str, tokens: &OAuthTokens) -> Result<(),
     )
     .await?;
     set_setting(settings_key_expires(provider_id), expires_at.to_string()).await?;
+
+    // Store email if present (from initial auth, not refresh)
+    if let Some(email) = &tokens.email {
+        set_setting(settings_key_email(provider_id), email.clone()).await?;
+    }
 
     // Update the provider's apiKey field with the access_token
     update_provider_api_key(provider_id, &tokens.access_token).await?;

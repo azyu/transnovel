@@ -74,15 +74,18 @@ pub async fn set_setting(key: String, value: String) -> Result<(), String> {
 #[derive(Debug, Serialize)]
 pub struct OpenAIOAuthStatus {
     pub authenticated: bool,
+    pub email: Option<String>,
 }
 
 #[tauri::command]
 pub async fn start_openai_oauth(provider_id: String) -> Result<OpenAIOAuthStatus, String> {
     let tokens = openai_oauth::start_oauth_flow().await?;
+    let email = tokens.email.clone();
     openai_oauth::store_tokens(&provider_id, &tokens).await?;
 
     Ok(OpenAIOAuthStatus {
         authenticated: true,
+        email,
     })
 }
 
@@ -108,12 +111,19 @@ pub async fn check_openai_oauth_status(provider_id: String) -> Result<OpenAIOAut
     if api_key.is_empty() {
         return Ok(OpenAIOAuthStatus {
             authenticated: false,
+            email: None,
         });
     }
 
     let valid = openai_oauth::check_token_valid(api_key).await;
+    let email = if valid {
+        openai_oauth::get_stored_email(&provider_id).await
+    } else {
+        None
+    };
     Ok(OpenAIOAuthStatus {
         authenticated: valid,
+        email,
     })
 }
 

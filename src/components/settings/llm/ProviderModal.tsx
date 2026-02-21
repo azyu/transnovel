@@ -29,6 +29,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthDone, setOauthDone] = useState(false);
+  const [oauthEmail, setOauthEmail] = useState<string | null>(null);
   const providerIdRef = useRef<string>(crypto.randomUUID());
   const providerTypeId = useId();
   const providerNameId = useId();
@@ -49,6 +50,13 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setBaseUrl(editingProvider.baseUrl);
       setApiKey(editingProvider.apiKey);
       setOauthDone(editingProvider.type === 'openai-oauth' && !!editingProvider.apiKey);
+      if (editingProvider.type === 'openai-oauth' && editingProvider.apiKey) {
+        invoke<{ authenticated: boolean; email: string | null }>('check_openai_oauth_status', { providerId: editingProvider.id })
+          .then((r) => setOauthEmail(r.email ?? null))
+          .catch(() => setOauthEmail(null));
+      } else {
+        setOauthEmail(null);
+      }
     } else {
       providerIdRef.current = crypto.randomUUID();
       setProviderType('gemini');
@@ -65,6 +73,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setBaseUrl(newPreset.defaultBaseUrl);
       setName(newPreset.label);
       setOauthDone(false);
+      setOauthEmail(null);
     }
   }, [providerType, isEditing]);
 
@@ -124,17 +133,22 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
 
       await upsertProviderInSettings(provider);
 
-      const oauthResult = await invoke<{ authenticated: boolean }>('start_openai_oauth', {
+      const oauthResult = await invoke<{ authenticated: boolean; email: string | null }>('start_openai_oauth', {
         providerId,
       });
 
       if (!oauthResult.authenticated) {
         setOauthDone(false);
+        setOauthEmail(null);
         return;
       }
 
       const persistedProvider = await loadProviderFromSettings(providerId);
       const accessToken = persistedProvider?.apiKey ?? '';
+
+      setApiKey(accessToken);
+      setOauthDone(accessToken.length > 0);
+      setOauthEmail(oauthResult.email ?? null);
 
       setApiKey(accessToken);
       setOauthDone(accessToken.length > 0);
@@ -214,7 +228,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
             {oauthDone || (isEditing && apiKey) ? (
               <div className="flex items-center gap-3">
                 <span className={`text-sm font-medium ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-                  인증됨
+                  {oauthEmail ? `✓ ${oauthEmail}` : '인증됨'}
                 </span>
                 <Button variant="secondary" size="sm" onClick={handleOAuthLogin} isLoading={oauthLoading}>
                   재인증

@@ -25,19 +25,28 @@ const DeleteIcon = () => (
 const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   const [status, setStatus] = useState<'checking' | 'authenticated' | 'expired'>('checking');
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    invoke<{ authenticated: boolean }>('check_openai_oauth_status', { providerId })
-      .then((r) => setStatus(r.authenticated ? 'authenticated' : 'expired'))
+    invoke<{ authenticated: boolean; email: string | null }>('check_openai_oauth_status', { providerId })
+      .then((r) => {
+        setStatus(r.authenticated ? 'authenticated' : 'expired');
+        setEmail(r.email ?? null);
+      })
       .catch(() => setStatus('expired'));
   }, [providerId]);
 
-  const label = status === 'checking' ? '...' : status === 'authenticated' ? '인증됨' : '만료됨';
-  const color = status === 'authenticated'
-    ? isDark ? 'text-green-400' : 'text-green-600'
-    : isDark ? 'text-amber-400' : 'text-amber-600';
+  if (status === 'checking') return <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>...</span>;
 
-  return <span className={`text-xs ${color}`}>{label}</span>;
+  if (status === 'authenticated') {
+    return (
+      <span className={`text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+        {email ? `✓ ${email}` : '인증됨'}
+      </span>
+    );
+  }
+
+  return <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>만료됨</span>;
 };
 
 export const ProviderList: React.FC<ProviderListProps> = ({
