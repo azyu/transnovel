@@ -46,7 +46,7 @@ const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
     );
   }
 
-  return <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>만료됨</span>;
+  return <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>로그인 필요</span>;
 };
 
 export const ProviderList: React.FC<ProviderListProps> = ({
