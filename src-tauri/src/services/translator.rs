@@ -109,6 +109,7 @@ struct TranslatorSettings {
     translation_note: String,
     substitutions: String,
     provider_type: String,
+    provider_id: Option<String>,
     api_key: Option<String>,
     base_url: Option<String>,
     model: Option<String>,
@@ -137,6 +138,16 @@ impl TranslatorService {
                     key,
                     settings.model.clone(),
                     settings.base_url,
+                ))
+            }
+            "openai-oauth" => {
+                let provider_id = settings.provider_id
+                    .ok_or("OpenAI OAuth 프로바이더를 찾을 수 없습니다.")?;
+                let fresh_token = crate::services::openai_oauth::ensure_valid_token(&provider_id).await?;
+                ApiClient::OpenRouter(OpenRouterClient::new_with_base_url(
+                    fresh_token,
+                    settings.model.clone(),
+                    Some("https://api.openai.com".to_string()),
                 ))
             }
             "antigravity" => {
@@ -180,20 +191,21 @@ impl TranslatorService {
             .as_ref()
             .and_then(|id| models.iter().find(|m| &m.id == id));
         
-        let (provider_type, api_key, base_url, model_id) = match active_model {
+        let (provider_type, provider_id, api_key, base_url, model_id) = match active_model {
             Some(model) => {
                 let provider = providers.iter().find(|p| p.id == model.provider_id);
                 match provider {
                     Some(p) => (
                         p.provider_type.clone(),
+                        Some(p.id.clone()),
                         if p.api_key.is_empty() { None } else { Some(p.api_key.clone()) },
                         if p.base_url.is_empty() { None } else { Some(p.base_url.clone()) },
                         Some(model.model_id.clone()),
                     ),
-                    None => ("".to_string(), None, None, None),
+                    None => ("".to_string(), None, None, None, None),
                 }
             },
-            None => ("".to_string(), None, None, None),
+            None => ("".to_string(), None, None, None, None),
         };
         
         TranslatorSettings {
@@ -201,6 +213,7 @@ impl TranslatorService {
             translation_note: get_setting("translation_note").unwrap_or_default(),
             substitutions: get_setting("substitutions").unwrap_or_default(),
             provider_type,
+            provider_id,
             api_key,
             base_url,
             model: model_id,

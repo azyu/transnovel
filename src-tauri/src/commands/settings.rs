@@ -3,6 +3,7 @@ use sqlx::Row;
 
 use crate::db::get_pool;
 use crate::services::antigravity::DEFAULT_ANTIGRAVITY_URL;
+use crate::services::openai_oauth;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiKey {
@@ -66,6 +67,111 @@ pub async fn set_setting(key: String, value: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     
     Ok(())
+}
+
+// --- OpenAI OAuth Commands ---
+
+#[derive(Debug, Serialize)]
+pub struct OpenAIOAuthStatus {
+    pub authenticated: bool,
+}
+
+#[tauri::command]
+pub async fn start_openai_oauth(provider_id: String) -> Result<OpenAIOAuthStatus, String> {
+    let tokens = openai_oauth::start_oauth_flow().await?;
+    openai_oauth::store_tokens(&provider_id, &tokens).await?;
+
+    Ok(OpenAIOAuthStatus {
+        authenticated: true,
+    })
+}
+
+#[tauri::command]
+pub async fn check_openai_oauth_status(provider_id: String) -> Result<OpenAIOAuthStatus, String> {
+    let settings = get_settings().await.unwrap_or_default();
+    let providers_json = settings
+        .iter()
+        .find(|s| s.key == "llm_providers")
+        .map(|s| s.value.clone())
+        .unwrap_or_else(|| "[]".to_string());
+
+    let providers: Vec<serde_json::Value> =
+        serde_json::from_str(&providers_json).unwrap_or_default();
+
+    let api_key = providers
+        .iter()
+        .find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&provider_id))
+        .and_then(|p| p.get("apiKey"))
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
+    if api_key.is_empty() {
+        return Ok(OpenAIOAuthStatus {
+            authenticated: false,
+        });
+    }
+
+    let valid = openai_oauth::check_token_valid(api_key).await;
+    Ok(OpenAIOAuthStatus {
+        authenticated: valid,
+    })
+}
+
+#[tauri::command]
+pub async fn refresh_openai_token(provider_id: String) -> Result<(), String> {
+    openai_oauth::ensure_valid_token(&provider_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn fetch_openai_oauth_models(
+    provider_id: String,
+) -> Result<Vec<OpenRouterModel>, String> {
+    let access_token = openai_oauth::ensure_valid_token(&provider_id).await?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get("https://api.openai.com/v1/models")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .send()
+        .await
+        .map_err(|e| format!("API 요청 실패: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("API 오류: {}", error_text));
+    }
+
+    let models_response: OpenRouterModelsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+    let mut models: Vec<OpenRouterModel> = models_response
+        .data
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|m| {
+            let id = m.id.to_lowercase();
+            id.starts_with("gpt-")
+                || id.starts_with("o1")
+                || id.starts_with("o3")
+                || id.starts_with("o4")
+        })
+        .map(|m| OpenRouterModel {
+            id: m.id.clone(),
+            name: m.name.unwrap_or_else(|| format_model_name(&m.id)),
+            context_length: m.context_length.unwrap_or(0),
+        })
+        .collect();
+
+    models.sort_by(|a, b| a.id.cmp(&b.id));
+
+    Ok(models)
 }
 
 #[tauri::command]
