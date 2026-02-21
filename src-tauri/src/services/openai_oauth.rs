@@ -327,6 +327,20 @@ fn extract_email_from_jwt(id_token: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Map an opaque sub prefix to a human-friendly provider label.
+fn friendly_label_from_sub(sub: &str) -> Option<String> {
+    let provider = sub.split('|').next()?;
+    let label = match provider {
+        "windowslive" => "Microsoft",
+        "google-oauth2" => "Google",
+        "apple" => "Apple",
+        "github" => "GitHub",
+        "auth0" => "Auth0",
+        _ => return None,
+    };
+    Some(format!("{} 계정", label))
+}
+
 /// Extract email or name from a JWT token by decoding its payload (no signature verification needed).
 fn extract_identity_from_jwt(token: &str) -> Option<String> {
     let parts: Vec<&str> = token.split('.').collect();
@@ -348,12 +362,18 @@ fn extract_identity_from_jwt(token: &str) -> Option<String> {
         })
         .ok()?;
     let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
-    // Only use human-readable fields, not sub (which is an opaque ID like "windowslive|abc123")
+    // Try email, then name
     json.get("email")
         .or_else(|| json.get("name"))
         .and_then(|v| v.as_str())
         .filter(|s| !s.contains('|'))
         .map(|s| s.to_string())
+        // Fall back to friendly label from sub
+        .or_else(|| {
+            json.get("sub")
+                .and_then(|v| v.as_str())
+                .and_then(friendly_label_from_sub)
+        })
 }
 
 /// Fetch user identity from OpenAI OIDC userinfo endpoint.
@@ -385,6 +405,11 @@ pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
         .and_then(|v| v.as_str())
         .filter(|s| !s.contains('|'))
         .map(|s| s.to_string())
+        .or_else(|| {
+            json.get("sub")
+                .and_then(|v| v.as_str())
+                .and_then(friendly_label_from_sub)
+        })
 }
 
 /// Get the stored email for a provider, fetching from userinfo if not cached.
