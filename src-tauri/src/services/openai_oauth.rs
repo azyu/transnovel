@@ -391,15 +391,10 @@ pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
         .ok()?;
 
     if !resp.status().is_success() {
-        eprintln!(
-            "[openai_oauth] userinfo failed with status: {}",
-            resp.status()
-        );
         return None;
     }
 
     let json: serde_json::Value = resp.json().await.ok()?;
-    eprintln!("[openai_oauth] userinfo response keys: {:?}", json.as_object().map(|o| o.keys().collect::<Vec<_>>()));
     json.get("email")
         .or_else(|| json.get("name"))
         .and_then(|v| v.as_str())
@@ -432,7 +427,7 @@ pub async fn get_or_fetch_email(provider_id: &str, access_token: &str) -> Option
         let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
         return Some(identity);
     }
-    eprintln!("[openai_oauth] all identity fetch methods failed for provider {}", provider_id);
+    eprintln!("[openai_oauth] identity fetch failed for provider {}", provider_id);
     None
 }
 
