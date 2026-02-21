@@ -91,40 +91,20 @@ pub async fn start_openai_oauth(provider_id: String) -> Result<OpenAIOAuthStatus
 
 #[tauri::command]
 pub async fn check_openai_oauth_status(provider_id: String) -> Result<OpenAIOAuthStatus, String> {
-    let settings = get_settings().await.unwrap_or_default();
-    let providers_json = settings
-        .iter()
-        .find(|s| s.key == "llm_providers")
-        .map(|s| s.value.clone())
-        .unwrap_or_else(|| "[]".to_string());
-
-    let providers: Vec<serde_json::Value> =
-        serde_json::from_str(&providers_json).unwrap_or_default();
-
-    let api_key = providers
-        .iter()
-        .find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&provider_id))
-        .and_then(|p| p.get("apiKey"))
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
-
-    if api_key.is_empty() {
-        return Ok(OpenAIOAuthStatus {
+    // Try to get a valid token (auto-refreshes if expired)
+    match openai_oauth::ensure_valid_token(&provider_id).await {
+        Ok(_) => {
+            let email = openai_oauth::get_stored_email(&provider_id).await;
+            Ok(OpenAIOAuthStatus {
+                authenticated: true,
+                email,
+            })
+        }
+        Err(_) => Ok(OpenAIOAuthStatus {
             authenticated: false,
             email: None,
-        });
+        }),
     }
-
-    let valid = openai_oauth::check_token_valid(api_key).await;
-    let email = if valid {
-        openai_oauth::get_stored_email(&provider_id).await
-    } else {
-        None
-    };
-    Ok(OpenAIOAuthStatus {
-        authenticated: valid,
-        email,
-    })
 }
 
 #[tauri::command]

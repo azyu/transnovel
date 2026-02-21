@@ -293,22 +293,6 @@ pub async fn refresh_access_token(refresh_token: &str) -> Result<OAuthTokens, St
     })
 }
 
-/// Check if an access token is still valid by pinging /v1/models.
-pub async fn check_token_valid(access_token: &str) -> bool {
-    let client = Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .unwrap_or_else(|_| Client::new());
-
-    client
-        .get("https://api.openai.com/v1/models")
-        .header("Authorization", format!("Bearer {}", access_token))
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
-}
-
 fn now_epoch_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
