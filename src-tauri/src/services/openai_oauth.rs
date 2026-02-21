@@ -327,6 +327,44 @@ fn extract_email_from_jwt(id_token: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Fetch user email from OpenAI OIDC userinfo endpoint.
+pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+
+    let resp = client
+        .get("https://auth.openai.com/userinfo")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .send()
+        .await
+        .ok()?;
+
+    if !resp.status().is_success() {
+        return None;
+    }
+
+    let json: serde_json::Value = resp.json().await.ok()?;
+    json.get("email")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Get the stored email for a provider, fetching from userinfo if not cached.
+pub async fn get_or_fetch_email(provider_id: &str, access_token: &str) -> Option<String> {
+    // Try stored first
+    if let Some(email) = get_stored_email(provider_id).await {
+        return Some(email);
+    }
+    // Fetch from userinfo and cache
+    if let Some(email) = fetch_userinfo_email(access_token).await {
+        let _ = set_setting(settings_key_email(provider_id), email.clone()).await;
+        return Some(email);
+    }
+    None
+}
+
 /// Get the stored email for a provider from settings.
 pub async fn get_stored_email(provider_id: &str) -> Option<String> {
     let settings = get_settings().await.unwrap_or_default();
