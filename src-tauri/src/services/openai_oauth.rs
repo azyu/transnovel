@@ -327,7 +327,36 @@ fn extract_email_from_jwt(id_token: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-/// Fetch user email from OpenAI OIDC userinfo endpoint.
+/// Extract email or name from a JWT token by decoding its payload (no signature verification needed).
+fn extract_identity_from_jwt(token: &str) -> Option<String> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let payload = parts[1];
+    // Try decoding with and without padding since JWT base64url can vary
+    let decoded = URL_SAFE_NO_PAD
+        .decode(payload)
+        .or_else(|_| {
+            // Try with padding
+            let padded = match payload.len() % 4 {
+                2 => format!("{}==", payload),
+                3 => format!("{}=", payload),
+                _ => payload.to_string(),
+            };
+            URL_SAFE_NO_PAD.decode(&padded)
+        })
+        .ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    // Try email first, then name, then sub
+    json.get("email")
+        .or_else(|| json.get("name"))
+        .or_else(|| json.get("sub"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Fetch user identity from OpenAI OIDC userinfo endpoint.
 pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(5))
@@ -342,11 +371,18 @@ pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
         .ok()?;
 
     if !resp.status().is_success() {
+        eprintln!(
+            "[openai_oauth] userinfo failed with status: {}",
+            resp.status()
+        );
         return None;
     }
 
     let json: serde_json::Value = resp.json().await.ok()?;
+    eprintln!("[openai_oauth] userinfo response keys: {:?}", json.as_object().map(|o| o.keys().collect::<Vec<_>>()));
     json.get("email")
+        .or_else(|| json.get("name"))
+        .or_else(|| json.get("sub"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
 }
@@ -357,11 +393,17 @@ pub async fn get_or_fetch_email(provider_id: &str, access_token: &str) -> Option
     if let Some(email) = get_stored_email(provider_id).await {
         return Some(email);
     }
-    // Fetch from userinfo and cache
-    if let Some(email) = fetch_userinfo_email(access_token).await {
-        let _ = set_setting(settings_key_email(provider_id), email.clone()).await;
-        return Some(email);
+    // Try decoding the access_token itself as JWT
+    if let Some(identity) = extract_identity_from_jwt(access_token) {
+        let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
+        return Some(identity);
     }
+    // Fetch from userinfo endpoint and cache
+    if let Some(identity) = fetch_userinfo_email(access_token).await {
+        let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
+        return Some(identity);
+    }
+    eprintln!("[openai_oauth] all identity fetch methods failed for provider {}", provider_id);
     None
 }
 
