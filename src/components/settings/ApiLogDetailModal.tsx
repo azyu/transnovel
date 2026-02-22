@@ -10,9 +10,9 @@ interface Props {
 
 export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
   const isDark = useUIStore((s) => s.theme) === 'dark';
-  const [copiedField, setCopiedField] = useState<'request' | 'response' | null>(null);
+  const [copiedField, setCopiedField] = useState<'request' | 'response' | 'uid' | null>(null);
 
-  const handleCopy = async (text: string | undefined, field: 'request' | 'response') => {
+  const handleCopy = async (text: string | undefined, field: 'request' | 'response' | 'uid') => {
     if (!text) return;
     await navigator.clipboard.writeText(text);
     setCopiedField(field);
@@ -109,6 +109,30 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
 
         <div className="overflow-y-auto flex-1">
           <div className={`p-4 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+            <div className="flex items-center gap-2 mb-4">
+              <p className={`text-xs uppercase font-medium shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                UID
+              </p>
+              <button
+                type="button"
+                onClick={() => handleCopy(log.id, 'uid')}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono transition-colors ${
+                  copiedField === 'uid'
+                    ? 'bg-green-600 text-white'
+                    : isDark
+                      ? 'bg-slate-700 hover:bg-slate-600 text-amber-400'
+                      : 'bg-slate-100 hover:bg-slate-200 text-amber-600'
+                }`}
+                title="클릭하여 UID 복사"
+              >
+                {copiedField === 'uid' ? 'Copied!' : log.id}
+                {copiedField !== 'uid' && (
+                  <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -138,32 +162,19 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
               </div>
               <div>
                 <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Provider
+                  Provider / Model
                 </p>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${getProviderColor(log.provider)}`}>
                     {log.provider}
                   </span>
+                  {log.model && (
+                    <span className={`text-sm font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      {log.model}
+                    </span>
+                  )}
                 </div>
               </div>
-            </div>
-            {log.model && (
-              <div className="mt-3">
-                <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Model
-                </p>
-                <p className={`text-sm font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                  {log.model}
-                </p>
-              </div>
-            )}
-            <div className="mt-3">
-              <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                URL
-              </p>
-              <p className={`text-sm font-mono break-all ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                {log.path}
-              </p>
             </div>
             {log.error && (
               <div className="mt-3">
