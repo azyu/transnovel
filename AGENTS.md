@@ -51,7 +51,6 @@ Tauri 2.0 desktop app translating Japanese web novels → Korean. React frontend
 | ----------- | -------------------------- | ---------------- | --------------------------------- |
 | Gemini      | API Key (`x-goog-api-key`) | Google GenAI     | generativelanguage.googleapis.com |
 | OpenRouter  | API Key (`Bearer`)         | OpenAI Chat      | openrouter.ai/api/v1              |
-| Antigravity | OAuth (localhost proxy)    | Google GenAI     | localhost:8045 (configurable)     |
 | Custom      | API Key (`Bearer`)         | OpenAI Chat      | User-configured base URL          |
 
 Provider types `anthropic`, `openai`, `custom` all route through `OpenRouterClient::new_with_base_url()`.

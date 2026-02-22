@@ -16,7 +16,6 @@ src/
 │   ├── translator.rs   # TranslatorService: provider switching, cache pipeline, chunked streaming
 │   ├── gemini.rs       # GeminiClient: Google GenAI API (REST + SSE streaming)
 │   ├── openrouter.rs   # OpenRouterClient: OpenAI Chat API (REST + SSE streaming)
-│   ├── antigravity.rs  # AntigravityClient: Local proxy (Gemini format + SSE)
 │   ├── cache.rs        # SHA256 per-novel cache (get_cached_translations, cache_translations)
 │   ├── paragraph.rs    # Semantic ID encoding (title/subtitle/p-N), HTML response parsing
 │   ├── substitution.rs # Regex-based pre/post text substitution
@@ -69,12 +68,10 @@ pub trait NovelParser: Send + Sync {
 pub enum ApiClient {
     Gemini(GeminiClient),
     OpenRouter(OpenRouterClient),
-    Antigravity(AntigravityClient),
 }
 ```
 - **Gemini:** Google GenAI REST + SSE streaming
 - **OpenRouter:** OpenAI Chat Completions + SSE streaming
-- **Antigravity:** Local proxy, Gemini API format + SSE streaming
 - **Custom/Anthropic/OpenAI:** Route through `OpenRouterClient::new_with_base_url()`
 
 ### Commands (`commands/`)

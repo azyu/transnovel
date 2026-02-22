@@ -7,7 +7,7 @@
 ## 기능
 
 - **다중 사이트 지원**: 소설가가 되자, 하멜른, 카쿠요무, 녹턴에서 소설 파싱
-- **다양한 AI 제공자**: Gemini API, OpenRouter, Antigravity Proxy 중 선택
+- **다양한 AI 제공자**: Gemini API, OpenRouter, 또는 커스텀 제공자 중 선택
 - **일괄 번역**: 진행 상황 추적과 함께 전체 시리즈 번역
 - **스마트 캐싱**: SHA256 기반 캐시로 중복 API 호출 방지
 - **소설별 캐시**: 번역 캐시가 소설별로 분리됨
@@ -30,7 +30,7 @@
 |--------|-----------|------|
 | Gemini API | API 키 | [Google AI Studio](https://aistudio.google.com/apikey)에서 무료 발급 |
 | OpenRouter | API 키 | [OpenRouter](https://openrouter.ai)에서 Claude, GPT-4, Llama 등 사용 가능 |
-| Antigravity Proxy | Google OAuth | API 키 불필요, 로컬 프록시 사용 |
+| Custom | API 키 | OpenAI 호환 API 엔드포인트 |
 
 ## 설치
 
@@ -60,7 +60,7 @@ pnpm run tauri build
 ## 사용법
 
 1. **API 키 추가**: 설정 → LLM 설정 → API 키 추가
-2. **제공자 선택**: 하나의 제공자 선택 (Gemini, OpenRouter, 또는 Antigravity)
+2. **제공자 선택**: 하나의 제공자 선택 (Gemini, OpenRouter, 또는 Custom)
 3. **URL 입력**: 지원 사이트의 챕터 또는 시리즈 URL 입력
 4. **번역**: 번역 버튼 클릭 또는 시리즈의 경우 일괄 번역 사용
 

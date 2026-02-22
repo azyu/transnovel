@@ -154,14 +154,13 @@ src-tauri/src/
 │   ├── parser.rs       # parse_url, parse_chapter, get_chapter_content, get_chapter_list, get_series_info
 │   ├── series.rs       # start_batch_translation, pause/resume/stop, mark_chapter_complete, get_completed_chapters
 │   ├── export.rs       # export_novel, save_chapter, save_chapter_with_dialog
-│   ├── settings.rs     # get/set_setting, API key CRUD, check_antigravity_status, fetch_*_models, cache stats, reset
+│   ├── settings.rs     # get/set_setting, API key CRUD, fetch_*_models, cache stats, reset
 │   └── api_logs.rs     # get_api_logs, get_api_log_detail, get_api_logs_count, clear_api_logs
 ├── services/           # Business logic
 │   ├── mod.rs
 │   ├── translator.rs   # TranslatorService: provider switching, pipeline orchestration
 │   ├── gemini.rs       # GeminiClient: Google Generative AI API (REST + SSE streaming)
 │   ├── openrouter.rs   # OpenRouterClient: OpenAI-compatible API (REST + SSE streaming)
-│   ├── antigravity.rs  # AntigravityClient: Local proxy (Gemini API format + SSE streaming)
 │   ├── cache.rs        # SHA256 cache: get_cached_translations, cache_translations (batched tx)
 │   ├── paragraph.rs    # Semantic ID encoding (title/subtitle/p-N), HTML response parsing
 │   ├── substitution.rs # Regex-based pre/post text substitution
@@ -194,8 +193,8 @@ commands::series::       start_batch_translation, pause_translation, resume_tran
                          get_translation_progress, mark_chapter_complete, get_completed_chapters
 commands::export::       export_novel, save_chapter, save_chapter_with_dialog
 commands::settings::     get_settings, set_setting, get_api_keys, add_api_key, remove_api_key,
-                         check_antigravity_status, open_antigravity_auth, open_url,
-                         fetch_gemini_models, fetch_antigravity_models, fetch_openrouter_models,
+                         open_url,
+                         fetch_gemini_models, fetch_openrouter_models,
                          get_cache_stats, get_cache_stats_detailed, clear_cache, clear_cache_by_novel, reset_all
 commands::api_logs::     get_api_logs, get_api_log_detail, get_api_logs_count, clear_api_logs
 ```
@@ -224,7 +223,7 @@ pub trait NovelParser: Send + Sync {
 ```
 TranslatorService::new()
   → load_settings() → read providers/models from settings table
-  → create ApiClient enum (Gemini | OpenRouter | Antigravity)
+  → create ApiClient enum (Gemini | OpenRouter)
   → create SubstitutionService from config
 
 translate_paragraphs_streaming()
@@ -246,7 +245,6 @@ translate_paragraphs_streaming()
 |----------|-----------|------|-----------|----------|
 | Gemini | Google Generative AI | `x-goog-api-key` header | SSE (`?alt=sse`) | `generativelanguage.googleapis.com/v1beta` |
 | OpenRouter | OpenAI Chat Completions | `Bearer` token | SSE (`stream: true`) | `openrouter.ai/api/v1` |
-| Antigravity | Google Generative AI (proxied) | None (OAuth via proxy) | SSE (`?alt=sse`) | `127.0.0.1:8045` (configurable) |
 | Custom | OpenAI Chat Completions | `Bearer` token | SSE | User-configured base URL |
 
 **Provider switching:** Uses `ApiClient` enum. `provider_type` field from settings determines which variant.
@@ -386,7 +384,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 
 ### Done
 - 4 site parsers (Syosetu, Hameln, Kakuyomu, Nocturne)
-- 3 API providers (Gemini, OpenRouter, Antigravity) + custom/anthropic/openai routing
+- 3 API providers (Gemini, OpenRouter) + custom/anthropic/openai routing
 - SSE streaming translation with real-time UI updates
 - Per-novel SHA256 translation cache
 - Batch translation with pause/stop/resume controls

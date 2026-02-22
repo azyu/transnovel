@@ -7,7 +7,7 @@ A desktop application for translating Japanese web novels to Korean using AI. Bu
 ## Features
 
 - **Multi-site Support**: Parse novels from Syosetu, Hameln, Kakuyomu, and Nocturne
-- **Multiple AI Providers**: Choose between Gemini API, OpenRouter, or Antigravity Proxy
+- **Multiple AI Providers**: Choose between Gemini API, OpenRouter, or Custom providers
 - **Batch Translation**: Translate entire series with progress tracking
 - **Smart Caching**: SHA256-based cache to avoid redundant API calls
 - **Per-Novel Cache**: Translation cache is isolated per novel
@@ -30,7 +30,7 @@ A desktop application for translating Japanese web novels to Korean using AI. Bu
 |----------|-------------|-------|
 | Gemini API | API Key | Free tier available at [Google AI Studio](https://aistudio.google.com/apikey) |
 | OpenRouter | API Key | Access to Claude, GPT-4, Llama, etc. at [OpenRouter](https://openrouter.ai) |
-| Antigravity Proxy | Google OAuth | No API key needed, uses local proxy |
+| Custom | API Key | Any OpenAI-compatible API endpoint |
 
 ## Installation
 
@@ -60,7 +60,7 @@ pnpm run tauri build
 ## Usage
 
 1. **Add API Key**: Go to Settings → LLM Settings → Add your API key
-2. **Select Provider**: Choose one provider (Gemini, OpenRouter, or Antigravity)
+2. **Select Provider**: Choose one provider (Gemini, OpenRouter, or Custom)
 3. **Paste URL**: Enter a chapter or series URL from a supported site
 4. **Translate**: Click the translate button or use batch translation for series
 
