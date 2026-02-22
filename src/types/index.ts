@@ -35,7 +35,7 @@ export interface ChapterContent {
 
 export interface ApiKey {
   id: number;
-  key_type: 'gemini' | 'openrouter' | 'antigravity';
+  key_type: 'gemini' | 'openrouter';
   api_key: string;
   is_active: boolean;
 }

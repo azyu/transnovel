@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
 use crate::db::get_pool;
-use crate::services::antigravity::DEFAULT_ANTIGRAVITY_URL;
 use crate::services::openai_oauth;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -212,59 +211,6 @@ pub async fn remove_api_key(id: i64) -> Result<(), String> {
 }
 
 
-
-#[derive(Debug, Serialize)]
-pub struct AntigravityStatus {
-    pub running: bool,
-    pub authenticated: bool,
-    pub url: String,
-}
-
-#[tauri::command]
-pub async fn check_antigravity_status(url: Option<String>) -> Result<AntigravityStatus, String> {
-    let base_url = url.filter(|u| !u.is_empty()).unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string());
-    
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build()
-        .map_err(|e| e.to_string())?;
-    
-    let models_url = format!("{}/v1/models", base_url);
-    let response = client.get(&models_url).send().await;
-    
-    match response {
-        Ok(r) if r.status().is_success() => {
-            Ok(AntigravityStatus {
-                running: true,
-                authenticated: true,
-                url: base_url,
-            })
-        }
-        Ok(r) if r.status().as_u16() == 401 || r.status().as_u16() == 403 => {
-            Ok(AntigravityStatus {
-                running: true,
-                authenticated: false,
-                url: base_url,
-            })
-        }
-        _ => {
-            Ok(AntigravityStatus {
-                running: false,
-                authenticated: false,
-                url: base_url,
-            })
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn open_antigravity_auth(url: Option<String>) -> Result<(), String> {
-    let base_url = url.filter(|u| !u.is_empty()).unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string());
-    let auth_url = format!("{}/auth", base_url);
-    open::that(&auth_url).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn open_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
@@ -349,75 +295,6 @@ pub async fn fetch_gemini_models(api_key: String) -> Result<Vec<GeminiModel>, St
                 description: m.description.unwrap_or_default(),
                 input_token_limit: m.input_token_limit.unwrap_or(0),
                 output_token_limit: m.output_token_limit.unwrap_or(0),
-            }
-        })
-        .collect();
-
-    Ok(models)
-}
-
-#[derive(Debug, Serialize)]
-pub struct AntigravityModel {
-    pub id: String,
-    pub name: String,
-    pub provider: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct AntigravityModelsResponse {
-    data: Option<Vec<AntigravityModelInfo>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AntigravityModelInfo {
-    id: String,
-    #[allow(dead_code)]
-    object: Option<String>,
-    owned_by: Option<String>,
-}
-
-#[tauri::command]
-pub async fn fetch_antigravity_models(url: Option<String>) -> Result<Vec<AntigravityModel>, String> {
-    let base_url = url.filter(|u| !u.is_empty()).unwrap_or_else(|| DEFAULT_ANTIGRAVITY_URL.to_string());
-    
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let url = format!("{}/v1/models", base_url);
-
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("프록시 연결 실패: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err("프록시 인증이 필요하거나 연결할 수 없습니다.".to_string());
-    }
-
-    let models_response: AntigravityModelsResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("응답 파싱 실패: {}", e))?;
-
-    let models = models_response
-        .data
-        .unwrap_or_default()
-        .into_iter()
-        .map(|m| {
-            let provider = m.owned_by.clone().unwrap_or_else(|| {
-                if m.id.contains("claude") { "anthropic".to_string() }
-                else if m.id.contains("gemini") { "google".to_string() }
-                else if m.id.contains("gpt") { "openai".to_string() }
-                else { "unknown".to_string() }
-            });
-            let name = format_model_name(&m.id);
-            AntigravityModel {
-                id: m.id,
-                name,
-                provider,
             }
         })
         .collect();

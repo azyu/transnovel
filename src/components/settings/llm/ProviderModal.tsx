@@ -166,7 +166,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   const canSave = () => {
     if (isOAuth) return apiKey.trim().length > 0 || oauthDone;
     if (preset.apiKeyRequired && !apiKey.trim()) return false;
-    if ((providerType === 'custom' || providerType === 'antigravity') && !baseUrl.trim()) return false;
+    if (providerType === 'custom' && !baseUrl.trim()) return false;
     return true;
   };
 
@@ -269,7 +269,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
           </div>
         )}
 
-        {(providerType === 'custom' || providerType === 'antigravity') && (
+        {providerType === 'custom' && (
           <div>
             <label htmlFor={providerBaseUrlId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               기본 URL

@@ -1,4 +1,4 @@
-export type ProviderType = 'gemini' | 'openrouter' | 'anthropic' | 'openai' | 'openai-oauth' | 'antigravity' | 'custom';
+export type ProviderType = 'gemini' | 'openrouter' | 'anthropic' | 'openai' | 'openai-oauth' | 'custom';
 
 export interface ProviderConfig {
   id: string;
@@ -70,14 +70,6 @@ export const PROVIDER_PRESETS: Record<ProviderType, ProviderPreset> = {
     apiKeyPlaceholder: '',
     apiKeyHelpText: 'ChatGPT 계정으로 로그인하여 인증 (Codex Backend API)',
   },
-  antigravity: {
-    type: 'antigravity',
-    label: 'Antigravity',
-    defaultBaseUrl: 'http://127.0.0.1:8045',
-    apiKeyRequired: false,
-    apiKeyPlaceholder: '',
-    apiKeyHelpText: 'API 키 없이 사용 가능 (Antigravity Manager 필요)',
-  },
   custom: {
     type: 'custom',
     label: 'Custom',
@@ -121,9 +113,6 @@ export const FALLBACK_MODELS: Record<ProviderType, ModelOption[]> = {
     { id: 'gpt-5-codex', name: 'GPT-5 Codex', contextLength: 400000 },
     { id: 'gpt-5.1-codex-mini', name: 'GPT-5.1 Codex Mini', contextLength: 400000 },
     { id: 'codex-mini-latest', name: 'Codex Mini Latest', contextLength: 400000 },
-  ],
-  antigravity: [
-    { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5' },
   ],
   custom: [],
 };

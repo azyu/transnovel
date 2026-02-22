@@ -79,8 +79,6 @@ export const ApiLogsSettings: React.FC = () => {
         return 'bg-blue-500';
       case 'OpenRouter':
         return 'bg-purple-500';
-      case 'Antigravity':
-        return 'bg-orange-500';
       default:
         return 'bg-slate-500';
     }

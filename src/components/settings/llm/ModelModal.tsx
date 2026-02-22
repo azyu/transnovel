@@ -19,12 +19,6 @@ interface OpenRouterModel {
   context_length: number;
 }
 
-interface AntigravityModel {
-  id: string;
-  name: string;
-  provider: string;
-}
-
 interface ModelModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -83,7 +77,6 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     }
 
     const apiKey = selectedProvider.apiKey;
-    const baseUrl = selectedProvider.baseUrl;
 
     if (!apiKey && preset?.apiKeyRequired) {
       setModels(FALLBACK_MODELS[providerType] || []);
@@ -107,12 +100,6 @@ export const ModelModal: React.FC<ModelModalProps> = ({
           id: m.id,
           name: m.name,
           contextLength: m.context_length,
-        }));
-      } else if (providerType === 'antigravity') {
-        const result = await invoke<AntigravityModel[]>('fetch_antigravity_models', { url: baseUrl });
-        fetchedModels = result.map(m => ({
-          id: m.id,
-          name: `${m.name} (${m.provider})`,
         }));
       } else if (providerType === 'openai-oauth') {
         const result = await invoke<OpenRouterModel[]>('fetch_openai_oauth_models', {

@@ -10,7 +10,6 @@ pub struct TokenUsage {
     pub output_tokens: u32,
 }
 use crate::models::translation::TranslationResult;
-use crate::services::antigravity::AntigravityClient;
 use crate::services::cache::{cache_translations, get_cached_translations};
 use crate::services::codex::CodexClient;
 use crate::services::gemini::GeminiClient;
@@ -74,7 +73,6 @@ const DEFAULT_SYSTEM_PROMPT: &str = r#"# 절대 규칙 (위반 시 출력 무효
 pub enum ApiClient {
     Gemini(GeminiClient),
     OpenRouter(OpenRouterClient),
-    Antigravity(AntigravityClient),
     Codex(CodexClient),
 }
 
@@ -147,14 +145,6 @@ impl TranslatorService {
                     .ok_or("OpenAI OAuth 프로바이더를 찾을 수 없습니다.")?;
                 let fresh_token = crate::services::openai_oauth::ensure_valid_token(&provider_id).await?;
                 ApiClient::Codex(CodexClient::new(fresh_token, settings.model.clone()))
-            }
-            "antigravity" => {
-                let antigravity = AntigravityClient::new(settings.base_url, settings.model);
-                if antigravity.check_health().await {
-                    ApiClient::Antigravity(antigravity)
-                } else {
-                    return Err("Antigravity Proxy가 실행 중이 아니거나 인증되지 않았습니다.".to_string());
-                }
             }
             _ => {
                 return Err("사용할 모델이 설정되지 않았습니다. 설정에서 모델을 추가해주세요.".to_string());
@@ -254,7 +244,6 @@ impl TranslatorService {
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
                 ApiClient::OpenRouter(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
-                ApiClient::Antigravity(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
                 ApiClient::Codex(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
             };
             
@@ -412,11 +401,6 @@ impl TranslatorService {
                                     .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
                                     .await
                             }
-                            ApiClient::Antigravity(client) => {
-                                client
-                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
-                                    .await
-                            }
                             ApiClient::Codex(client) => {
                                 client
                                     .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
@@ -429,9 +413,6 @@ impl TranslatorService {
                                 client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                             ApiClient::OpenRouter(client) => {
-                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
-                            }
-                            ApiClient::Antigravity(client) => {
                                 client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                             ApiClient::Codex(client) => {

@@ -63,7 +63,6 @@ export const ProviderList: React.FC<ProviderListProps> = ({
       anthropic: 'bg-orange-500/10 text-orange-400',
       openai: 'bg-green-500/10 text-green-400',
       'openai-oauth': 'bg-emerald-500/10 text-emerald-400',
-      antigravity: 'bg-cyan-500/10 text-cyan-400',
       custom: 'bg-slate-500/10 text-slate-400',
     };
     return colors[type] || colors.custom;
