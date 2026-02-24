@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
@@ -50,7 +50,8 @@ const DEFAULT_SYSTEM_PROMPT = `# 절대 규칙 (위반 시 출력 무효)
 
 {{note}}`;
 
-export const TranslationSettings = forwardRef((_, ref) => {
+export const TranslationSettings: React.FC = () => {
+  const [isLoaded, setIsLoaded] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translationNote, setTranslationNote] = useState('');
   const [substitutions, setSubstitutions] = useState('');
@@ -59,21 +60,6 @@ export const TranslationSettings = forwardRef((_, ref) => {
   const substitutionsId = useId();
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
-  const handleSave = async () => {
-    try {
-      await Promise.all([
-        invoke('set_setting', { key: 'system_prompt', value: systemPrompt }),
-        invoke('set_setting', { key: 'translation_note', value: translationNote }),
-        invoke('set_setting', { key: 'substitutions', value: substitutions }),
-      ]);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  };
-
-  useImperativeHandle(ref, () => ({
-    save: handleSave
-  }));
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -82,15 +68,44 @@ export const TranslationSettings = forwardRef((_, ref) => {
         const promptSetting = settings.find(s => s.key === 'system_prompt');
         const noteSetting = settings.find(s => s.key === 'translation_note');
         const subSetting = settings.find(s => s.key === 'substitutions');
-        
+
         if (promptSetting) setSystemPrompt(promptSetting.value);
         if (noteSetting) setTranslationNote(noteSetting.value);
         if (subSetting) setSubstitutions(subSetting.value);
+
+        setIsLoaded(true);
       } catch (error) {
         console.error('Failed to load settings:', error);
+
       }
     };
     loadSettings();
+  }, []);
+
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    const save = async () => {
+      try {
+        await Promise.all([
+          invoke('set_setting', { key: 'system_prompt', value: systemPrompt }),
+          invoke('set_setting', { key: 'translation_note', value: translationNote }),
+          invoke('set_setting', { key: 'substitutions', value: substitutions }),
+        ]);
+      } catch (error) {
+        console.error('Failed to save settings:', error);
+      }
+    };
+    pendingSaveRef.current = save;
+    const t = setTimeout(() => {
+      save();
+      pendingSaveRef.current = null;
+    }, 500);
+    return () => clearTimeout(t);
+  }, [systemPrompt, translationNote, substitutions, isLoaded]);
+  useEffect(() => {
+    return () => { pendingSaveRef.current?.(); };
   }, []);
 
   const handleResetPrompt = async () => {
@@ -105,11 +120,10 @@ export const TranslationSettings = forwardRef((_, ref) => {
 
 
 
-  const textareaClass = `w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-y font-mono border ${
-    isDark 
-      ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' 
+  const textareaClass = `w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-y font-mono border ${isDark
+      ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'
       : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
-  }`;
+    }`;
 
   return (
     <div className="space-y-6">
@@ -134,7 +148,7 @@ export const TranslationSettings = forwardRef((_, ref) => {
             />
             <div className="flex justify-between items-center">
               <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                <code className="text-blue-400">{`{{note}}`}</code> 번역 노트 삽입 위치, 
+                <code className="text-blue-400">{`{{note}}`}</code> 번역 노트 삽입 위치,
                 <code className="text-blue-400 ml-2">{`{{slot}}`}</code> 원문 삽입 위치
               </p>
               <Button variant="secondary" size="sm" onClick={handleResetPrompt}>
@@ -187,6 +201,4 @@ export const TranslationSettings = forwardRef((_, ref) => {
       </div>
     </div>
   );
-});
-
-TranslationSettings.displayName = 'TranslationSettings';
+};

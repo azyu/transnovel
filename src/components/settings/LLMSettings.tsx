@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
@@ -25,7 +25,7 @@ function migrateOldData(oldModels: OldModelConfig[]): { providers: ProviderConfi
 
   for (const oldModel of oldModels) {
     const providerKey = `${oldModel.providerType}-${oldModel.apiKey}-${oldModel.baseUrl}`;
-    
+
     if (!providerMap.has(providerKey)) {
       const preset = PROVIDER_PRESETS[oldModel.providerType];
       providerMap.set(providerKey, {
@@ -58,17 +58,19 @@ function isOldFormat(data: unknown): data is OldModelConfig[] {
   return typeof first === 'object' && first !== null && 'providerType' in first && 'apiKey' in first;
 }
 
-export const LLMSettings = forwardRef((_, ref) => {
+export const LLMSettings: React.FC = () => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
-  
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [useStreaming, setUseStreaming] = useState(true);
-  
+
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
-  
+
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null);
 
@@ -86,18 +88,15 @@ export const LLMSettings = forwardRef((_, ref) => {
     }
   }, [providers, models, activeModelId, useStreaming]);
 
-  useImperativeHandle(ref, () => ({
-    save: handleSaveAll
-  }));
 
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const settings = await invoke<{ key: string; value: string }[]>('get_settings');
-        
+
         const providersJson = settings.find(s => s.key === 'llm_providers')?.value;
         const modelsJson = settings.find(s => s.key === 'llm_models')?.value;
-        
+
         if (providersJson) {
           try {
             setProviders(JSON.parse(providersJson));
@@ -105,7 +104,7 @@ export const LLMSettings = forwardRef((_, ref) => {
             setProviders([]);
           }
         }
-        
+
         if (modelsJson) {
           try {
             const parsedModels = JSON.parse(modelsJson);
@@ -120,17 +119,35 @@ export const LLMSettings = forwardRef((_, ref) => {
             setModels([]);
           }
         }
-        
+
         const activeId = settings.find(s => s.key === 'active_model_id')?.value;
         if (activeId) setActiveModelId(activeId);
-        
+
         const streaming = settings.find(s => s.key === 'use_streaming')?.value;
         if (streaming) setUseStreaming(streaming === 'true');
+
+        setIsLoaded(true);
       } catch (error) {
         console.error('Failed to load settings:', error);
+
       }
     };
     loadSettings();
+  }, []);
+
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    pendingSaveRef.current = handleSaveAll;
+    const t = setTimeout(() => {
+      handleSaveAll();
+      pendingSaveRef.current = null;
+    }, 300);
+    return () => clearTimeout(t);
+  }, [providers, models, activeModelId, useStreaming, isLoaded, handleSaveAll]);
+  useEffect(() => {
+    return () => { pendingSaveRef.current?.(); };
   }, []);
 
   const handleAddProvider = () => {
@@ -160,13 +177,13 @@ export const LLMSettings = forwardRef((_, ref) => {
     const message = associatedModels.length > 0
       ? `이 AI 서비스 제공자를 삭제하시겠습니까?\n\n연결된 모델 ${associatedModels.length}개도 함께 삭제됩니다.`
       : '이 AI 서비스 제공자를 삭제하시겠습니까?';
-    
+
     const confirmed = await ask(message, {
       title: 'AI 서비스 제공자 삭제',
       kind: 'warning',
     });
     if (!confirmed) return;
-    
+
     setProviders(prev => prev.filter(p => p.id !== id));
     setModels(prev => {
       const remaining = prev.filter(m => m.providerId !== id);
@@ -197,7 +214,7 @@ export const LLMSettings = forwardRef((_, ref) => {
       }
       return [...prev, model];
     });
-    
+
     if (!activeModelId) {
       setActiveModelId(model.id);
     }
@@ -209,9 +226,9 @@ export const LLMSettings = forwardRef((_, ref) => {
       kind: 'warning',
     });
     if (!confirmed) return;
-    
+
     setModels(prev => prev.filter(m => m.id !== id));
-    
+
     if (activeModelId === id) {
       setActiveModelId(models.length > 1 ? models.find(m => m.id !== id)?.id || null : null);
     }
@@ -276,14 +293,12 @@ export const LLMSettings = forwardRef((_, ref) => {
             role="switch"
             aria-checked={useStreaming}
             onClick={() => setUseStreaming(!useStreaming)}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-              useStreaming ? 'bg-blue-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
-            }`}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${useStreaming ? 'bg-blue-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
+              }`}
           >
             <span
-              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                useStreaming ? 'translate-x-5' : 'translate-x-0'
-              }`}
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${useStreaming ? 'translate-x-5' : 'translate-x-0'
+                }`}
             />
           </button>
         </div>
@@ -305,6 +320,5 @@ export const LLMSettings = forwardRef((_, ref) => {
       />
     </div>
   );
-});
+};
 
-LLMSettings.displayName = 'LLMSettings';
