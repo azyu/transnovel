@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
@@ -72,24 +72,34 @@ export const ViewSettings: React.FC = () => {
         setIsLoaded(true);
       } catch (error) {
         console.error('Failed to load view settings:', error);
-        setIsLoaded(true);
+
       }
     };
     loadSettings();
   }, []);
 
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     if (!isLoaded) return;
-    const t = setTimeout(async () => {
+    const save = async () => {
       try {
         await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
         bumpViewConfigVersion();
       } catch (error) {
         console.error('Failed to save view settings:', error);
       }
+    };
+    pendingSaveRef.current = save;
+    const t = setTimeout(() => {
+      save();
+      pendingSaveRef.current = null;
     }, 300);
     return () => clearTimeout(t);
   }, [config, isLoaded, bumpViewConfigVersion]);
+  useEffect(() => {
+    return () => { pendingSaveRef.current?.(); };
+  }, []);
 
   const handleReset = async () => {
     const confirmed = await ask('기본 설정으로 초기화하시겠습니까?', {
