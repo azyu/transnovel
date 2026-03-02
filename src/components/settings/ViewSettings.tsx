@@ -303,7 +303,7 @@ export const ViewSettings = forwardRef((_, ref) => {
           />
           <NumberStepper
             label="문단 간격 (px)"
-            value={parseInt(config.paragraphSpacing, 10) || 8}
+            value={Number.isNaN(parseInt(config.paragraphSpacing, 10)) ? 8 : parseInt(config.paragraphSpacing, 10)}
             onChange={(value) => updateConfig('paragraphSpacing', String(value))}
             min={0}
             max={64}
@@ -324,7 +324,7 @@ export const ViewSettings = forwardRef((_, ref) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NumberStepper
             label="좌우 여백 (px)"
-            value={parseInt(config.horizontalPadding, 10) || 24}
+            value={Number.isNaN(parseInt(config.horizontalPadding, 10)) ? 24 : parseInt(config.horizontalPadding, 10)}
             onChange={(value) => updateConfig('horizontalPadding', String(value))}
             min={0}
             max={120}
