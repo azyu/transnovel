@@ -57,6 +57,8 @@ const COLOR_PRESETS = [
 export const ViewSettings: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [config, setConfig] = useState<ViewConfig>(DEFAULT_CONFIG);
+  const loadFailedRef = useRef(false);
+  const hasUserEditedRef = useRef(false);
   const bumpViewConfigVersion = useUIStore((state) => state.bumpViewConfigVersion);
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
@@ -69,10 +71,11 @@ export const ViewSettings: React.FC = () => {
         if (viewConfig) {
           setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(viewConfig.value) });
         }
-        setIsLoaded(true);
       } catch (error) {
+        loadFailedRef.current = true;
         console.error('Failed to load view settings:', error);
-
+      } finally {
+        setIsLoaded(true);
       }
     };
     loadSettings();
@@ -82,6 +85,9 @@ export const ViewSettings: React.FC = () => {
 
   useEffect(() => {
     if (!isLoaded) return;
+    // After load failure, do not overwrite persisted values with defaults
+    // until the user actually edits something.
+    if (loadFailedRef.current && !hasUserEditedRef.current) return;
     const save = async () => {
       try {
         await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
@@ -107,11 +113,13 @@ export const ViewSettings: React.FC = () => {
       kind: 'warning',
     });
     if (confirmed) {
+      hasUserEditedRef.current = true;
       setConfig(DEFAULT_CONFIG);
     }
   };
 
   const applyPreset = (preset: typeof COLOR_PRESETS[0]) => {
+    hasUserEditedRef.current = true;
     setConfig(prev => ({
       ...prev,
       textColor: preset.text,
@@ -120,6 +128,7 @@ export const ViewSettings: React.FC = () => {
   };
 
   const updateConfig = <K extends keyof ViewConfig>(key: K, value: ViewConfig[K]) => {
+    hasUserEditedRef.current = true;
     setConfig(prev => ({ ...prev, [key]: value }));
   };
 
