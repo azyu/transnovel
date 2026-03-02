@@ -15,7 +15,7 @@ jobs:
   test:
     runs-on:
       - self-hosted
-      - ubuntu-latest
+      - linux
     name: Test
 
     steps:
@@ -71,16 +71,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - platform: macOS
             target: aarch64-apple-darwin
             name: macOS-ARM64
-          - platform: macos-latest
+          - platform: macOS
             target: x86_64-apple-darwin
             name: macOS-Intel
-          - platform: ubuntu-latest
+          - platform: linux
             target: x86_64-unknown-linux-gnu
             name: Linux
-          - platform: windows-latest
+          - platform: windows
             target: x86_64-pc-windows-msvc
             name: Windows
 
@@ -114,7 +114,7 @@ jobs:
           workspaces: src-tauri -> target
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -151,7 +151,7 @@ jobs:
     needs: build
     runs-on:
       - self-hosted
-      - ubuntu-latest
+      - linux
     permissions:
       contents: write
 
