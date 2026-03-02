@@ -1,4 +1,4 @@
-import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
@@ -54,23 +54,14 @@ const COLOR_PRESETS = [
   { name: '아몰레드', text: '#e5e5e5', bg: '#000000' },
 ];
 
-export const ViewSettings = forwardRef((_, ref) => {
+export const ViewSettings: React.FC = () => {
+  const [isLoaded, setIsLoaded] = useState(false);
   const [config, setConfig] = useState<ViewConfig>(DEFAULT_CONFIG);
+  const loadFailedRef = useRef(false);
+  const hasUserEditedRef = useRef(false);
   const bumpViewConfigVersion = useUIStore((state) => state.bumpViewConfigVersion);
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
-  const handleSave = async () => {
-    try {
-      await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
-      bumpViewConfigVersion();
-    } catch (error) {
-      console.error('Failed to save view settings:', error);
-    }
-  };
-
-  useImperativeHandle(ref, () => ({
-    save: handleSave
-  }));
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -81,10 +72,39 @@ export const ViewSettings = forwardRef((_, ref) => {
           setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(viewConfig.value) });
         }
       } catch (error) {
+        loadFailedRef.current = true;
         console.error('Failed to load view settings:', error);
+      } finally {
+        setIsLoaded(true);
       }
     };
     loadSettings();
+  }, []);
+
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    // After load failure, do not overwrite persisted values with defaults
+    // until the user actually edits something.
+    if (loadFailedRef.current && !hasUserEditedRef.current) return;
+    const save = async () => {
+      try {
+        await invoke('set_setting', { key: 'view_config', value: JSON.stringify(config) });
+        bumpViewConfigVersion();
+      } catch (error) {
+        console.error('Failed to save view settings:', error);
+      }
+    };
+    pendingSaveRef.current = save;
+    const t = setTimeout(() => {
+      save();
+      pendingSaveRef.current = null;
+    }, 300);
+    return () => clearTimeout(t);
+  }, [config, isLoaded, bumpViewConfigVersion]);
+  useEffect(() => {
+    return () => { pendingSaveRef.current?.(); };
   }, []);
 
   const handleReset = async () => {
@@ -93,11 +113,13 @@ export const ViewSettings = forwardRef((_, ref) => {
       kind: 'warning',
     });
     if (confirmed) {
+      hasUserEditedRef.current = true;
       setConfig(DEFAULT_CONFIG);
     }
   };
 
   const applyPreset = (preset: typeof COLOR_PRESETS[0]) => {
+    hasUserEditedRef.current = true;
     setConfig(prev => ({
       ...prev,
       textColor: preset.text,
@@ -106,6 +128,7 @@ export const ViewSettings = forwardRef((_, ref) => {
   };
 
   const updateConfig = <K extends keyof ViewConfig>(key: K, value: ViewConfig[K]) => {
+    hasUserEditedRef.current = true;
     setConfig(prev => ({ ...prev, [key]: value }));
   };
 
@@ -187,11 +210,10 @@ export const ViewSettings = forwardRef((_, ref) => {
                 key={option.value}
                 onClick={() => updateConfig('displayLayout', option.value)}
                 disabled={!config.showOriginal}
-                className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
-                  config.displayLayout === option.value
+                className={`flex-1 p-3 rounded-lg border text-left transition-colors ${config.displayLayout === option.value
                     ? 'border-blue-500 bg-blue-500/10'
                     : isDark ? 'border-slate-600 hover:border-slate-500' : 'border-slate-300 hover:border-slate-400'
-                }`}
+                  }`}
               >
                 <span className={`block text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{option.label}</span>
                 <span className={`block text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{option.description}</span>
@@ -359,6 +381,4 @@ export const ViewSettings = forwardRef((_, ref) => {
       </div>
     </div>
   );
-});
-
-ViewSettings.displayName = 'ViewSettings';
+};
