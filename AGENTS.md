@@ -143,44 +143,25 @@ api_logs (request/response debugging)        # API call history
 
 ### Multi-Agent Coordination (MANDATORY)
 
-When multiple agents collaborate on a task, coordination files track shared state:
+Before starting any task:
 
-| File | Purpose | When to Read | When to Write |
-|------|---------|--------------|---------------|
-| `PLAN.md` | What needs to be done — task breakdown, priorities, dependencies | **Always read first** before starting any work | When a plan is created or tasks are added/reprioritized |
-| `PROGRESS.md` | What has been done — completed work, decisions made, current blockers | **Always read first** before starting any work | After completing a task, hitting a blocker, or making a key decision |
+1. Read `.context/TASKS.md` — check what needs to be done and what's already claimed
+2. Read `.context/STEERING.md` — understand current priorities and constraints
+3. Update `.context/TASKS.md` — mark your task as `[~]` in progress with your agent name
+4. On completion — mark task as `[x]` and commit
 
-**Agent startup protocol (NON-NEGOTIABLE):**
-1. Read `PLAN.md` — understand the full scope and what's assigned to you
-2. Read `PROGRESS.md` — understand what others have done, avoid duplicate work
-3. Begin your assigned work
-4. Update `PROGRESS.md` as you complete tasks or encounter blockers
+| File | Purpose |
+|------|---------|
+| `.context/TASKS.md` | Shared task tracker — who does what |
+| `.context/STEERING.md` | Project direction and priorities |
 
-**PLAN.md format:**
-```markdown
-# Plan: [Feature/Task Name]
-## Goal
-[One-line objective]
-## Tasks
-- [ ] Task 1 — [owner/agent if assigned] — [priority]
-- [x] Task 2 — completed
-- [ ] Task 3 — depends on Task 1
-## Notes
-[Key decisions, constraints, open questions]
-```
+**Agent role assignments:**
 
-**PROGRESS.md format:**
-```markdown
-# Progress
-## Completed
-- [timestamp or order] Task description — what was done, key files changed
-## In Progress
-- Task description — current status, who is working on it
-## Blockers
-- Issue description — what's blocked and why
-## Decisions
-- Decision description — rationale
-```
+| Agent | Scope | Responsibilities |
+|-------|-------|------------------|
+| Backend (Rust) | `src-tauri/src/` | Parsers, services, commands, DB migrations |
+| Frontend (React) | `src/` | UI components, Zustand stores, custom hooks |
+| Quality | Full codebase | Vitest unit tests, Cargo tests, code review |
 
 ### Clarification Process
 
