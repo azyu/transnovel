@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
+import { Toggle } from '../common/Toggle';
 import { useUIStore } from '../../stores/uiStore';
 
 const DEFAULT_SYSTEM_PROMPT = `# 절대 규칙 (위반 시 출력 무효)
@@ -55,6 +56,7 @@ export const TranslationSettings: React.FC = () => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translationNote, setTranslationNote] = useState('');
   const [substitutions, setSubstitutions] = useState('');
+  const [autoProperNounDictionaryEnabled, setAutoProperNounDictionaryEnabled] = useState(true);
   const systemPromptId = useId();
   const translationNoteId = useId();
   const substitutionsId = useId();
@@ -68,10 +70,18 @@ export const TranslationSettings: React.FC = () => {
         const promptSetting = settings.find(s => s.key === 'system_prompt');
         const noteSetting = settings.find(s => s.key === 'translation_note');
         const subSetting = settings.find(s => s.key === 'substitutions');
+        const autoProperNounDictionarySetting = settings.find(
+          s => s.key === 'auto_proper_noun_dictionary_enabled',
+        );
 
         if (promptSetting) setSystemPrompt(promptSetting.value);
         if (noteSetting) setTranslationNote(noteSetting.value);
         if (subSetting) setSubstitutions(subSetting.value);
+        setAutoProperNounDictionaryEnabled(
+          autoProperNounDictionarySetting
+            ? autoProperNounDictionarySetting.value !== 'false'
+            : true,
+        );
 
         setIsLoaded(true);
       } catch (error) {
@@ -92,6 +102,10 @@ export const TranslationSettings: React.FC = () => {
           invoke('set_setting', { key: 'system_prompt', value: systemPrompt }),
           invoke('set_setting', { key: 'translation_note', value: translationNote }),
           invoke('set_setting', { key: 'substitutions', value: substitutions }),
+          invoke('set_setting', {
+            key: 'auto_proper_noun_dictionary_enabled',
+            value: autoProperNounDictionaryEnabled ? 'true' : 'false',
+          }),
         ]);
       } catch (error) {
         console.error('Failed to save settings:', error);
@@ -103,7 +117,7 @@ export const TranslationSettings: React.FC = () => {
       pendingSaveRef.current = null;
     }, 500);
     return () => clearTimeout(t);
-  }, [systemPrompt, translationNote, substitutions, isLoaded]);
+  }, [systemPrompt, translationNote, substitutions, autoProperNounDictionaryEnabled, isLoaded]);
   useEffect(() => {
     return () => { pendingSaveRef.current?.(); };
   }, []);
@@ -155,6 +169,19 @@ export const TranslationSettings: React.FC = () => {
                 기본값 복원
               </Button>
             </div>
+          </div>
+        </div>
+
+        <div className={`border-t pt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <div className="space-y-2">
+            <Toggle
+              label="고유명사 자동 추출 및 후보 저장 제안"
+              checked={autoProperNounDictionaryEnabled}
+              onChange={setAutoProperNounDictionaryEnabled}
+            />
+            <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              켜면 각 화 번역 완료 후 루비가 명시된 신규 고유명사 후보만 자동 추출해 검토 모달을 표시합니다. 끄면 수동으로만 사전을 관리합니다.
+            </p>
           </div>
         </div>
 

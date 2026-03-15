@@ -15,7 +15,7 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 **Data flow for a single chapter translation:**
 1. Frontend `invoke('parse_chapter', { url })` → Parser scrapes HTML → Returns paragraphs
 2. Frontend `invoke('translate_paragraphs_streaming', { ... })` → TranslatorService
-3. TranslatorService: Substitution(Pre) → Cache Check → LLM API Call → Substitution(Post) → Cache Save
+3. TranslatorService: Substitution(Pre) → Cache Check → 작품별 고유명사 사전 주입 → LLM API Call → Substitution(Post) → Cache Save
 4. Rust `app.emit("translation-chunk", ...)` streams results back in real-time
 5. Frontend `listen("translation-chunk")` updates UI paragraph-by-paragraph
 
@@ -115,7 +115,7 @@ App.tsx                              # Tab-based routing via uiStore.currentTab
 ### 3.4 Custom Hooks
 | Hook | File | Purpose |
 |------|------|---------|
-| `useTranslation` | `useTranslation.ts` | **Primary logic hub.** Wraps all Tauri invocations (parse, translate, batch, retry, export). Sets up event listeners for streaming. |
+| `useTranslation` | `useTranslation.ts` | **Primary logic hub.** Wraps all Tauri invocations (parse, translate, batch, retry, export, 작품별 고유명사 사전). Sets up event listeners for streaming. |
 | `useTauriEvents` | `useTauriEvents.ts` | Global background event listeners (batch progress, chapter-completed) |
 | `useKeyboardShortcuts` | `useKeyboardShortcuts.ts` | App-wide keyboard shortcuts |
 | `useViewSettings` | `useViewSettings.ts` | Loads font/spacing settings from backend, computes CSS values |
@@ -185,9 +185,10 @@ src-tauri/src/
         └── 003_api_logs_provider.sql # ALTER TABLE api_logs ADD provider column
 ```
 
-### 4.2 Registered Tauri Commands (40 total)
+### 4.2 Registered Tauri Commands (43 total)
 ```
 commands::translation::  translate_chapter, translate_text, translate_paragraphs, translate_paragraphs_streaming
+commands::character_dictionary:: get_novel_character_dictionary, save_novel_character_dictionary, extract_character_dictionary_candidates
 commands::parser::       parse_url, parse_chapter, get_chapter_content, get_chapter_list, get_series_info
 commands::series::       start_batch_translation, pause_translation, resume_translation, stop_translation,
                          get_translation_progress, mark_chapter_complete, get_completed_chapters
@@ -337,6 +338,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 | `system_prompt` | string | Built-in Korean translation prompt | LLM system instruction |
 | `translation_note` | string | `""` | Additional per-novel instructions |
 | `substitutions` | string | `""` | Pre/post processing rules |
+| `auto_proper_noun_dictionary_enabled` | `"true"/"false"` | `"true"` | 각 화 번역 후 루비가 명시된 신규 고유명사 후보 자동 추출 및 검토 모달 표시 |
 | `use_streaming` | `"true"/"false"` | `"true"` | Enable SSE streaming |
 | `model` | string | `gemini-2.0-flash` | Legacy default model |
 | `temperature` | string | `1.0` | Legacy default temperature |

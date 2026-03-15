@@ -114,6 +114,86 @@ impl OpenRouterClient {
         }
     }
 
+    pub async fn generate_text(&self, prompt: &str) -> Result<String, String> {
+        let path = "/v1/chat/completions";
+        let url = format!(
+            "{}{}",
+            self.base_url
+                .trim_end_matches("/v1")
+                .trim_end_matches('/'),
+            path
+        );
+
+        let request = self.build_request(prompt, false);
+        let request_json = serde_json::to_string(&request).unwrap_or_default();
+
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "OpenRouter", "OpenAI", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+        let response = match self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .header("HTTP-Referer", "https://ai-novel-translator.app")
+            .header("X-Title", "AI Novel Translator")
+            .json(&request)
+            .send()
+            .await
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
+
+        let status = response.status();
+        log_entry.status = status.as_u16();
+        let response_text = response.text().await.unwrap_or_default();
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(response_text.clone());
+
+        if !status.is_success() {
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(format!("API 오류 ({}): {}", status, response_text));
+        }
+
+        let openrouter_response: OpenRouterResponse = serde_json::from_str(&response_text)
+            .map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+        if let Some(ref usage) = openrouter_response.usage {
+            log_entry.input_tokens = usage.prompt_tokens;
+            log_entry.output_tokens = usage.completion_tokens;
+        }
+
+        if let Some(error) = openrouter_response.error {
+            log_entry.error = Some(error.message.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(format!("OpenRouter 오류: {}", error.message));
+        }
+
+        let text = openrouter_response
+            .choices
+            .and_then(|c| c.into_iter().next())
+            .and_then(|c| c.message)
+            .and_then(|m| m.content)
+            .ok_or("응답에서 텍스트를 찾을 수 없습니다.")?;
+
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+
+        Ok(text)
+    }
+
     pub async fn translate(
         &self,
         paragraphs: &[String],

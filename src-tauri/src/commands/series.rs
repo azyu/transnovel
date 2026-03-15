@@ -144,7 +144,10 @@ async fn translate_single_chapter(translator: &mut TranslatorService, novel_id: 
         return Ok(vec![]);
     }
     
-    translator.translate_paragraphs(novel_id, &paragraphs, true, None).await
+    let parsed = crate::parsers::ParsedUrl::from_url(url).ok_or("지원하지 않는 URL 형식입니다.")?;
+    translator
+        .translate_paragraphs(&parsed.site, novel_id, &paragraphs, true, None)
+        .await
 }
 
 fn extract_paragraphs(html: &str) -> Vec<String> {

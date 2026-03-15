@@ -490,20 +490,24 @@ pub async fn clear_cache() -> Result<i64, String> {
 
 #[tauri::command]
 pub async fn clear_cache_by_novel(novel_id: String) -> Result<i64, String> {
+    clear_cache_by_novel_internal(&novel_id).await
+}
+
+pub(crate) async fn clear_cache_by_novel_internal(novel_id: &str) -> Result<i64, String> {
     let pool = get_pool()?;
-    
+
     let result = sqlx::query("DELETE FROM translation_cache WHERE novel_id = ?")
-        .bind(&novel_id)
+        .bind(novel_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     sqlx::query("DELETE FROM completed_chapters WHERE novel_id = ?")
-        .bind(&novel_id)
+        .bind(novel_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     Ok(result.rows_affected() as i64)
 }
 

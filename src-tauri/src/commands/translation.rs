@@ -33,30 +33,43 @@ pub async fn translate_chapter(
 
 #[tauri::command]
 pub async fn translate_text(
+    site: String,
     novel_id: String,
     text: String,
     note: Option<String>,
 ) -> Result<TranslateTextResult, String> {
     let mut translator = TranslatorService::new().await?;
-    let translated = translator.translate_text(&novel_id, &text, note.as_deref()).await?;
+    let translated = translator
+        .translate_text(&site, &novel_id, &text, note.as_deref())
+        .await?;
     Ok(TranslateTextResult { translated_text: translated })
 }
 
 #[tauri::command]
 pub async fn translate_paragraphs(
+    site: String,
     novel_id: String,
     paragraphs: Vec<String>,
     has_subtitle: Option<bool>,
     note: Option<String>,
 ) -> Result<TranslateParagraphsResult, String> {
     let mut translator = TranslatorService::new().await?;
-    let translated = translator.translate_paragraphs(&novel_id, &paragraphs, has_subtitle.unwrap_or(true), note.as_deref()).await?;
+    let translated = translator
+        .translate_paragraphs(
+            &site,
+            &novel_id,
+            &paragraphs,
+            has_subtitle.unwrap_or(true),
+            note.as_deref(),
+        )
+        .await?;
     Ok(TranslateParagraphsResult { translated })
 }
 
 #[tauri::command]
 pub async fn translate_paragraphs_streaming(
     app: AppHandle,
+    site: String,
     novel_id: String,
     paragraphs: Vec<String>,
     has_subtitle: Option<bool>,
@@ -67,7 +80,15 @@ pub async fn translate_paragraphs_streaming(
 
     let mut translator = TranslatorService::new().await?;
     let translated = translator
-        .translate_paragraphs_streaming(&novel_id, &paragraphs, has_subtitle.unwrap_or(true), note.as_deref(), original_indices, &app)
+        .translate_paragraphs_streaming(
+            &site,
+            &novel_id,
+            &paragraphs,
+            has_subtitle.unwrap_or(true),
+            note.as_deref(),
+            original_indices,
+            &app,
+        )
         .await?;
     Ok(TranslateParagraphsResult { translated })
 }

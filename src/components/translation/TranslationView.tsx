@@ -4,16 +4,19 @@ import { message } from '@tauri-apps/plugin-dialog';
 import { UrlInput } from './UrlInput';
 import { saveUrlHistory } from '../../utils/urlHistory';
 import { ParagraphList } from './ParagraphList';
+import { CharacterDictionaryModal } from './CharacterDictionaryModal';
 import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
 import { useTranslation } from '../../hooks/useTranslation';
+import type { CharacterDictionaryEntry } from '../../types';
 
 export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
   const showError = useUIStore((s) => s.showError);
+  const showToast = useUIStore((s) => s.showToast);
   const chapter = useTranslationStore((s) => s.chapter);
   const translatedTitle = useTranslationStore((s) => s.translatedTitle);
   const translatedSubtitle = useTranslationStore((s) => s.translatedSubtitle);
@@ -22,10 +25,17 @@ export const TranslationView: React.FC = () => {
   const isTranslating = useTranslationStore((s) => s.isTranslating);
   const setUrl = useTranslationStore((s) => s.setUrl);
   const failedParagraphIndices = useTranslationStore((s) => s.failedParagraphIndices);
+  const pendingCharacterDictionaryReview = useTranslationStore((s) => s.pendingCharacterDictionaryReview);
+  const setPendingCharacterDictionaryReview = useTranslationStore((s) => s.setPendingCharacterDictionaryReview);
 
-  const { parseAndTranslate, retryFailedParagraphs } = useTranslation();
+  const { parseAndTranslate, retryFailedParagraphs, getCharacterDictionary, saveCharacterDictionary } = useTranslation();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showDictionaryModal, setShowDictionaryModal] = useState(false);
+  const [dictionaryMode, setDictionaryMode] = useState<'review' | 'manual'>('manual');
+  const [dictionaryEntries, setDictionaryEntries] = useState<CharacterDictionaryEntry[]>([]);
+  const [dictionaryLoading, setDictionaryLoading] = useState(false);
+  const [dictionarySaving, setDictionarySaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const isDark = theme === 'dark';
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -127,6 +137,55 @@ export const TranslationView: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!pendingCharacterDictionaryReview) {
+      return;
+    }
+
+    setDictionaryMode('review');
+    setDictionaryEntries(pendingCharacterDictionaryReview.entries);
+    setShowDictionaryModal(true);
+  }, [pendingCharacterDictionaryReview]);
+
+  const handleOpenDictionary = async () => {
+    if (!chapter) return;
+
+    setDictionaryLoading(true);
+    try {
+      const entries = await getCharacterDictionary(chapter.site, chapter.novelId);
+      setDictionaryMode('manual');
+      setDictionaryEntries(entries);
+      setShowDictionaryModal(true);
+    } catch (err) {
+      showError('사전 불러오기 실패', String(err));
+    } finally {
+      setDictionaryLoading(false);
+    }
+  };
+
+  const handleCloseDictionary = () => {
+    setShowDictionaryModal(false);
+    if (dictionaryMode === 'review') {
+      setPendingCharacterDictionaryReview(null);
+    }
+  };
+
+  const handleSaveDictionary = async (entries: CharacterDictionaryEntry[]) => {
+    if (!chapter) return;
+
+    setDictionarySaving(true);
+    try {
+      await saveCharacterDictionary(chapter.site, chapter.novelId, entries);
+      setShowDictionaryModal(false);
+      setPendingCharacterDictionaryReview(null);
+      showToast('사용자 정의 고유명사 사전을 저장했습니다.');
+    } catch (err) {
+      showError('사전 저장 실패', String(err));
+    } finally {
+      setDictionarySaving(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto w-full">
       {apiConfigured === false && (
@@ -193,6 +252,9 @@ export const TranslationView: React.FC = () => {
             <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying || !isTranslationComplete}>
               저장
             </Button>
+            <Button variant="secondary" onClick={handleOpenDictionary} disabled={isTranslating || retrying || dictionaryLoading}>
+              {dictionaryLoading ? '사전 불러오는 중...' : '사용자 정의 사전'}
+            </Button>
             {failedParagraphIndices.length > 0 && !isTranslating && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-red-500">
@@ -254,6 +316,19 @@ export const TranslationView: React.FC = () => {
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         onSave={handleSaveWithDialog}
+      />
+      <CharacterDictionaryModal
+        key={`${dictionaryMode}:${chapter?.novelId ?? 'none'}:${JSON.stringify(dictionaryEntries)}`}
+        isOpen={showDictionaryModal}
+        title={dictionaryMode === 'review' ? '고유명사 사전 후보 확인' : '사용자 정의 고유명사 사전'}
+        description={dictionaryMode === 'review'
+          ? '이번 화 번역에서 새로 추출된 고유명사 후보입니다. 저장하면 현재 작품의 이후 번역에 자동으로 적용됩니다.'
+          : '현재 작품에 등록된 고유명사 사전을 수정합니다. 저장 시 기존 번역 캐시는 초기화됩니다.'}
+        entries={dictionaryEntries}
+        saveLabel={dictionaryMode === 'review' ? '후보 저장' : '사전 저장'}
+        isSaving={dictionarySaving}
+        onClose={handleCloseDictionary}
+        onSave={handleSaveDictionary}
       />
     </div>
   );

@@ -15,7 +15,7 @@
 
 ## In Progress
 
-(none)
+- [~] Frontend UI accessibility and workspace refresh — Codex
 
 ## Done
 
@@ -23,3 +23,7 @@
 - [x] 프로젝트 명칭을 TransNovel로 전면 변경 — Codex
 - [x] .pnpm-store 디렉터리 ignore 추가 — Codex
 - [x] 앱 식별자 호환성 복원 — Codex
+- [x] 작품별 인물명 사용자 정의 사전 및 자동 후보 추출 — Codex
+- [x] 고유명사 자동 추출 토글 및 용어 정리 — Codex
+- [x] 신규 고유명사 자동 제안 범위 확대 — Codex
+- [x] 고유명사 후보 필터 강화 및 루비 필수화 — Codex

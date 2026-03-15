@@ -1,5 +1,8 @@
 import { create } from 'zustand';
-import type { Paragraph } from '../types';
+import type {
+  CharacterDictionaryReview,
+  Paragraph,
+} from '../types';
 
 interface ChapterMeta {
   site: string;
@@ -31,6 +34,9 @@ interface TranslationState {
   failedParagraphIndices: number[];
   setFailedParagraphIndices: (indices: number[]) => void;
   clearFailedParagraphIndices: () => void;
+
+  pendingCharacterDictionaryReview: CharacterDictionaryReview | null;
+  setPendingCharacterDictionaryReview: (review: CharacterDictionaryReview | null) => void;
 
   setChapterContent: (content: {
     site: string;
@@ -85,6 +91,8 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
   failedParagraphIndices: [],
   setFailedParagraphIndices: (indices) => set({ failedParagraphIndices: indices }),
   clearFailedParagraphIndices: () => set({ failedParagraphIndices: [] }),
+  pendingCharacterDictionaryReview: null,
+  setPendingCharacterDictionaryReview: (review) => set({ pendingCharacterDictionaryReview: review }),
 
   setChapterContent: (content) => {
     if (!content) {
@@ -95,6 +103,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
         paragraphIds: [],
         paragraphById: {},
         translatedCount: 0,
+        pendingCharacterDictionaryReview: null,
       });
       return;
     }
@@ -126,6 +135,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
       paragraphIds: ids,
       paragraphById: byId,
       translatedCount: count,
+      pendingCharacterDictionaryReview: null,
     });
   },
 

@@ -152,6 +152,90 @@ impl GeminiClient {
         }
     }
 
+    pub async fn generate_text(&mut self, prompt: &str) -> Result<String, String> {
+        let api_key = self.get_next_api_key()?.to_string();
+        let url = format!(
+            "{}/models/{}:generateContent?key={}",
+            GEMINI_API_BASE, self.model, api_key
+        );
+
+        let request = self.build_request(prompt);
+        let request_json = serde_json::to_string(&request).unwrap_or_default();
+
+        let mut log_entry =
+            ApiLogEntry::new("POST", &url, "Gemini", "Gemini", Some(self.model.clone()));
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+        let response = match self.client.post(&url).json(&request).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
+
+        let status = response.status();
+        log_entry.status = status.as_u16();
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(format!("API 오류 ({}): {}", status, error_text));
+        }
+
+        let response_text = response
+            .text()
+            .await
+            .map_err(|e| format!("응답 읽기 실패: {}", e))?;
+
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(response_text.clone());
+
+        let gemini_response: GeminiResponse =
+            serde_json::from_str(&response_text).map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+        if let Some(ref usage) = gemini_response.usage_metadata {
+            log_entry.input_tokens = usage.prompt_token_count;
+            log_entry.output_tokens = usage.candidates_token_count;
+        }
+
+        if let Some(error) = gemini_response.error {
+            log_entry.error = Some(error.message.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(format!("Gemini 오류: {}", error.message));
+        }
+
+        let text = gemini_response
+            .candidates
+            .and_then(|c| c.into_iter().next())
+            .and_then(|c| c.content)
+            .map(|c| {
+                c.parts
+                    .into_iter()
+                    .filter(|p| !p.thought.unwrap_or(false))
+                    .filter_map(|p| p.text)
+                    .filter(|t| !t.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("")
+            })
+            .filter(|t| !t.is_empty())
+            .ok_or("응답에서 텍스트를 찾을 수 없습니다.")?;
+
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+
+        Ok(text)
+    }
+
     pub async fn translate(
         &mut self,
         paragraphs: &[String],

@@ -33,6 +33,11 @@ pub async fn init_db(app: &AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
+    sqlx::query(include_str!("migrations/004_novel_character_dictionary.sql"))
+        .execute(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let has_provider: Vec<(String,)> = sqlx::query_as(
         "SELECT name FROM pragma_table_info('api_logs') WHERE name = 'provider'"
     )

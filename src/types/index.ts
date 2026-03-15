@@ -21,6 +21,20 @@ export interface Paragraph {
   translated?: string;
 }
 
+export interface CharacterDictionaryEntry {
+  source_text: string;
+  reading?: string | null;
+  target_name: string;
+  note?: string | null;
+}
+
+export interface CharacterDictionaryReview {
+  site: string;
+  novel_id: string;
+  chapter_number: number;
+  entries: CharacterDictionaryEntry[];
+}
+
 export interface ChapterContent {
   site: string;
   novel_id: string;
