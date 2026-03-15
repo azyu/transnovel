@@ -1,172 +1,99 @@
 # TransNovel
 
-**Generated:** 2026-02-20 | **Commit:** 7ead666 | **Branch:** main
+Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React frontend is a thin UI layer. The Rust backend owns parsing, translation, caching, export, and persistence.
 
-## Overview
+## Source Of Truth
 
-Tauri 2.0 desktop app translating Japanese web novels → Korean. React frontend, Rust backend, SQLite persistence.
+- Verify current code before trusting generated summaries or old status notes.
+- If a document conflicts with the codebase, follow the code and update the document in the same change.
+- Use `src-tauri/src/AGENTS.md` for backend-specific rules.
+- Use `docs/references.md` when you need command lists, event payloads, or architecture detail.
 
 ## Structure
 
-```
+```text
 ./
-├── src/                    # React frontend (thin UI layer)
-│   ├── components/         # Feature-based: common/, layout/, translation/, series/, settings/
-│   ├── stores/             # Zustand state (translation, series, ui, apiLog, debug)
-│   ├── hooks/              # Custom React hooks (useTranslation, useTauriEvents, etc.)
-│   ├── types/              # Shared TypeScript types (index.ts)
-│   └── utils/              # Utilities (urlHistory.ts)
-├── src-tauri/              # Rust backend (heavy logic)
-│   └── src/                # See src-tauri/src/AGENTS.md
-├── docs/                   # Technical documentation
-│   └── references.md       # Comprehensive architecture reference
-└── index.html              # Vite entry
+├── src/                    # React frontend
+│   ├── components/         # Feature-based UI
+│   ├── hooks/              # Tauri event and feature hooks
+│   ├── stores/             # Zustand stores
+│   ├── types/              # Shared TypeScript types
+│   └── utils/              # Frontend utilities
+├── src-tauri/              # Rust backend
+│   └── src/                # Commands, services, parsers, models, db
+├── docs/                   # Reference docs
+└── .context/               # Task tracker and steering
 ```
 
-## Where to Look
+## Where To Work
 
-| Task                  | Location                        | Notes                                    |
-| --------------------- | ------------------------------- | ---------------------------------------- |
-| Add novel site parser | `src-tauri/src/parsers/`        | Implement `NovelParser` trait, add to `mod.rs` router |
-| Add AI provider       | `src-tauri/src/services/`       | Add `ApiClient` enum variant in `translator.rs` |
-| UI component          | `src/components/{feature}/`     | Feature-based organization               |
-| Tauri command         | `src-tauri/src/commands/`       | Register in `lib.rs` invoke_handler      |
-| DB migration          | `src-tauri/src/db/migrations/`  | Loaded via `include_str!()` in `db/mod.rs` |
-| Settings UI           | `src/components/settings/`      | LLMSettings.tsx, TranslationSettings.tsx |
-| LLM provider/model UI | `src/components/settings/llm/`  | ProviderList/Modal, ModelList/Modal      |
-| Common UI components  | `src/components/common/`        | Button, Modal, Toggle, SearchableSelect, NumberStepper |
+| Task | Location | Rule |
+|---|---|---|
+| UI component or settings flow | `src/components/` | Keep heavy logic out of React when Rust can own it |
+| Shared frontend state | `src/stores/` | Use Zustand for cross-component state |
+| Tauri command | `src-tauri/src/commands/` | Keep the command thin and delegate to services |
+| Parser change | `src-tauri/src/parsers/` | Implement `NovelParser` and register both router paths |
+| Translation or provider change | `src-tauri/src/services/` | Keep orchestration in `translator.rs` and transport in provider clients |
+| DB migration | `src-tauri/src/db/migrations/` | Add SQL file and load it through `include_str!()` in `db/mod.rs` |
 
-## Supported Sites
+## Current Runtime Boundaries
 
-| Site     | Parser     | Domain              | Notes |
-| -------- | ---------- | ------------------- | ----- |
-| Syosetu  | `syosetu`  | ncode.syosetu.com   | Reference pattern |
-| Hameln   | `hameln`   | syosetu.org         | |
-| Kakuyomu | `kakuyomu` | kakuyomu.jp         | JS-rendered; parses embedded JSON. No batch support |
-| Nocturne | `nocturne` | novel18.syosetu.com | 18+ cookie handling |
+### Supported sites
 
-## API Providers
+| Site | Parser | Notes |
+|---|---|---|
+| Syosetu | `syosetu` | Reference parser pattern |
+| Hameln | `hameln` | Sequential chapter URLs |
+| Kakuyomu | `kakuyomu` | Embedded JSON parsing, batch translation blocked |
+| Nocturne | `nocturne` | Over-18 cookie handling |
 
-| Provider    | Auth                       | API Format       | Endpoint                          |
-| ----------- | -------------------------- | ---------------- | --------------------------------- |
-| Gemini      | API Key (`x-goog-api-key`) | Google GenAI     | generativelanguage.googleapis.com |
-| OpenRouter  | API Key (`Bearer`)         | OpenAI Chat      | openrouter.ai/api/v1              |
-| Custom      | API Key (`Bearer`)         | OpenAI Chat      | User-configured base URL          |
+### Provider routing
 
-Provider types `anthropic`, `openai`, `custom` all route through `OpenRouterClient::new_with_base_url()`.
+| Provider type | Client | Notes |
+|---|---|---|
+| `gemini` | `GeminiClient` | Google GenAI request and SSE format |
+| `openrouter` | `OpenRouterClient::new()` | OpenRouter endpoint and OpenAI Chat format |
+| `anthropic`, `openai`, `custom` | `OpenRouterClient::new_with_base_url()` | OpenAI-compatible base URL |
+| `openai-oauth` | `CodexClient` | OAuth tokens refreshed through `openai_oauth` |
 
-## Conventions
+### Translation invariants
 
-### TypeScript
+- Keep paragraph IDs semantic: `title`, optional `subtitle`, then `p-N`.
+- Keep the cache key formula as `SHA256(novel_id + ":" + original_text)`.
+- Keep provider output compatible with `<p id="...">...</p>` parsing and `</main>` termination.
+- Keep frontend event contracts stable unless the task explicitly changes them.
 
-- `verbatimModuleSyntax: true` → use `import type` for types
-- Zustand for cross-component state (not Context)
-- Feature-based component organization
-- Tab-based navigation via `uiStore.currentTab` (no react-router)
-- Headless UI for accessible modals and selects
+## Working Rules
 
-### Rust
+- Use `import type` for TypeScript type-only imports.
+- Keep tab navigation on `uiStore.currentTab`; do not introduce router-based tab switching.
+- Keep frontend code focused on rendering, local interaction, and invoking backend commands.
+- Put backend business logic in `src-tauri/src/services/`.
+- Return `Result<T, String>` from Tauri commands.
+- Use the existing `OnceLock` DB pool and `AtomicBool` control flags instead of introducing a new shared-state pattern.
+- Use `@tauri-apps/plugin-dialog` for dialogs instead of browser `confirm()`, `alert()`, or `prompt()`.
 
-- Commands in `commands/`, logic in `services/`
-- Parsers implement `NovelParser` async trait
-- Async with tokio, DB with sqlx
-- Commands return `Result<T, String>` for Tauri IPC
-- No global app state — DB pool via `OnceLock`, control flags via `AtomicBool`
+## Safety Boundaries
 
-### Translation
+- Treat `src-tauri/gen/*` as generated output and leave it untouched.
+- Preserve `#![cfg_attr(...)]` in `src-tauri/src/main.rs`.
+- If a task appears to require breaking one of these boundaries, stop and explain the conflict before editing.
 
-- Paragraph IDs: `title`, `subtitle`, `p-1`, `p-2`, ... (semantic encoding in `paragraph.rs`)
-- LLM format: `<p id="title">原文</p>` → `<p id="title">번역</p>`
-- Ruby text: `漢字(읽는법)` format
-- Cache: `SHA256(novel_id + ":" + original_text)` — per-novel isolation
-- Substitution: regex-based pre/post text processing
+## Agent Coordination
 
-### Frontend ↔ Backend Communication
+- Before mutating tracked files, read `.context/TASKS.md` and `.context/STEERING.md`.
+- When starting mutating work, add or update an `[~]` item in `.context/TASKS.md` with your agent name.
+- When finishing mutating work, update that item to `[x]` if the task is complete.
+- For read-only review, planning, or investigation, read `.context/*` as needed and leave the tracker unchanged.
+- If intent is still unclear after checking code and docs, state the ambiguity explicitly and ask one focused clarifying question.
 
-- **Command-Response:** `invoke(cmd, args)` for parsing, settings, export
-- **Event Streaming:** `listen(event)` for real-time translation chunks, progress, errors
-- Key events: `translation-chunk`, `translation-complete`, `translation-error`, `translation-failed-paragraphs`, `debug-cache`, `debug-api`, `translation-progress`, `batch-translation-complete`, `chapter-completed`
+## Verification
 
-## Anti-Patterns
-
-| Pattern                               | Why                                    |
-| ------------------------------------- | -------------------------------------- |
-| `.unwrap()` in parsers                | Sites change; use `?` or handle errors |
-| Edit `src-tauri/gen/*`                | Auto-generated, will be overwritten    |
-| Remove `#![cfg_attr(...)]` in main.rs | Causes console window on Windows       |
-| `as any`, `@ts-ignore`                | Type safety violations                 |
-| `confirm()`, `alert()`, `prompt()`    | Use `@tauri-apps/plugin-dialog` instead |
-
-## Workflow
-
-- TDD-driven development (Red → Green → Refactor)
-- Commit after completing feature implementation or bug fix
-- Use conventional commit messages (feat:, fix:, refactor:, etc.)
-- **Verification (MANDATORY)**: Run all checks before considering work complete:
+- For code changes, run the relevant checks before closing the task:
   ```bash
-  pnpm run lint          # TypeScript/ESLint
-  pnpm run build         # Frontend build
-  cd src-tauri && cargo test   # Rust tests
-  cd src-tauri && cargo clippy -- -D warnings  # Rust lint
+  pnpm run lint
+  pnpm run build
+  cd src-tauri && cargo test
+  cd src-tauri && cargo clippy -- -D warnings
   ```
-
-## Commands
-
-```bash
-pnpm install              # Install deps
-pnpm run tauri dev        # Dev mode
-pnpm run tauri build      # Production build
-pnpm run build            # Frontend only
-pnpm run test             # Frontend tests (vitest)
-cd src-tauri && cargo test  # Rust tests
-```
-
-## Database Tables
-
-```
-novels → chapters → translations (1:N:N)    # Defined but unused in current flow
-translation_cache (SHA256 dedup, per-novel)  # Primary persistence
-completed_chapters (novel_id + chapter PK)   # Batch progress tracking
-settings (key-value store)                   # All app configuration
-api_keys (legacy, still used for add/remove) # API key storage
-api_logs (request/response debugging)        # API call history
-```
-
-## Implementation Status
-
-| Status     | Features                                                 |
-| ---------- | -------------------------------------------------------- |
-| ✅ Done    | 4 Parsers, 3+ Providers, SSE Streaming, Batch Translation, Per-novel Cache, TXT/HTML Export, Dark/Light Theme, API Logging, Debug Panel, Provider/Model CRUD, Substitution, URL History, Chapter Tracking, Retry Failed, View Settings, iOS Init |
-| 🔲 Pending | EPUB export, Auto-retry (MAX_RETRIES=1), Key rotation, `novels`/`chapters`/`translations` table usage |
-
-## AI Agent Guidelines
-
-### Multi-Agent Coordination (MANDATORY)
-
-Before starting any task:
-
-1. Read `.context/TASKS.md` — check what needs to be done and what's already claimed
-2. Read `.context/STEERING.md` — understand current priorities and constraints
-3. Update `.context/TASKS.md` — mark your task as `[~]` in progress with your agent name
-4. On completion — mark task as `[x]` and commit
-
-| File | Purpose |
-|------|---------|
-| `.context/TASKS.md` | Shared task tracker — who does what |
-| `.context/STEERING.md` | Project direction and priorities |
-
-**Agent role assignments:**
-
-| Agent | Scope | Responsibilities |
-|-------|-------|------------------|
-| Backend (Rust) | `src-tauri/src/` | Parsers, services, commands, DB migrations |
-| Frontend (React) | `src/` | UI components, Zustand stores, custom hooks |
-| Quality | Full codebase | Vitest unit tests, Cargo tests, code review |
-
-### Clarification Process
-
-When information is insufficient or unclear, ask clarifying questions. Continue this iterative questioning process until you have a complete and clear understanding of the user's needs.
-
-### Key Reference
-
-For comprehensive technical details (all 40 commands, data flow, schema, event payloads), see `docs/references.md`.
+- For docs-only changes, state that runtime verification was skipped because application behavior did not change.
