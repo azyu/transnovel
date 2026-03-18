@@ -69,7 +69,7 @@ export const AdvancedSettings: React.FC = () => {
     
     if (isResetting) return;
     
-    const confirmed1 = await ask('정말로 모든 데이터를 초기화하시겠습니까?\n\n다음 항목이 삭제됩니다:\n- 번역 캐시\n- 모든 설정\n- API 키\n\n이 작업은 되돌릴 수 없습니다.', {
+    const confirmed1 = await ask('정말로 모든 데이터를 초기화하시겠습니까?\n\n다음 항목이 삭제됩니다:\n- 번역 캐시\n- 작품별 고유명사 사전\n- 모든 설정\n- API 키\n\n이 작업은 되돌릴 수 없습니다.', {
       title: '전체 초기화',
       kind: 'warning',
     });
@@ -211,7 +211,7 @@ export const AdvancedSettings: React.FC = () => {
               <div>
                 <p className="text-sm text-red-400 font-medium">전체 초기화</p>
                 <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  모든 설정, API 키, 번역 캐시를 삭제하고 앱을 초기 상태로 되돌립니다. 이 작업은 되돌릴 수 없습니다.
+                  모든 설정, API 키, 번역 캐시, 작품별 고유명사 사전을 삭제하고 앱을 초기 상태로 되돌립니다. 이 작업은 되돌릴 수 없습니다.
                 </p>
               </div>
               <Button

@@ -11,6 +11,9 @@ pub struct TokenUsage {
 }
 use crate::models::translation::TranslationResult;
 use crate::services::cache::{cache_translations, get_cached_translations};
+use crate::services::character_dictionary::{
+    format_character_dictionary_note, get_novel_character_dictionary, CharacterDictionaryEntry,
+};
 use crate::services::codex::CodexClient;
 use crate::services::gemini::GeminiClient;
 use crate::services::openrouter::OpenRouterClient;
@@ -116,6 +119,11 @@ struct TranslatorSettings {
     use_streaming: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct CharacterDictionaryResponse {
+    entries: Vec<CharacterDictionaryEntry>,
+}
+
 impl TranslatorService {
     pub async fn new() -> Result<Self, String> {
         let settings = Self::load_settings().await;
@@ -209,15 +217,34 @@ impl TranslatorService {
         }
     }
 
-    fn build_prompt(&self, additional_note: Option<&str>) -> String {
-        let full_note = match additional_note {
-            Some(n) if !n.is_empty() => format!("{}\n{}", self.translation_note, n),
-            _ => self.translation_note.clone(),
-        };
+    async fn build_prompt(
+        &self,
+        site: &str,
+        novel_id: &str,
+        additional_note: Option<&str>,
+    ) -> String {
+        let dictionary_note = get_novel_character_dictionary(site, novel_id)
+            .await
+            .ok()
+            .map(|entries| format_character_dictionary_note(&entries))
+            .filter(|note| !note.is_empty());
+
+        let full_note = compose_note(
+            &self.translation_note,
+            dictionary_note.as_deref(),
+            additional_note,
+        );
         self.system_prompt.replace("{{note}}", &full_note)
     }
 
-    pub async fn translate_paragraphs(&mut self, novel_id: &str, paragraphs: &[String], has_subtitle: bool, note: Option<&str>) -> Result<Vec<String>, String> {
+    pub async fn translate_paragraphs(
+        &mut self,
+        site: &str,
+        novel_id: &str,
+        paragraphs: &[String],
+        has_subtitle: bool,
+        note: Option<&str>,
+    ) -> Result<Vec<String>, String> {
         if paragraphs.is_empty() {
             return Ok(vec![]);
         }
@@ -239,7 +266,7 @@ impl TranslatorService {
         let mut results: Vec<String> = cached.into_iter().map(|c| c.unwrap_or_default()).collect();
         
         if !uncached_paragraphs.is_empty() {
-            let prompt = self.build_prompt(note);
+            let prompt = self.build_prompt(site, novel_id, note).await;
 
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
@@ -261,7 +288,13 @@ impl TranslatorService {
         Ok(results)
     }
 
-    pub async fn translate_text(&mut self, novel_id: &str, text: &str, note: Option<&str>) -> Result<String, String> {
+    pub async fn translate_text(
+        &mut self,
+        site: &str,
+        novel_id: &str,
+        text: &str,
+        note: Option<&str>,
+    ) -> Result<String, String> {
         let paragraphs: Vec<String> = text
             .lines()
             .filter(|line| !line.trim().is_empty())
@@ -272,12 +305,16 @@ impl TranslatorService {
             return Ok(String::new());
         }
 
-        let translated = self.translate_paragraphs(novel_id, &paragraphs, true, note).await?;
+        let translated = self
+            .translate_paragraphs(site, novel_id, &paragraphs, true, note)
+            .await?;
         Ok(translated.join("\n"))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn translate_paragraphs_streaming<R: tauri::Runtime>(
         &mut self,
+        site: &str,
         novel_id: &str,
         paragraphs: &[String],
         has_subtitle: bool,
@@ -344,7 +381,7 @@ impl TranslatorService {
         };
 
         if !uncached_paragraphs.is_empty() {
-            let prompt = self.build_prompt(note);
+            let prompt = self.build_prompt(site, novel_id, note).await;
 
             // Dynamic chunk sizing: send all at once if small enough
             const MAX_SINGLE_BATCH_CHARS: usize = 50_000; // ~50KB threshold
@@ -597,5 +634,221 @@ impl TranslatorService {
             translated: vec![],
             model_used: "gemini-2.0-flash".to_string(),
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn extract_character_dictionary_candidates(
+        &mut self,
+        site: &str,
+        novel_id: &str,
+        chapter_number: u32,
+        title: &str,
+        subtitle: Option<&str>,
+        originals: &[String],
+        translateds: &[String],
+    ) -> Result<Vec<CharacterDictionaryEntry>, String> {
+        if originals.is_empty() || translateds.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let prompt = build_character_dictionary_extraction_prompt(
+            site,
+            novel_id,
+            chapter_number,
+            title,
+            subtitle,
+            originals,
+            translateds,
+        )?;
+
+        let response = match &mut self.client {
+            ApiClient::Gemini(client) => client.generate_text(&prompt).await?,
+            ApiClient::OpenRouter(client) => client.generate_text(&prompt).await?,
+            ApiClient::Codex(client) => client.generate_text(&prompt).await?,
+        };
+
+        parse_character_dictionary_candidates(&response)
+    }
+}
+
+fn compose_note(
+    translation_note: &str,
+    dictionary_note: Option<&str>,
+    additional_note: Option<&str>,
+) -> String {
+    [
+        Some(translation_note.trim()),
+        dictionary_note.map(str::trim),
+        additional_note.map(str::trim),
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|section| !section.is_empty())
+    .map(ToOwned::to_owned)
+    .collect::<Vec<_>>()
+    .join("\n\n")
+}
+
+fn build_character_dictionary_extraction_prompt(
+    site: &str,
+    novel_id: &str,
+    chapter_number: u32,
+    title: &str,
+    subtitle: Option<&str>,
+    originals: &[String],
+    translateds: &[String],
+) -> Result<String, String> {
+    let pairs = originals
+        .iter()
+        .zip(translateds.iter())
+        .enumerate()
+        .map(|(index, (original, translated))| {
+            serde_json::json!({
+                "index": index,
+                "original": original,
+                "translated": translated,
+            })
+        })
+        .collect::<Vec<_>>();
+    let pair_json = serde_json::to_string_pretty(&pairs).map_err(|e| e.to_string())?;
+
+    Ok(format!(
+        r#"다음은 일본어 웹소설 한 화의 번역 결과입니다.
+작품 정보:
+- site: {site}
+- novel_id: {novel_id}
+- chapter_number: {chapter_number}
+- title: {title}
+- subtitle: {subtitle}
+
+목표:
+- 인물명, 학교명, 지명, 단체명, 기관명처럼 번역 일관성이 필요한 고유명사만 추출합니다.
+- 일반 명사, 직책명, 수식어, 기술명, 종족명, 일시적 표현은 제외합니다.
+- 원문 표기 바로 옆에 후리가나/루비/요미가나가 명시된 항목만 추출합니다. 읽기 정보가 없으면 무조건 제외합니다.
+- 번역문만 보고 추정한 이름, 맥락상 이름처럼 보이지만 원문에 읽기 정보가 없는 항목도 제외합니다.
+- 고유명사인지 애매하면 제외합니다.
+- 한국어 번역에서 실제로 사용된 고유명사 표기를 target_name으로 넣습니다.
+- reading에는 원문에 직접 표시된 읽기만 넣습니다.
+
+반드시 아래 JSON만 반환하세요. 설명 문장, 코드펜스, 마크다운 금지.
+{{
+  "entries": [
+    {{
+      "source_text": "周",
+      "reading": "あまね",
+      "target_name": "아마네",
+      "note": "주인공"
+    }}
+  ]
+}}
+
+입력 데이터:
+{pair_json}"#,
+        subtitle = subtitle.unwrap_or("")
+    ))
+}
+
+fn sanitize_character_dictionary_candidates(
+    entries: Vec<CharacterDictionaryEntry>,
+) -> Vec<CharacterDictionaryEntry> {
+    entries
+        .into_iter()
+        .filter_map(|entry| {
+            let source_text = entry.source_text.trim().to_string();
+            let reading = entry
+                .reading
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+            let target_name = entry.target_name.trim().to_string();
+            let note = entry
+                .note
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+
+            if source_text.is_empty() || reading.is_none() || target_name.is_empty() {
+                return None;
+            }
+
+            Some(CharacterDictionaryEntry {
+                source_text,
+                reading,
+                target_name,
+                note,
+            })
+        })
+        .collect()
+}
+
+fn parse_character_dictionary_candidates(text: &str) -> Result<Vec<CharacterDictionaryEntry>, String> {
+    let normalized = text
+        .trim()
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+
+    if let Ok(response) = serde_json::from_str::<CharacterDictionaryResponse>(normalized) {
+        return Ok(sanitize_character_dictionary_candidates(response.entries));
+    }
+
+    if let Ok(entries) = serde_json::from_str::<Vec<CharacterDictionaryEntry>>(normalized) {
+        return Ok(sanitize_character_dictionary_candidates(entries));
+    }
+
+    Err(format!(
+        "고유명사 후보 추출 응답을 파싱하지 못했습니다: {}",
+        normalized.chars().take(200).collect::<String>()
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compose_note_joins_sections() {
+        let note = compose_note("기본 노트", Some("사전"), Some("추가"));
+        assert_eq!(note, "기본 노트\n\n사전\n\n추가");
+    }
+
+    #[test]
+    fn test_parse_character_dictionary_candidates_accepts_object() {
+        let parsed = parse_character_dictionary_candidates(
+            r#"{"entries":[{"source_text":"周","reading":"あまね","target_name":"아마네","note":"주인공"}]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].source_text, "周");
+        assert_eq!(parsed[0].target_name, "아마네");
+    }
+
+    #[test]
+    fn test_parse_character_dictionary_candidates_filters_entries_without_reading() {
+        let parsed = parse_character_dictionary_candidates(
+            r#"{"entries":[{"source_text":"生徒会","reading":"","target_name":"학생회","note":"조직"},{"source_text":"周","reading":"あまね","target_name":"아마네","note":"주인공"}]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].source_text, "周");
+        assert_eq!(parsed[0].reading.as_deref(), Some("あまね"));
+    }
+
+    #[test]
+    fn test_build_character_dictionary_extraction_prompt_requires_explicit_reading() {
+        let prompt = build_character_dictionary_extraction_prompt(
+            "kakuyomu",
+            "novel-1",
+            2,
+            "제목",
+            None,
+            &[String::from("鳳黎院（ほうれいいん）学園")],
+            &[String::from("호레이인 학원")],
+        )
+        .unwrap();
+
+        assert!(prompt.contains("원문 표기 바로 옆에 후리가나/루비/요미가나가 명시된 항목만 추출합니다."));
+        assert!(prompt.contains("일반 명사, 직책명, 수식어, 기술명, 종족명, 일시적 표현은 제외합니다."));
     }
 }

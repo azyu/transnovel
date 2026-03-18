@@ -13,6 +13,7 @@ describe('useTranslationStore', () => {
       translatedCount: 0,
       isTranslating: false,
       failedParagraphIndices: [],
+      pendingCharacterDictionaryReview: null,
     });
   });
 
@@ -172,6 +173,31 @@ describe('useTranslationStore', () => {
       
       clearFailedParagraphIndices();
       expect(useTranslationStore.getState().failedParagraphIndices).toEqual([]);
+    });
+  });
+
+  describe('pendingCharacterDictionaryReview', () => {
+    it('should set and clear pending dictionary review', () => {
+      const { setPendingCharacterDictionaryReview } = useTranslationStore.getState();
+
+      setPendingCharacterDictionaryReview({
+        site: 'syosetu',
+        novel_id: 'n123',
+        chapter_number: 1,
+        entries: [
+          {
+            source_text: '周',
+            reading: 'あまね',
+            target_name: '아마네',
+            note: '주인공',
+          },
+        ],
+      });
+
+      expect(useTranslationStore.getState().pendingCharacterDictionaryReview).not.toBeNull();
+
+      setPendingCharacterDictionaryReview(null);
+      expect(useTranslationStore.getState().pendingCharacterDictionaryReview).toBeNull();
     });
   });
 

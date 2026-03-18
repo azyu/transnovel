@@ -130,6 +130,104 @@ impl CodexClient {
         builder
     }
 
+    pub async fn generate_text(&self, prompt: &str) -> Result<String, String> {
+        let request = self.build_request(
+            "다음 입력을 처리하고 JSON 또는 일반 텍스트가 필요하면 그대로 반환하세요.",
+            prompt,
+        );
+        let request_json = serde_json::to_string(&request).unwrap_or_default();
+
+        let mut log_entry = ApiLogEntry::new(
+            "POST",
+            CODEX_API_URL,
+            "Codex",
+            "Responses",
+            Some(self.model.clone()),
+        );
+        log_entry.request_body = Some(request_json);
+
+        let start = Instant::now();
+        let response = match self.build_http_request(&request).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                log_entry.error = Some(e.to_string());
+                let entry = log_entry;
+                let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                return Err(format!("API 요청 실패: {}", e));
+            }
+        };
+
+        let status = response.status();
+        log_entry.status = status.as_u16();
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.response_body = Some(error_text.clone());
+            log_entry.error = Some(format!("HTTP {}", status));
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(format!("API 오류 ({}): {}", status, error_text));
+        }
+
+        let body = response
+            .text()
+            .await
+            .map_err(|e| format!("응답 읽기 실패: {}", e))?;
+
+        let mut full_text = String::new();
+
+        for line in body.lines() {
+            if let Some(data) = line.strip_prefix("data: ") {
+                let trimmed = data.trim();
+                if trimmed.is_empty() || trimmed == "[DONE]" {
+                    continue;
+                }
+                if let Ok(event) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                    if let Some(err_msg) = Self::extract_error(&event) {
+                        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+                        log_entry.error = Some(err_msg.clone());
+                        let entry = log_entry;
+                        let _ =
+                            tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+                        return Err(format!("Codex API 오류: {}", err_msg));
+                    }
+                    if let Some((text, usage)) = Self::extract_event_text(&event) {
+                        let event_type =
+                            event.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                        match event_type {
+                            "response.output_text.delta" => {
+                                full_text.push_str(&text);
+                            }
+                            "response.completed" | "response.done" => {
+                                if full_text.is_empty() && !text.is_empty() {
+                                    full_text = text;
+                                }
+                                if let Some(u) = usage {
+                                    log_entry.input_tokens = u.input_tokens;
+                                    log_entry.output_tokens = u.output_tokens;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        log_entry.duration_ms = start.elapsed().as_millis() as u64;
+        log_entry.response_body = Some(full_text.clone());
+        let entry = log_entry;
+        let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+
+        if full_text.is_empty() {
+            return Err("응답에서 텍스트를 찾을 수 없습니다.".to_string());
+        }
+
+        Ok(full_text)
+    }
+
     /// Extract text from an SSE event value.
     fn extract_event_text(event: &serde_json::Value) -> Option<(String, Option<CodexUsageInfo>)> {
         let event_type = event.get("type").and_then(|v| v.as_str())?;

@@ -5,13 +5,182 @@ import { useTranslationStore } from '../stores/translationStore';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import { useDebugStore } from '../stores/debugStore';
-import type { ChapterContent, Chapter, ExportRequest, TranslationChunk } from '../types';
+import type {
+  Chapter,
+  ChapterContent,
+  CharacterDictionaryEntry,
+  CharacterDictionaryReview,
+  ExportRequest,
+  TranslationChunk,
+} from '../types';
 
 const formatTokenCount = (count: number): string => {
   if (count >= 1000) {
     return `${(count / 1000).toFixed(1)}k`;
   }
   return count.toString();
+};
+
+const isAutoProperNounDictionaryEnabled = async (): Promise<boolean> => {
+  const settings = await invoke<{ key: string; value: string }[]>('get_settings');
+  const setting = settings.find((entry) => entry.key === 'auto_proper_noun_dictionary_enabled');
+  return setting ? setting.value !== 'false' : true;
+};
+
+const normalizeDictionaryKey = (entry: CharacterDictionaryEntry): string => {
+  const source = entry.source_text.trim().toLowerCase();
+  const reading = (entry.reading ?? '').trim().toLowerCase();
+  return `${source}::${reading}`;
+};
+
+export const filterNewProperNounEntries = (
+  existingEntries: CharacterDictionaryEntry[],
+  extractedEntries: CharacterDictionaryEntry[],
+): CharacterDictionaryEntry[] => {
+  const existingKeys = new Set(existingEntries.map(normalizeDictionaryKey));
+  const seenKeys = new Set<string>();
+
+  return extractedEntries.filter((entry) => {
+    const sourceText = entry.source_text.trim();
+    const reading = (entry.reading ?? '').trim();
+    const targetName = entry.target_name.trim();
+    if (!sourceText || !reading || !targetName) {
+      return false;
+    }
+
+    const key = normalizeDictionaryKey(entry);
+    if (existingKeys.has(key) || seenKeys.has(key)) {
+      return false;
+    }
+
+    seenKeys.add(key);
+    return true;
+  });
+};
+
+export const mergeCharacterDictionaryEntries = (
+  existingEntries: CharacterDictionaryEntry[],
+  reviewedEntries: CharacterDictionaryEntry[],
+): CharacterDictionaryEntry[] => {
+  const mergedEntries = [...existingEntries];
+  const entryIndexes = new Map(
+    existingEntries.map((entry, index) => [normalizeDictionaryKey(entry), index]),
+  );
+
+  for (const entry of reviewedEntries) {
+    const key = normalizeDictionaryKey(entry);
+    const existingIndex = entryIndexes.get(key);
+
+    if (existingIndex === undefined) {
+      entryIndexes.set(key, mergedEntries.length);
+      mergedEntries.push(entry);
+      continue;
+    }
+
+    mergedEntries[existingIndex] = entry;
+  }
+
+  return mergedEntries;
+};
+
+export interface CharacterDictionaryReviewContent {
+  site: string;
+  novel_id: string;
+  chapter_number: number;
+  title: string;
+  subtitle: string;
+  translatedTitle?: string;
+  translatedSubtitle?: string;
+  paragraphs: Array<{
+    original: string;
+    translated?: string;
+  }>;
+}
+
+export const createCharacterDictionaryReviewContent = (
+  content: ChapterContent,
+): CharacterDictionaryReviewContent => ({
+  site: content.site,
+  novel_id: content.novel_id,
+  chapter_number: content.chapter_number,
+  title: content.title,
+  subtitle: content.subtitle,
+  translatedTitle: '',
+  translatedSubtitle: '',
+  paragraphs: content.paragraphs.map((paragraph) => ({
+    original: paragraph,
+    translated: '',
+  })),
+});
+
+export const applyTranslationChunkToReviewContent = (
+  content: CharacterDictionaryReviewContent,
+  chunk: TranslationChunk,
+): void => {
+  if (chunk.paragraph_id === 'title') {
+    content.translatedTitle = chunk.text;
+    return;
+  }
+
+  if (chunk.paragraph_id === 'subtitle') {
+    content.translatedSubtitle = chunk.text;
+    return;
+  }
+
+  if (!chunk.paragraph_id.startsWith('p-')) {
+    return;
+  }
+
+  const paragraphNumber = Number.parseInt(chunk.paragraph_id.slice(2), 10);
+  if (!Number.isFinite(paragraphNumber) || paragraphNumber < 1) {
+    return;
+  }
+
+  const paragraph = content.paragraphs[paragraphNumber - 1];
+  if (paragraph) {
+    paragraph.translated = chunk.text;
+  }
+};
+
+export const buildCharacterDictionaryReviewTexts = (
+  content: CharacterDictionaryReviewContent,
+): { originals: string[]; translateds: string[] } => ({
+  originals: [
+    content.title,
+    ...(content.subtitle ? [content.subtitle] : []),
+    ...content.paragraphs.map((paragraph) => paragraph.original),
+  ],
+  translateds: [
+    content.translatedTitle || '',
+    ...(content.subtitle ? [content.translatedSubtitle || ''] : []),
+    ...content.paragraphs.map((paragraph) => paragraph.translated || ''),
+  ],
+});
+
+export const resolveCharacterDictionaryTarget = (
+  dictionaryMode: 'review' | 'manual',
+  chapter: { site: string; novelId: string } | null,
+  pendingReview: CharacterDictionaryReview | null,
+): { site: string; novelId: string } | null => {
+  if (dictionaryMode === 'review') {
+    if (!pendingReview) {
+      return null;
+    }
+
+    return {
+      site: pendingReview.site,
+      novelId: pendingReview.novel_id,
+    };
+  }
+
+  if (!chapter) {
+    return null;
+  }
+
+  return {
+    site: chapter.site,
+    novelId: chapter.novelId,
+  };
 };
 
 export const useTranslation = () => {
@@ -21,6 +190,7 @@ export const useTranslation = () => {
   const updateTitleTranslation = useTranslationStore((s) => s.updateTitleTranslation);
   const setFailedParagraphIndices = useTranslationStore((s) => s.setFailedParagraphIndices);
   const clearFailedParagraphIndices = useTranslationStore((s) => s.clearFailedParagraphIndices);
+  const setPendingCharacterDictionaryReview = useTranslationStore((s) => s.setPendingCharacterDictionaryReview);
   
   const setChapterList = useSeriesStore((s) => s.setChapterList);
   const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
@@ -32,6 +202,65 @@ export const useTranslation = () => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const getCharacterDictionary = useCallback(async (site: string, novelId: string) => {
+    return invoke<CharacterDictionaryEntry[]>('get_novel_character_dictionary', {
+      site,
+      novelId,
+    });
+  }, []);
+
+  const saveCharacterDictionary = useCallback(async (
+    site: string,
+    novelId: string,
+    entries: CharacterDictionaryEntry[],
+  ) => {
+    return invoke<{ cleared_cache: boolean }>('save_novel_character_dictionary', {
+      site,
+      novelId,
+      entries,
+    });
+  }, []);
+
+  const maybePrepareCharacterDictionaryReview = useCallback(async (
+    content: CharacterDictionaryReviewContent,
+  ) => {
+    if (!(await isAutoProperNounDictionaryEnabled())) {
+      return;
+    }
+
+    const existingEntries = await getCharacterDictionary(content.site, content.novel_id);
+    const { originals, translateds } = buildCharacterDictionaryReviewTexts(content);
+
+    if (translateds.every((text) => !text.trim())) {
+      return;
+    }
+
+    const extractedEntries = await invoke<CharacterDictionaryEntry[]>('extract_character_dictionary_candidates', {
+      request: {
+        site: content.site,
+        novelId: content.novel_id,
+        chapterNumber: content.chapter_number,
+        title: content.title,
+        subtitle: content.subtitle || null,
+        originals,
+        translateds,
+      },
+    });
+
+    const entries = filterNewProperNounEntries(existingEntries, extractedEntries);
+    if (entries.length === 0) {
+      return;
+    }
+
+    setPendingCharacterDictionaryReview({
+      site: content.site,
+      novel_id: content.novel_id,
+      chapter_number: content.chapter_number,
+      entries,
+    });
+    showToast(`새 고유명사 후보 ${entries.length}개를 확인해주세요.`);
+  }, [getCharacterDictionary, setPendingCharacterDictionaryReview, showToast]);
 
   const parseChapter = useCallback(async (url: string) => {
     setLoading(true);
@@ -114,10 +343,12 @@ export const useTranslation = () => {
 
       setLoading(false);
       setIsTranslating(true);
+      const reviewContent = createCharacterDictionaryReviewContent(content);
       
       const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
         const paragraphId = event.payload.paragraph_id;
         const translatedPreview = event.payload.text.slice(0, 40) + (event.payload.text.length > 40 ? '...' : '');
+        applyTranslationChunkToReviewContent(reviewContent, event.payload);
         
         if (event.payload.text.trim() === '') {
           addDebugLog('warn', `Empty translation received for [${paragraphId}]`);
@@ -205,6 +436,12 @@ export const useTranslation = () => {
           } catch (err) {
             addDebugLog('warn', `Failed to mark chapter complete: ${err}`);
           }
+
+          try {
+            await maybePrepareCharacterDictionaryReview(reviewContent);
+          } catch (err) {
+            addDebugLog('warn', `Character dictionary candidate extraction skipped: ${err}`);
+          }
         } else if (!success && content.chapter_number > 0) {
           addDebugLog('warn', `Chapter ${content.chapter_number} NOT marked as completed due to ${failed_count} failed translations`);
         }
@@ -244,7 +481,8 @@ export const useTranslation = () => {
       addDebugLog('info', `${url} | Starting translation: ${allTexts.length} items (title + ${content.subtitle ? 'subtitle + ' : ''}${content.paragraphs.length} paragraphs)`);
 
       try {
-        await invoke('translate_paragraphs_streaming', { 
+        await invoke('translate_paragraphs_streaming', {
+          site: content.site,
           novelId: content.novel_id,
           paragraphs: allTexts,
           hasSubtitle,
@@ -269,11 +507,11 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog]);
+  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview]);
 
-  const translateText = useCallback(async (novelId: string, text: string, note?: string) => {
+  const translateText = useCallback(async (site: string, novelId: string, text: string, note?: string) => {
     try {
-      const result = await invoke<{ translated_text: string }>('translate_text', { novelId, text, note });
+      const result = await invoke<{ translated_text: string }>('translate_text', { site, novelId, text, note });
       return result.translated_text;
     } catch (err) {
       console.error("Translation failed:", err);
@@ -281,9 +519,9 @@ export const useTranslation = () => {
     }
   }, []);
 
-  const translateParagraphs = useCallback(async (novelId: string, paragraphs: string[], note?: string) => {
+  const translateParagraphs = useCallback(async (site: string, novelId: string, paragraphs: string[], note?: string) => {
     try {
-      const result = await invoke<{ translated: string[] }>('translate_paragraphs', { novelId, paragraphs, note });
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs', { site, novelId, paragraphs, note });
       return result.translated;
     } catch (err) {
       console.error("Translation failed:", err);
@@ -292,6 +530,7 @@ export const useTranslation = () => {
   }, []);
 
   const translateParagraphsStreaming = useCallback(async (
+    site: string,
     novelId: string,
     paragraphs: string[],
     onChunk: (chunk: TranslationChunk) => void,
@@ -310,7 +549,7 @@ export const useTranslation = () => {
     });
     
     try {
-      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { novelId, paragraphs, hasSubtitle, note });
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { site, novelId, paragraphs, hasSubtitle, note });
       return result.translated;
     } catch (err) {
       unlistenChunk();
@@ -463,6 +702,7 @@ await invoke('start_batch_translation', {
 
     try {
       await invoke('translate_paragraphs_streaming', {
+        site: chapterContent.site,
         novelId: chapterContent.novel_id,
         paragraphs: retryTexts,
         hasSubtitle,
@@ -497,6 +737,8 @@ await invoke('start_batch_translation', {
     translateText,
     translateParagraphs,
     translateParagraphsStreaming,
+    getCharacterDictionary,
+    saveCharacterDictionary,
     startBatchTranslation,
     stopBatchTranslation,
     pauseBatchTranslation,
