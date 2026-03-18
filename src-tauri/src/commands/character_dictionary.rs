@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::commands::settings::clear_cache_by_novel_internal;
+use crate::commands::settings::clear_translation_cache_by_novel_internal;
 use crate::services::character_dictionary::{
     get_novel_character_dictionary as get_novel_character_dictionary_entries,
     save_novel_character_dictionary as save_novel_character_dictionary_entries,
@@ -41,7 +41,7 @@ pub async fn save_novel_character_dictionary(
     entries: Vec<CharacterDictionaryEntry>,
 ) -> Result<SaveCharacterDictionaryResult, String> {
     save_novel_character_dictionary_entries(&site, &novel_id, &entries).await?;
-    clear_cache_by_novel_internal(&novel_id).await?;
+    clear_translation_cache_by_novel_internal(&novel_id).await?;
 
     Ok(SaveCharacterDictionaryResult { cleared_cache: true })
 }

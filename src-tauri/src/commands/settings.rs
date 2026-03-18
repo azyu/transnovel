@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{Pool, Row, Sqlite};
 
 use crate::db::get_pool;
 use crate::services::openai_oauth;
@@ -493,14 +493,24 @@ pub async fn clear_cache_by_novel(novel_id: String) -> Result<i64, String> {
     clear_cache_by_novel_internal(&novel_id).await
 }
 
-pub(crate) async fn clear_cache_by_novel_internal(novel_id: &str) -> Result<i64, String> {
-    let pool = get_pool()?;
-
+async fn clear_translation_cache_by_novel_with_pool(
+    pool: &Pool<Sqlite>,
+    novel_id: &str,
+) -> Result<i64, String> {
     let result = sqlx::query("DELETE FROM translation_cache WHERE novel_id = ?")
         .bind(novel_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    Ok(result.rows_affected() as i64)
+}
+
+async fn clear_cache_by_novel_with_pool(
+    pool: &Pool<Sqlite>,
+    novel_id: &str,
+) -> Result<i64, String> {
+    let deleted_rows = clear_translation_cache_by_novel_with_pool(pool, novel_id).await?;
 
     sqlx::query("DELETE FROM completed_chapters WHERE novel_id = ?")
         .bind(novel_id)
@@ -508,7 +518,17 @@ pub(crate) async fn clear_cache_by_novel_internal(novel_id: &str) -> Result<i64,
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(result.rows_affected() as i64)
+    Ok(deleted_rows)
+}
+
+pub(crate) async fn clear_cache_by_novel_internal(novel_id: &str) -> Result<i64, String> {
+    let pool = get_pool()?;
+    clear_cache_by_novel_with_pool(pool, novel_id).await
+}
+
+pub(crate) async fn clear_translation_cache_by_novel_internal(novel_id: &str) -> Result<i64, String> {
+    let pool = get_pool()?;
+    clear_translation_cache_by_novel_with_pool(pool, novel_id).await
 }
 
 #[tauri::command]
@@ -536,4 +556,104 @@ pub async fn reset_all() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
+
+    async fn setup_test_pool() -> Pool<Sqlite> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create sqlite memory pool");
+
+        sqlx::query(include_str!("../db/migrations/001_initial.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply initial migration");
+
+        pool
+    }
+
+    async fn count_rows(pool: &Pool<Sqlite>, table: &str, novel_id: &str) -> i64 {
+        let query = format!("SELECT COUNT(*) as count FROM {table} WHERE novel_id = ?");
+        let row = sqlx::query(&query)
+            .bind(novel_id)
+            .fetch_one(pool)
+            .await
+            .expect("count rows");
+
+        row.get("count")
+    }
+
+    #[tokio::test]
+    async fn clear_translation_cache_by_novel_keeps_completed_chapters() {
+        let pool = setup_test_pool().await;
+        let novel_id = "novel-1";
+
+        sqlx::query(
+            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text) VALUES (?, ?, ?, ?)",
+        )
+        .bind("hash-1")
+        .bind(novel_id)
+        .bind("원문")
+        .bind("번역")
+        .execute(&pool)
+        .await
+        .expect("insert translation cache");
+
+        sqlx::query(
+            "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count) VALUES (?, ?, ?)",
+        )
+        .bind(novel_id)
+        .bind(1_i64)
+        .bind(10_i64)
+        .execute(&pool)
+        .await
+        .expect("insert completed chapter");
+
+        clear_translation_cache_by_novel_with_pool(&pool, novel_id)
+            .await
+            .expect("clear translation cache");
+
+        assert_eq!(count_rows(&pool, "translation_cache", novel_id).await, 0);
+        assert_eq!(count_rows(&pool, "completed_chapters", novel_id).await, 1);
+    }
+
+    #[tokio::test]
+    async fn clear_cache_by_novel_with_pool_removes_completed_chapters() {
+        let pool = setup_test_pool().await;
+        let novel_id = "novel-1";
+
+        sqlx::query(
+            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text) VALUES (?, ?, ?, ?)",
+        )
+        .bind("hash-1")
+        .bind(novel_id)
+        .bind("원문")
+        .bind("번역")
+        .execute(&pool)
+        .await
+        .expect("insert translation cache");
+
+        sqlx::query(
+            "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count) VALUES (?, ?, ?)",
+        )
+        .bind(novel_id)
+        .bind(1_i64)
+        .bind(10_i64)
+        .execute(&pool)
+        .await
+        .expect("insert completed chapter");
+
+        clear_cache_by_novel_with_pool(&pool, novel_id)
+            .await
+            .expect("clear cache and completed chapters");
+
+        assert_eq!(count_rows(&pool, "translation_cache", novel_id).await, 0);
+        assert_eq!(count_rows(&pool, "completed_chapters", novel_id).await, 0);
+    }
 }

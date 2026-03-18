@@ -10,7 +10,7 @@ import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
-import { useTranslation } from '../../hooks/useTranslation';
+import { mergeCharacterDictionaryEntries, useTranslation } from '../../hooks/useTranslation';
 import type { CharacterDictionaryEntry } from '../../types';
 
 export const TranslationView: React.FC = () => {
@@ -175,7 +175,14 @@ export const TranslationView: React.FC = () => {
 
     setDictionarySaving(true);
     try {
-      await saveCharacterDictionary(chapter.site, chapter.novelId, entries);
+      const entriesToSave = dictionaryMode === 'review'
+        ? mergeCharacterDictionaryEntries(
+            await getCharacterDictionary(chapter.site, chapter.novelId),
+            entries,
+          )
+        : entries;
+
+      await saveCharacterDictionary(chapter.site, chapter.novelId, entriesToSave);
       setShowDictionaryModal(false);
       setPendingCharacterDictionaryReview(null);
       showToast('사용자 정의 고유명사 사전을 저장했습니다.');

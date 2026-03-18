@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { filterNewProperNounEntries } from './useTranslation';
+import {
+  filterNewProperNounEntries,
+  mergeCharacterDictionaryEntries,
+} from './useTranslation';
 
 describe('filterNewProperNounEntries', () => {
   it('filters out entries that already exist in the saved dictionary', () => {
@@ -79,6 +82,74 @@ describe('filterNewProperNounEntries', () => {
         reading: 'ほうれいいん',
         target_name: '호레이인 학원',
         note: '학교',
+      },
+    ]);
+  });
+});
+
+describe('mergeCharacterDictionaryEntries', () => {
+  it('preserves existing dictionary entries when adding review candidates', () => {
+    const result = mergeCharacterDictionaryEntries(
+      [
+        {
+          source_text: '周',
+          reading: 'あまね',
+          target_name: '아마네',
+          note: '주인공',
+        },
+      ],
+      [
+        {
+          source_text: '鳳黎院学園',
+          reading: 'ほうれいいん',
+          target_name: '호레이인 학원',
+          note: '학교',
+        },
+      ],
+    );
+
+    expect(result).toEqual([
+      {
+        source_text: '周',
+        reading: 'あまね',
+        target_name: '아마네',
+        note: '주인공',
+      },
+      {
+        source_text: '鳳黎院学園',
+        reading: 'ほうれいいん',
+        target_name: '호레이인 학원',
+        note: '학교',
+      },
+    ]);
+  });
+
+  it('prefers reviewed candidates when they replace an existing key', () => {
+    const result = mergeCharacterDictionaryEntries(
+      [
+        {
+          source_text: '周',
+          reading: 'あまね',
+          target_name: '기존 이름',
+          note: '이전 메모',
+        },
+      ],
+      [
+        {
+          source_text: '周',
+          reading: 'あまね',
+          target_name: '아마네',
+          note: '주인공',
+        },
+      ],
+    );
+
+    expect(result).toEqual([
+      {
+        source_text: '周',
+        reading: 'あまね',
+        target_name: '아마네',
+        note: '주인공',
       },
     ]);
   });

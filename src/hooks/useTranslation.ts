@@ -57,6 +57,31 @@ export const filterNewProperNounEntries = (
   });
 };
 
+export const mergeCharacterDictionaryEntries = (
+  existingEntries: CharacterDictionaryEntry[],
+  reviewedEntries: CharacterDictionaryEntry[],
+): CharacterDictionaryEntry[] => {
+  const mergedEntries = [...existingEntries];
+  const entryIndexes = new Map(
+    existingEntries.map((entry, index) => [normalizeDictionaryKey(entry), index]),
+  );
+
+  for (const entry of reviewedEntries) {
+    const key = normalizeDictionaryKey(entry);
+    const existingIndex = entryIndexes.get(key);
+
+    if (existingIndex === undefined) {
+      entryIndexes.set(key, mergedEntries.length);
+      mergedEntries.push(entry);
+      continue;
+    }
+
+    mergedEntries[existingIndex] = entry;
+  }
+
+  return mergedEntries;
+};
+
 export const useTranslation = () => {
   const setChapterContent = useTranslationStore((s) => s.setChapterContent);
   const setIsTranslating = useTranslationStore((s) => s.setIsTranslating);

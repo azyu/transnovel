@@ -22,6 +22,11 @@ const createEmptyEntry = (): CharacterDictionaryEntry => ({
   note: '',
 });
 
+const createDraftEntries = (entries: CharacterDictionaryEntry[]): CharacterDictionaryEntry[] =>
+  entries.length > 0
+    ? entries.map((entry) => ({ ...entry }))
+    : [createEmptyEntry()];
+
 export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> = ({
   isOpen,
   title,
@@ -34,8 +39,14 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   const [draftEntries, setDraftEntries] = useState<CharacterDictionaryEntry[]>(
-    entries.length > 0 ? entries : [createEmptyEntry()],
+    createDraftEntries(entries),
   );
+  const [draftSeed, setDraftSeed] = useState(entries);
+
+  if (draftSeed !== entries) {
+    setDraftSeed(entries);
+    setDraftEntries(createDraftEntries(entries));
+  }
 
   const updateEntry = (
     index: number,
