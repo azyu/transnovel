@@ -1,0 +1,1 @@
+ALTER TABLE api_logs ADD COLUMN provider TEXT NOT NULL DEFAULT '';
