@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyTranslationChunkToReviewContent,
+  buildCharacterDictionaryReviewTexts,
+  createCharacterDictionaryReviewContent,
   filterNewProperNounEntries,
   mergeCharacterDictionaryEntries,
+  resolveCharacterDictionaryTarget,
 } from './useTranslation';
 
 describe('filterNewProperNounEntries', () => {
@@ -152,5 +156,70 @@ describe('mergeCharacterDictionaryEntries', () => {
         note: '주인공',
       },
     ]);
+  });
+});
+
+describe('createCharacterDictionaryReviewContent', () => {
+  it('captures translated chunks against the completed chapter snapshot', () => {
+    const reviewContent = createCharacterDictionaryReviewContent({
+      site: 'syosetu',
+      novel_id: 'n1234',
+      chapter_number: 7,
+      title: '原題',
+      subtitle: '副題',
+      paragraphs: ['一段落', '二段落'],
+      prev_url: null,
+      next_url: null,
+      novel_title: null,
+    });
+
+    applyTranslationChunkToReviewContent(reviewContent, {
+      paragraph_id: 'title',
+      text: '번역 제목',
+      is_complete: true,
+    });
+    applyTranslationChunkToReviewContent(reviewContent, {
+      paragraph_id: 'subtitle',
+      text: '번역 부제',
+      is_complete: true,
+    });
+    applyTranslationChunkToReviewContent(reviewContent, {
+      paragraph_id: 'p-2',
+      text: '둘째 문단 번역',
+      is_complete: true,
+    });
+
+    expect(buildCharacterDictionaryReviewTexts(reviewContent)).toEqual({
+      originals: ['原題', '副題', '一段落', '二段落'],
+      translateds: ['번역 제목', '번역 부제', '', '둘째 문단 번역'],
+    });
+  });
+});
+
+describe('resolveCharacterDictionaryTarget', () => {
+  it('uses the pending review target instead of the current chapter in review mode', () => {
+    expect(
+      resolveCharacterDictionaryTarget(
+        'review',
+        { site: 'kakuyomu', novelId: 'current-work' },
+        { site: 'syosetu', novel_id: 'review-work', chapter_number: 3, entries: [] },
+      ),
+    ).toEqual({
+      site: 'syosetu',
+      novelId: 'review-work',
+    });
+  });
+
+  it('uses the current chapter in manual mode', () => {
+    expect(
+      resolveCharacterDictionaryTarget(
+        'manual',
+        { site: 'kakuyomu', novelId: 'current-work' },
+        { site: 'syosetu', novel_id: 'review-work', chapter_number: 3, entries: [] },
+      ),
+    ).toEqual({
+      site: 'kakuyomu',
+      novelId: 'current-work',
+    });
   });
 });

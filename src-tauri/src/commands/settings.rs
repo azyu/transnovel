@@ -531,31 +531,39 @@ pub(crate) async fn clear_translation_cache_by_novel_internal(novel_id: &str) ->
     clear_translation_cache_by_novel_with_pool(pool, novel_id).await
 }
 
-#[tauri::command]
-pub async fn reset_all() -> Result<(), String> {
-    let pool = get_pool()?;
-    
+async fn reset_all_with_pool(pool: &Pool<Sqlite>) -> Result<(), String> {
     sqlx::query("DELETE FROM translation_cache")
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     sqlx::query("DELETE FROM completed_chapters")
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
+    sqlx::query("DELETE FROM novel_character_dictionary")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     sqlx::query("DELETE FROM settings")
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     sqlx::query("DELETE FROM api_keys")
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     Ok(())
+}
+
+#[tauri::command]
+pub async fn reset_all() -> Result<(), String> {
+    let pool = get_pool()?;
+    reset_all_with_pool(pool).await
 }
 
 #[cfg(test)]
@@ -585,6 +593,16 @@ mod tests {
             .fetch_one(pool)
             .await
             .expect("count rows");
+
+        row.get("count")
+    }
+
+    async fn count_all_rows(pool: &Pool<Sqlite>, table: &str) -> i64 {
+        let query = format!("SELECT COUNT(*) as count FROM {table}");
+        let row = sqlx::query(&query)
+            .fetch_one(pool)
+            .await
+            .expect("count all rows");
 
         row.get("count")
     }
@@ -655,5 +673,70 @@ mod tests {
 
         assert_eq!(count_rows(&pool, "translation_cache", novel_id).await, 0);
         assert_eq!(count_rows(&pool, "completed_chapters", novel_id).await, 0);
+    }
+
+    #[tokio::test]
+    async fn reset_all_with_pool_clears_character_dictionaries() {
+        let pool = setup_test_pool().await;
+
+        sqlx::query(include_str!("../db/migrations/004_novel_character_dictionary.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply dictionary migration");
+
+        sqlx::query(
+            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text) VALUES (?, ?, ?, ?)",
+        )
+        .bind("hash-1")
+        .bind("novel-1")
+        .bind("원문")
+        .bind("번역")
+        .execute(&pool)
+        .await
+        .expect("insert translation cache");
+
+        sqlx::query(
+            "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count) VALUES (?, ?, ?)",
+        )
+        .bind("novel-1")
+        .bind(1_i64)
+        .bind(10_i64)
+        .execute(&pool)
+        .await
+        .expect("insert completed chapter");
+
+        sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?)")
+            .bind("model")
+            .bind("gemini-2.0-flash")
+            .execute(&pool)
+            .await
+            .expect("insert setting");
+
+        sqlx::query("INSERT INTO api_keys (key_type, api_key, is_active, daily_usage) VALUES (?, ?, 1, 0)")
+            .bind("gemini")
+            .bind("secret")
+            .execute(&pool)
+            .await
+            .expect("insert api key");
+
+        sqlx::query(
+            "INSERT INTO novel_character_dictionary (site, novel_id, entries_json) VALUES (?, ?, ?)",
+        )
+        .bind("syosetu")
+        .bind("novel-1")
+        .bind("[{\"source_text\":\"周\",\"reading\":\"あまね\",\"target_name\":\"아마네\"}]")
+        .execute(&pool)
+        .await
+        .expect("insert character dictionary");
+
+        reset_all_with_pool(&pool)
+            .await
+            .expect("reset all data");
+
+        assert_eq!(count_all_rows(&pool, "translation_cache").await, 0);
+        assert_eq!(count_all_rows(&pool, "completed_chapters").await, 0);
+        assert_eq!(count_all_rows(&pool, "settings").await, 0);
+        assert_eq!(count_all_rows(&pool, "api_keys").await, 0);
+        assert_eq!(count_all_rows(&pool, "novel_character_dictionary").await, 0);
     }
 }

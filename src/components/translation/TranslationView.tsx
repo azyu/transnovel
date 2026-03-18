@@ -10,7 +10,11 @@ import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
-import { mergeCharacterDictionaryEntries, useTranslation } from '../../hooks/useTranslation';
+import {
+  mergeCharacterDictionaryEntries,
+  resolveCharacterDictionaryTarget,
+  useTranslation,
+} from '../../hooks/useTranslation';
 import type { CharacterDictionaryEntry } from '../../types';
 
 export const TranslationView: React.FC = () => {
@@ -171,18 +175,26 @@ export const TranslationView: React.FC = () => {
   };
 
   const handleSaveDictionary = async (entries: CharacterDictionaryEntry[]) => {
-    if (!chapter) return;
+    const dictionaryTarget = resolveCharacterDictionaryTarget(
+      dictionaryMode,
+      chapter,
+      pendingCharacterDictionaryReview,
+    );
+    if (!dictionaryTarget) {
+      showError('사전 저장 실패', '저장할 작품 정보를 확인할 수 없습니다.');
+      return;
+    }
 
     setDictionarySaving(true);
     try {
       const entriesToSave = dictionaryMode === 'review'
         ? mergeCharacterDictionaryEntries(
-            await getCharacterDictionary(chapter.site, chapter.novelId),
+            await getCharacterDictionary(dictionaryTarget.site, dictionaryTarget.novelId),
             entries,
           )
         : entries;
 
-      await saveCharacterDictionary(chapter.site, chapter.novelId, entriesToSave);
+      await saveCharacterDictionary(dictionaryTarget.site, dictionaryTarget.novelId, entriesToSave);
       setShowDictionaryModal(false);
       setPendingCharacterDictionaryReview(null);
       showToast('사용자 정의 고유명사 사전을 저장했습니다.');
