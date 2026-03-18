@@ -22,3 +22,4 @@
 - [x] Git remote 변경 + 초기 커밋 정리 — Codex
 - [x] 프로젝트 명칭을 TransNovel로 전면 변경 — Codex
 - [x] .pnpm-store 디렉터리 ignore 추가 — Codex
+- [x] 앱 식별자 호환성 복원 — Codex

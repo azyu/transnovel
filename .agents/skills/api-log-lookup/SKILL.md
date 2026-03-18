@@ -19,7 +19,7 @@ The TransNovel stores every LLM API call in SQLite (`api_logs` table). Each log 
 ## Database Location
 
 ```
-~/Library/Application Support/com.azyu.transnovel/novels.db
+~/Library/Application Support/com.azyu.noveltr/novels.db
 ```
 
 ## Lookup Procedure
@@ -27,40 +27,40 @@ The TransNovel stores every LLM API call in SQLite (`api_logs` table). Each log 
 ### 1. Query by UUID
 
 ```bash
-sqlite3 ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
+sqlite3 ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
   "SELECT id, timestamp, method, path, status, duration_ms, model, provider, protocol, input_tokens, output_tokens, error FROM api_logs WHERE id = '<UUID>';"
 ```
 
 ### 2. Get Full Request/Response Payloads
 
 ```bash
-sqlite3 ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
+sqlite3 ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
   "SELECT request_body FROM api_logs WHERE id = '<UUID>';"
 ```
 
 ```bash
-sqlite3 ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
+sqlite3 ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
   "SELECT response_body FROM api_logs WHERE id = '<UUID>';"
 ```
 
 ### 3. Get Recent Logs (Context)
 
 ```bash
-sqlite3 -header -column ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
+sqlite3 -header -column ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
   "SELECT id, datetime(timestamp/1000, 'unixepoch', 'localtime') as time, status, provider, model, duration_ms, input_tokens, output_tokens, error FROM api_logs ORDER BY timestamp DESC LIMIT 20;"
 ```
 
 ### 4. Find Logs by Partial UUID
 
 ```bash
-sqlite3 -header -column ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
+sqlite3 -header -column ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
   "SELECT id, datetime(timestamp/1000, 'unixepoch', 'localtime') as time, status, provider, model, error FROM api_logs WHERE id LIKE '<partial>%' ORDER BY timestamp DESC;"
 ```
 
 ### 5. Find Error Logs
 
 ```bash
-sqlite3 -header -column ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
+sqlite3 -header -column ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
   "SELECT id, datetime(timestamp/1000, 'unixepoch', 'localtime') as time, status, provider, model, error FROM api_logs WHERE status >= 400 ORDER BY timestamp DESC LIMIT 10;"
 ```
 

@@ -1,6 +1,6 @@
 name: transnovel
 options:
-  bundleIdPrefix: com.azyu.transnovel
+  bundleIdPrefix: com.azyu.noveltr
   deploymentTarget:
     iOS: 14.0
 fileGroups: [../../src]
@@ -11,7 +11,7 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: TransNovel
-      PRODUCT_BUNDLE_IDENTIFIER: com.azyu.transnovel
+      PRODUCT_BUNDLE_IDENTIFIER: com.azyu.noveltr
 targetTemplates:
   app:
     type: application
