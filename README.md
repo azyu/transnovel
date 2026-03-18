@@ -1,5 +1,8 @@
 # TransNovel
 
+[![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%202.0-24C8DB?logo=tauri&logoColor=FFC131)](https://tauri.app/)
+[![CI](https://github.com/azyu/transnovel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/azyu/transnovel/actions/workflows/ci.yml)
+
 Desktop app for translating Japanese web novels into Korean with a React frontend, Rust backend, and Tauri 2.0 shell.
 
 [한국어 문서](./README.ko-kr.md)
