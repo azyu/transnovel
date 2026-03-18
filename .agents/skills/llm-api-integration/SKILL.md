@@ -1,7 +1,7 @@
 ---
 name: llm-api-integration
 description: >
-  LLM API provider integration patterns for the AI Novel Translator.
+  LLM API provider integration patterns for the TransNovel.
   Use when adding a new AI provider, debugging API calls, fixing streaming issues,
   or modifying provider authentication and request/response handling.
   Triggers: new provider, API client, SSE streaming, Gemini API, OpenAI API, OpenRouter,
@@ -135,8 +135,8 @@ let url = format!("{}{}", self.base_url.trim_end_matches("/v1").trim_end_matches
 ```
 Authorization: Bearer {api_key}
 Content-Type: application/json
-HTTP-Referer: https://ai-novel-translator.app
-X-Title: AI Novel Translator
+HTTP-Referer: https://transnovel.app
+X-Title: TransNovel
 ```
 
 ### SSE Format

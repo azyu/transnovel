@@ -1,4 +1,4 @@
-# AI Novel Translator
+# TransNovel
 
 일본 웹소설을 한국어로 번역하는 데스크톱 앱입니다. React 프론트엔드, Rust 백엔드, Tauri 2.0 셸로 구성되어 있습니다.
 
@@ -73,7 +73,7 @@ docs/references.md      상세 아키텍처 및 명령 참고 문서
 
 ```bash
 git clone git@github.com:azyu/transnovel.git
-cd ai-novel-translator
+cd transnovel
 pnpm install
 ```
 

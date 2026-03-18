@@ -1,10 +1,10 @@
 [package]
-name = "ai-novel-translator"
+name = "transnovel"
 version = "0.1.0"
 description = "AI-powered Japanese web novel translator"
-authors = ["AI Novel Translator Team"]
+authors = ["TransNovel Team"]
 license = "MIT"
-repository = "https://github.com/user/ai-novel-translator"
+repository = "https://github.com/azyu/transnovel"
 edition = "2021"
 rust-version = "1.77.2"
 

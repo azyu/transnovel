@@ -1,7 +1,7 @@
 ---
 name: api-log-lookup
 description: >
-  Look up and debug API logs by UUID in the AI Novel Translator app.
+  Look up and debug API logs by UUID in the TransNovel app.
   Use when user provides an API log UID/UUID and wants to investigate a translation API call,
   debug an error, or inspect request/response payloads. Also use when user says
   "check this API log", "look up log", "what happened with this request",
@@ -14,12 +14,12 @@ description: >
 
 ## Overview
 
-The AI Novel Translator stores every LLM API call in SQLite (`api_logs` table). Each log entry has a UUID v4 primary key. This skill retrieves and analyzes log entries by their UID.
+The TransNovel stores every LLM API call in SQLite (`api_logs` table). Each log entry has a UUID v4 primary key. This skill retrieves and analyzes log entries by their UID.
 
 ## Database Location
 
 ```
-~/Library/Application Support/com.azyu.noveltr/novels.db
+~/Library/Application Support/com.azyu.transnovel/novels.db
 ```
 
 ## Lookup Procedure
@@ -27,40 +27,40 @@ The AI Novel Translator stores every LLM API call in SQLite (`api_logs` table). 
 ### 1. Query by UUID
 
 ```bash
-sqlite3 ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
+sqlite3 ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
   "SELECT id, timestamp, method, path, status, duration_ms, model, provider, protocol, input_tokens, output_tokens, error FROM api_logs WHERE id = '<UUID>';"
 ```
 
 ### 2. Get Full Request/Response Payloads
 
 ```bash
-sqlite3 ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
+sqlite3 ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
   "SELECT request_body FROM api_logs WHERE id = '<UUID>';"
 ```
 
 ```bash
-sqlite3 ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
+sqlite3 ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
   "SELECT response_body FROM api_logs WHERE id = '<UUID>';"
 ```
 
 ### 3. Get Recent Logs (Context)
 
 ```bash
-sqlite3 -header -column ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
+sqlite3 -header -column ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
   "SELECT id, datetime(timestamp/1000, 'unixepoch', 'localtime') as time, status, provider, model, duration_ms, input_tokens, output_tokens, error FROM api_logs ORDER BY timestamp DESC LIMIT 20;"
 ```
 
 ### 4. Find Logs by Partial UUID
 
 ```bash
-sqlite3 -header -column ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
+sqlite3 -header -column ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
   "SELECT id, datetime(timestamp/1000, 'unixepoch', 'localtime') as time, status, provider, model, error FROM api_logs WHERE id LIKE '<partial>%' ORDER BY timestamp DESC;"
 ```
 
 ### 5. Find Error Logs
 
 ```bash
-sqlite3 -header -column ~/Library/Application\ Support/com.azyu.noveltr/novels.db \
+sqlite3 -header -column ~/Library/Application\ Support/com.azyu.transnovel/novels.db \
   "SELECT id, datetime(timestamp/1000, 'unixepoch', 'localtime') as time, status, provider, model, error FROM api_logs WHERE status >= 400 ORDER BY timestamp DESC LIMIT 10;"
 ```
 

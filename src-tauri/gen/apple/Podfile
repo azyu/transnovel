@@ -1,13 +1,13 @@
 # Uncomment the next line to define a global platform for your project
 
-target 'ai-novel-translator_iOS' do
+target 'transnovel_iOS' do
 platform :ios, '14.0'
-  # Pods for ai-novel-translator_iOS
+  # Pods for transnovel_iOS
 end
 
-target 'ai-novel-translator_macOS' do
+target 'transnovel_macOS' do
 platform :osx, '11.0'
-  # Pods for ai-novel-translator_macOS
+  # Pods for transnovel_macOS
 end
 
 # Delete the deployment target for iOS and macOS, causing it to be inherited from the Podfile

@@ -20,3 +20,4 @@
 ## Done
 
 - [x] Git remote 변경 + 초기 커밋 정리 — Codex
+- [x] 프로젝트 명칭을 TransNovel로 전면 변경 — Codex

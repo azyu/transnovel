@@ -31,14 +31,14 @@ export const AboutSettings: React.FC = () => {
         <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-lg">
           <img
             src={appIcon}
-            alt="AI Novel Translator"
+            alt="TransNovel"
             className="w-full h-full object-cover"
           />
         </div>
 
         <div className="text-center space-y-2">
           <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            AI Novel Translator
+            TransNovel
           </h3>
           <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             버전 {version || '...'}

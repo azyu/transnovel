@@ -1,4 +1,4 @@
-# AI Novel Translator
+# TransNovel
 
 Desktop app for translating Japanese web novels into Korean with a React frontend, Rust backend, and Tauri 2.0 shell.
 
@@ -73,7 +73,7 @@ docs/references.md      Detailed architecture and command reference
 
 ```bash
 git clone git@github.com:azyu/transnovel.git
-cd ai-novel-translator
+cd transnovel
 pnpm install
 ```
 
