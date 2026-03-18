@@ -38,3 +38,4 @@ src-tauri/Cargo.lock
 .claude/
 .serena/
 .worktrees/
+.pnpm-store/
