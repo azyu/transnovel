@@ -1,7 +1,7 @@
 ---
 name: novel-parser-guide
 description: >
-  Guide for implementing NovelParser trait and adding new site parsers to the AI Novel Translator.
+  Guide for implementing NovelParser trait and adding new site parsers to the TransNovel.
   Use when adding a new novel site parser, modifying existing parsers, or debugging HTML scraping.
   Triggers: new parser, new site, scraping, HTML parsing, scraper crate, novel site, chapter parsing.
 ---

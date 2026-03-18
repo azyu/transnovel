@@ -158,8 +158,8 @@ impl OpenRouterClient {
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://ai-novel-translator.app")
-            .header("X-Title", "AI Novel Translator")
+            .header("HTTP-Referer", "https://transnovel.app")
+            .header("X-Title", "TransNovel")
             .json(&request)
             .send()
             .await
@@ -273,8 +273,8 @@ impl OpenRouterClient {
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://ai-novel-translator.app")
-            .header("X-Title", "AI Novel Translator")
+            .header("HTTP-Referer", "https://transnovel.app")
+            .header("X-Title", "TransNovel")
             .json(&request)
             .send()
             .await

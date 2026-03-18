@@ -1,7 +1,7 @@
 ---
 name: tauri-rust-patterns
 description: >
-  Tauri 2.0 + Rust backend conventions for the AI Novel Translator project.
+  Tauri 2.0 + Rust backend conventions for the TransNovel project.
   Use when implementing Tauri commands, services, DB operations, or any Rust backend work.
   Triggers: new command, new service, DB migration, Rust code review, backend feature, async handler.
 ---

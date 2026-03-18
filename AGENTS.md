@@ -1,4 +1,4 @@
-# AI Novel Translator
+# TransNovel
 
 **Generated:** 2026-02-20 | **Commit:** 7ead666 | **Branch:** main
 

@@ -1,7 +1,7 @@
 ---
 name: translation-pipeline
 description: >
-  Full translation pipeline flow for the AI Novel Translator: paragraph encoding, substitution,
+  Full translation pipeline flow for the TransNovel: paragraph encoding, substitution,
   caching, LLM API calls, streaming, and event emission. Use when working on translation logic,
   cache behavior, paragraph ID encoding, prompt construction, streaming output, or batch translation.
   Triggers: translation bug, cache issue, paragraph ID, streaming, substitution, prompt, batch translation.

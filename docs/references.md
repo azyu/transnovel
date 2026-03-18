@@ -1,4 +1,4 @@
-# AI Novel Translator - Technical Reference
+# TransNovel - Technical Reference
 
 **Generated:** 2026-02-20 | **Commit:** 7ead666 (main) | **253 commits**
 
@@ -364,7 +364,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 ## 7. Configuration
 
 ### Tauri App Config (`tauri.conf.json`)
-- **Identifier:** `com.azyu.noveltr`
+- **Identifier:** `com.azyu.transnovel`
 - **Window:** 1200x800 (min 800x600), centered, resizable
 - **CSP:** `self`, `generativelanguage.googleapis.com`, `localhost:8080`
 - **Targets:** All platforms (macOS, Windows, Linux)

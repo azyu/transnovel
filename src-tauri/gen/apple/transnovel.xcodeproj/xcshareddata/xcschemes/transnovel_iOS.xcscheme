@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "7679A05A55B788B3E95CABE3"
-               BuildableName = "ai-novel-translator_iOS.app"
-               BlueprintName = "ai-novel-translator_iOS"
-               ReferencedContainer = "container:ai-novel-translator.xcodeproj">
+               BuildableName = "transnovel_iOS.app"
+               BlueprintName = "transnovel_iOS"
+               ReferencedContainer = "container:transnovel.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7679A05A55B788B3E95CABE3"
-            BuildableName = "ai-novel-translator_iOS.app"
-            BlueprintName = "ai-novel-translator_iOS"
-            ReferencedContainer = "container:ai-novel-translator.xcodeproj">
+            BuildableName = "transnovel_iOS.app"
+            BlueprintName = "transnovel_iOS"
+            ReferencedContainer = "container:transnovel.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -70,9 +70,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7679A05A55B788B3E95CABE3"
-            BuildableName = "ai-novel-translator_iOS.app"
-            BlueprintName = "ai-novel-translator_iOS"
-            ReferencedContainer = "container:ai-novel-translator.xcodeproj">
+            BuildableName = "transnovel_iOS.app"
+            BlueprintName = "transnovel_iOS"
+            ReferencedContainer = "container:transnovel.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -101,9 +101,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7679A05A55B788B3E95CABE3"
-            BuildableName = "ai-novel-translator_iOS.app"
-            BlueprintName = "ai-novel-translator_iOS"
-            ReferencedContainer = "container:ai-novel-translator.xcodeproj">
+            BuildableName = "transnovel_iOS.app"
+            BlueprintName = "transnovel_iOS"
+            ReferencedContainer = "container:transnovel.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>

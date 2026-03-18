@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "AI Novel Translator",
+  "productName": "TransNovel",
   "version": "0.1.0",
-  "identifier": "com.azyu.noveltr",
+  "identifier": "com.azyu.transnovel",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
