@@ -51,6 +51,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   const providerType = selectedProvider?.type;
   const preset = providerType ? PROVIDER_PRESETS[providerType] : null;
   const isEditing = !!editingModel;
+  const supportsModelDiscovery = providerType === 'gemini' || providerType === 'openrouter' || providerType === 'openai-oauth';
 
   useEffect(() => {
     if (editingModel) {
@@ -73,6 +74,11 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   const fetchModels = useCallback(async () => {
     if (!selectedProvider || !providerType) {
       setModels([]);
+      return;
+    }
+
+    if (!supportsModelDiscovery) {
+      setModels(FALLBACK_MODELS[providerType] || []);
       return;
     }
 
@@ -123,7 +129,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     } finally {
       setLoadingModels(false);
     }
-  }, [selectedProvider, providerType, preset?.apiKeyRequired]);
+  }, [selectedProvider, providerType, preset?.apiKeyRequired, supportsModelDiscovery]);
 
   useEffect(() => {
     if (isOpen && providerId) {
@@ -226,11 +232,16 @@ export const ModelModal: React.FC<ModelModalProps> = ({
               onClick={fetchModels}
               isLoading={loadingModels}
               className="shrink-0"
-              disabled={!providerId}
+              disabled={!providerId || !supportsModelDiscovery}
             >
               ↻
             </Button>
           </div>
+          {!supportsModelDiscovery && providerType === 'custom' && (
+            <p className={`text-xs mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              모델 ID를 직접 입력하세요. OpenAI-compatible 엔드포인트는 모델 목록 조회를 자동으로 지원하지 않습니다.
+            </p>
+          )}
           {models.length > 0 && (
             <div className={`max-h-32 overflow-y-auto rounded-lg border ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
               {models.map(m => (

@@ -16,7 +16,7 @@ use crate::services::character_dictionary::{
 };
 use crate::services::codex::CodexClient;
 use crate::services::gemini::GeminiClient;
-use crate::services::openrouter::OpenRouterClient;
+use crate::services::openai_compatible::OpenAICompatibleClient;
 use crate::services::paragraph::{encode_paragraph_id, TranslationChunk};
 use crate::services::substitution::SubstitutionService;
 
@@ -75,7 +75,7 @@ const DEFAULT_SYSTEM_PROMPT: &str = r#"# 절대 규칙 (위반 시 출력 무효
 
 pub enum ApiClient {
     Gemini(GeminiClient),
-    OpenRouter(OpenRouterClient),
+    OpenAICompatible(OpenAICompatibleClient),
     Codex(CodexClient),
 }
 
@@ -137,15 +137,20 @@ impl TranslatorService {
             "openrouter" => {
                 let key = settings.api_key
                     .ok_or("OpenRouter API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
-                ApiClient::OpenRouter(OpenRouterClient::new(key, settings.model.clone()))
+                ApiClient::OpenAICompatible(OpenAICompatibleClient::new_openrouter(
+                    key,
+                    settings.model.clone(),
+                ))
             }
             "anthropic" | "openai" | "custom" => {
                 let key = settings.api_key
                     .ok_or("API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
-                ApiClient::OpenRouter(OpenRouterClient::new_with_base_url(
+                ApiClient::OpenAICompatible(OpenAICompatibleClient::new_with_base_url(
                     key,
                     settings.model.clone(),
                     settings.base_url,
+                    provider_label(&settings.provider_type).to_string(),
+                    settings.provider_type.clone(),
                 ))
             }
             "openai-oauth" => {
@@ -270,7 +275,7 @@ impl TranslatorService {
 
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
-                ApiClient::OpenRouter(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
+                ApiClient::OpenAICompatible(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
                 ApiClient::Codex(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
             };
             
@@ -433,7 +438,7 @@ impl TranslatorService {
                                     .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
                                     .await
                             }
-                            ApiClient::OpenRouter(client) => {
+                            ApiClient::OpenAICompatible(client) => {
                                 client
                                     .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
                                     .await
@@ -449,7 +454,7 @@ impl TranslatorService {
                             ApiClient::Gemini(client) => {
                                 client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
-                            ApiClient::OpenRouter(client) => {
+                            ApiClient::OpenAICompatible(client) => {
                                 client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
                             }
                             ApiClient::Codex(client) => {
@@ -663,11 +668,21 @@ impl TranslatorService {
 
         let response = match &mut self.client {
             ApiClient::Gemini(client) => client.generate_text(&prompt).await?,
-            ApiClient::OpenRouter(client) => client.generate_text(&prompt).await?,
+            ApiClient::OpenAICompatible(client) => client.generate_text(&prompt).await?,
             ApiClient::Codex(client) => client.generate_text(&prompt).await?,
         };
 
         parse_character_dictionary_candidates(&response)
+    }
+}
+
+fn provider_label(provider_type: &str) -> &str {
+    match provider_type {
+        "openrouter" => "OpenRouter",
+        "openai" => "OpenAI",
+        "anthropic" => "Anthropic",
+        "custom" => "OpenAI-Compatible",
+        other => other,
     }
 }
 

@@ -160,7 +160,7 @@ src-tauri/src/
 │   ├── mod.rs
 │   ├── translator.rs   # TranslatorService: provider switching, pipeline orchestration
 │   ├── gemini.rs       # GeminiClient: Google Generative AI API (REST + SSE streaming)
-│   ├── openrouter.rs   # OpenRouterClient: OpenAI-compatible API (REST + SSE streaming)
+│   ├── openai_compatible.rs   # OpenAICompatibleClient: OpenAI-compatible API (REST + SSE streaming)
 │   ├── cache.rs        # SHA256 cache: get_cached_translations, cache_translations (batched tx)
 │   ├── paragraph.rs    # Semantic ID encoding (title/subtitle/p-N), HTML response parsing
 │   ├── substitution.rs # Regex-based pre/post text substitution
@@ -224,7 +224,7 @@ pub trait NovelParser: Send + Sync {
 ```
 TranslatorService::new()
   → load_settings() → read providers/models from settings table
-  → create ApiClient enum (Gemini | OpenRouter)
+  → create ApiClient enum (Gemini | OpenAICompatible)
   → create SubstitutionService from config
 
 translate_paragraphs_streaming()
@@ -250,7 +250,7 @@ translate_paragraphs_streaming()
 
 **Provider switching:** Uses `ApiClient` enum. `provider_type` field from settings determines which variant.
 
-**Also supports `anthropic`, `openai`, `custom` provider types** — these all route through `OpenRouterClient::new_with_base_url()`.
+**Also supports `anthropic`, `openai`, `custom` provider types** — these all route through `OpenAICompatibleClient::new_with_base_url()`.
 
 ### 4.6 Paragraph ID Encoding
 The system uses semantic IDs to track paragraph identity through the translation pipeline:
@@ -386,7 +386,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 
 ### Done
 - 4 site parsers (Syosetu, Hameln, Kakuyomu, Nocturne)
-- 3 API providers (Gemini, OpenRouter) + custom/anthropic/openai routing
+- 3 API providers (Gemini, OpenRouter via shared OpenAICompatible transport) + custom/anthropic/openai routing
 - SSE streaming translation with real-time UI updates
 - Per-novel SHA256 translation cache
 - Batch translation with pause/stop/resume controls

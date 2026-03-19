@@ -20,7 +20,7 @@ src/
 ### Service modules
 
 - `translator.rs` owns translation orchestration and provider routing.
-- `gemini.rs`, `openrouter.rs`, and `codex.rs` own provider-specific HTTP, auth, and streaming parsing.
+- `gemini.rs`, `openai_compatible.rs`, and `codex.rs` own provider-specific HTTP, auth, and streaming parsing.
 - `openai_oauth.rs` owns OAuth token acquisition, refresh, and storage for `openai-oauth`.
 - `cache.rs`, `paragraph.rs`, and `substitution.rs` own shared translation support logic.
 - `api_logger.rs` owns writes and queries for `api_logs`.
@@ -30,14 +30,14 @@ src/
 ```rust
 pub enum ApiClient {
     Gemini(GeminiClient),
-    OpenRouter(OpenRouterClient),
+    OpenAICompatible(OpenAICompatibleClient),
     Codex(CodexClient),
 }
 ```
 
 - `gemini` routes to `GeminiClient`.
-- `openrouter` routes to `OpenRouterClient::new()`.
-- `anthropic`, `openai`, and `custom` route to `OpenRouterClient::new_with_base_url()`.
+- `openrouter` routes to `OpenAICompatibleClient::new_openrouter()`.
+- `anthropic`, `openai`, and `custom` route to `OpenAICompatibleClient::new_with_base_url()`.
 - `openai-oauth` routes to `CodexClient` after token refresh through `openai_oauth`.
 
 ## Working Rules

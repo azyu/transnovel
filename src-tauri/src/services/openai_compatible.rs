@@ -17,6 +17,31 @@ use crate::models::api_log::ApiLogEntry;
 
 const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProviderVariant {
+    OpenRouter,
+    OpenAICompatible,
+}
+
+fn build_chat_completions_url(base_url: &str) -> String {
+    format!(
+        "{}{}",
+        base_url.trim_end_matches("/v1").trim_end_matches('/'),
+        "/v1/chat/completions"
+    )
+}
+
+fn should_send_openrouter_headers(variant: ProviderVariant) -> bool {
+    matches!(variant, ProviderVariant::OpenRouter)
+}
+
+fn provider_brand_name(variant: ProviderVariant) -> &'static str {
+    match variant {
+        ProviderVariant::OpenRouter => "OpenRouter",
+        ProviderVariant::OpenAICompatible => "OpenAI-Compatible",
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct OpenRouterRequest {
     model: String,
@@ -24,6 +49,45 @@ struct OpenRouterRequest {
     max_tokens: Option<u32>,
     temperature: Option<f32>,
     stream: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_chat_completions_url, provider_brand_name, should_send_openrouter_headers,
+        ProviderVariant,
+    };
+
+    #[test]
+    fn builds_chat_completions_url_from_root_or_v1_base() {
+        assert_eq!(
+            build_chat_completions_url("https://example.com"),
+            "https://example.com/v1/chat/completions"
+        );
+        assert_eq!(
+            build_chat_completions_url("https://example.com/"),
+            "https://example.com/v1/chat/completions"
+        );
+        assert_eq!(
+            build_chat_completions_url("https://example.com/v1"),
+            "https://example.com/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn only_openrouter_uses_openrouter_headers() {
+        assert!(should_send_openrouter_headers(ProviderVariant::OpenRouter));
+        assert!(!should_send_openrouter_headers(ProviderVariant::OpenAICompatible));
+    }
+
+    #[test]
+    fn reports_brand_name_from_variant() {
+        assert_eq!(provider_brand_name(ProviderVariant::OpenRouter), "OpenRouter");
+        assert_eq!(
+            provider_brand_name(ProviderVariant::OpenAICompatible),
+            "OpenAI-Compatible"
+        );
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,29 +137,44 @@ struct StreamEvent {
     usage: Option<UsageInfo>,
 }
 
-pub struct OpenRouterClient {
+pub struct OpenAICompatibleClient {
     client: Client,
     api_key: String,
     pub model: String,
     base_url: String,
+    provider_variant: ProviderVariant,
+    provider_name: String,
+    debug_provider: String,
 }
 
-impl OpenRouterClient {
-    pub fn new(api_key: String, model: Option<String>) -> Self {
+impl OpenAICompatibleClient {
+    pub fn new_openrouter(api_key: String, model: Option<String>) -> Self {
         Self {
             client: Client::new(),
             api_key,
             model: model.unwrap_or_else(|| "anthropic/claude-sonnet-4".to_string()),
             base_url: OPENROUTER_API_BASE.to_string(),
+            provider_variant: ProviderVariant::OpenRouter,
+            provider_name: provider_brand_name(ProviderVariant::OpenRouter).to_string(),
+            debug_provider: "openrouter".to_string(),
         }
     }
 
-    pub fn new_with_base_url(api_key: String, model: Option<String>, base_url: Option<String>) -> Self {
+    pub fn new_with_base_url(
+        api_key: String,
+        model: Option<String>,
+        base_url: Option<String>,
+        provider_name: String,
+        debug_provider: String,
+    ) -> Self {
         Self {
             client: Client::new(),
             api_key,
             model: model.unwrap_or_else(|| "claude-sonnet-4-20250514".to_string()),
             base_url: base_url.unwrap_or_else(|| OPENROUTER_API_BASE.to_string()),
+            provider_variant: ProviderVariant::OpenAICompatible,
+            provider_name,
+            debug_provider,
         }
     }
 
@@ -114,32 +193,41 @@ impl OpenRouterClient {
         }
     }
 
+    fn build_url(&self) -> String {
+        build_chat_completions_url(&self.base_url)
+    }
+
+    fn with_provider_headers(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> reqwest::RequestBuilder {
+        if should_send_openrouter_headers(self.provider_variant) {
+            request
+                .header("HTTP-Referer", "https://transnovel.app")
+                .header("X-Title", "TransNovel")
+        } else {
+            request
+        }
+    }
+
     pub async fn generate_text(&self, prompt: &str) -> Result<String, String> {
-        let path = "/v1/chat/completions";
-        let url = format!(
-            "{}{}",
-            self.base_url
-                .trim_end_matches("/v1")
-                .trim_end_matches('/'),
-            path
-        );
+        let url = self.build_url();
 
         let request = self.build_request(prompt, false);
         let request_json = serde_json::to_string(&request).unwrap_or_default();
 
         let mut log_entry =
-            ApiLogEntry::new("POST", &url, "OpenRouter", "OpenAI", Some(self.model.clone()));
+            ApiLogEntry::new("POST", &url, &self.provider_name, "OpenAI", Some(self.model.clone()));
         log_entry.request_body = Some(request_json);
 
         let start = Instant::now();
-        let response = match self
+        let response = match self.with_provider_headers(self
             .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://ai-novel-translator.app")
-            .header("X-Title", "AI Novel Translator")
             .json(&request)
+        )
             .send()
             .await
         {
@@ -178,7 +266,7 @@ impl OpenRouterClient {
             log_entry.error = Some(error.message.clone());
             let entry = log_entry;
             let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-            return Err(format!("OpenRouter 오류: {}", error.message));
+            return Err(format!("{} 오류: {}", self.provider_name, error.message));
         }
 
         let text = openrouter_response
@@ -201,14 +289,7 @@ impl OpenRouterClient {
         has_subtitle: bool,
         system_prompt: &str,
     ) -> Result<Vec<String>, String> {
-        let path = "/v1/chat/completions";
-        let url = format!(
-            "{}{}",
-            self.base_url
-                .trim_end_matches("/v1")
-                .trim_end_matches('/'),
-            path
-        );
+        let url = self.build_url();
 
         let numbered_text = paragraphs
             .iter()
@@ -228,19 +309,18 @@ impl OpenRouterClient {
         let request_json = serde_json::to_string(&request).unwrap_or_default();
 
         let mut log_entry =
-            ApiLogEntry::new("POST", &url, "OpenRouter", "OpenAI", Some(self.model.clone()));
+            ApiLogEntry::new("POST", &url, &self.provider_name, "OpenAI", Some(self.model.clone()));
         log_entry.request_body = Some(request_json);
 
         let start = Instant::now();
 
-        let response = match self
+        let response = match self.with_provider_headers(self
             .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://transnovel.app")
-            .header("X-Title", "TransNovel")
             .json(&request)
+        )
             .send()
             .await
         {
@@ -262,7 +342,7 @@ impl OpenRouterClient {
         log_entry.response_body = Some(response_text.clone());
 
         if !status.is_success() {
-            eprintln!("[OpenRouter] API error ({}): {}", status, response_text);
+            eprintln!("[{}] API error ({}): {}", self.provider_name, status, response_text);
             log_entry.error = Some(format!("HTTP {}", status));
             let entry = log_entry;
             let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
@@ -281,7 +361,7 @@ impl OpenRouterClient {
             log_entry.error = Some(error.message.clone());
             let entry = log_entry;
             let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-            return Err(format!("OpenRouter 오류: {}", error.message));
+            return Err(format!("{} 오류: {}", self.provider_name, error.message));
         }
 
         let entry = log_entry;
@@ -306,14 +386,7 @@ impl OpenRouterClient {
         system_prompt: &str,
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
-        let path = "/v1/chat/completions";
-        let url = format!(
-            "{}{}",
-            self.base_url
-                .trim_end_matches("/v1")
-                .trim_end_matches('/'),
-            path
-        );
+        let url = self.build_url();
 
         let numbered_text = paragraphs
             .iter()
@@ -336,26 +409,25 @@ impl OpenRouterClient {
             "debug-api",
             serde_json::json!({
                 "type": "request",
-                "provider": "openrouter",
+                "provider": &self.debug_provider,
                 "model": &self.model,
                 "body": request_json
             }),
         );
 
         let mut log_entry =
-            ApiLogEntry::new("POST", &url, "OpenRouter", "OpenAI", Some(self.model.clone()));
+            ApiLogEntry::new("POST", &url, &self.provider_name, "OpenAI", Some(self.model.clone()));
         log_entry.request_body = Some(request_json);
 
         let start = Instant::now();
 
-        let response = match self
+        let response = match self.with_provider_headers(self
             .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .header("HTTP-Referer", "https://transnovel.app")
-            .header("X-Title", "TransNovel")
             .json(&request)
+        )
             .send()
             .await
         {
@@ -378,7 +450,7 @@ impl OpenRouterClient {
                 "debug-api",
                 serde_json::json!({
                     "type": "response",
-                    "provider": "openrouter",
+                    "provider": &self.debug_provider,
                     "status": status.as_u16(),
                     "body": &error_text
                 }),
@@ -475,7 +547,7 @@ impl OpenRouterClient {
             "debug-api",
             serde_json::json!({
                 "type": "response",
-                "provider": "openrouter",
+                "provider": &self.debug_provider,
                 "status": 200,
                 "body": &full_text
             }),

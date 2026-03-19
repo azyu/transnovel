@@ -72,11 +72,11 @@ export const PROVIDER_PRESETS: Record<ProviderType, ProviderPreset> = {
   },
   custom: {
     type: 'custom',
-    label: 'Custom',
+    label: 'OpenAI-compatible',
     defaultBaseUrl: '',
-    apiKeyRequired: false,
-    apiKeyPlaceholder: '',
-    apiKeyHelpText: 'OpenAI 호환 API 엔드포인트',
+    apiKeyRequired: true,
+    apiKeyPlaceholder: 'API 키',
+    apiKeyHelpText: 'OpenAI Chat Completions 호환 API 엔드포인트',
   },
 };
 

@@ -15,6 +15,7 @@
 
 ## In Progress
 
+- [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
 
 ## Done

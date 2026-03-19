@@ -56,6 +56,12 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
         return 'bg-blue-500';
       case 'OpenRouter':
         return 'bg-purple-500';
+      case 'OpenAI':
+        return 'bg-emerald-500';
+      case 'Anthropic':
+        return 'bg-orange-500';
+      case 'OpenAI-Compatible':
+        return 'bg-cyan-500';
       default:
         return 'bg-slate-500';
     }
