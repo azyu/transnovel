@@ -19,6 +19,8 @@
 
 ## Done
 
+- [x] AGENTS.md 검증 절 중복 정리 — Codex
+- [x] AGENTS.md에 After Code Changes 검증 절 추가 — Codex
 - [x] README 배너 추가 (main 기준) — Codex
 - [x] Git remote 변경 + 초기 커밋 정리 — Codex
 - [x] 프로젝트 명칭을 TransNovel로 전면 변경 — Codex

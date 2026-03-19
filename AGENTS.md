@@ -97,3 +97,15 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
   cd src-tauri && cargo clippy -- -D warnings
   ```
 - For docs-only changes, state that runtime verification was skipped because application behavior did not change.
+
+## After Code Changes
+
+Default verification order:
+
+1. Run the most relevant automated test scope for the changed behavior.
+2. Run the repository verification checks in `## Verification`.
+3. Ask a separate agent to review the completed code changes before declaring the task done.
+4. Confirm the task DoD is satisfied.
+5. Commit the completed work.
+
+If a check is intentionally skipped, state why explicitly.
