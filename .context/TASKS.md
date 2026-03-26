@@ -17,6 +17,7 @@
 
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
+- [x] macOS Dock 이름을 TransNovel로 맞추기 위한 bin 타깃 검증 — Codex
 - [x] URL 입력 옆 지원 사이트 배치 조정 — Codex
 - [x] 헤더 앱 이름을 TransNovel로 변경 — Codex
 - [x] 새 앱 아이콘 세트 적용 — Codex
