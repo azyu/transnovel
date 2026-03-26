@@ -1,6 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "TransNovel",
+  "mainBinaryName": "TransNovel",
   "version": "0.1.0",
   "identifier": "com.azyu.noveltr",
   "build": {
@@ -36,6 +37,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "bundleName": "TransNovel"
+    },
     "category": "Utility",
     "shortDescription": "AI-powered Japanese web novel translator",
     "longDescription": "A desktop application for translating Japanese web novels to Korean using AI (Gemini/Claude)"

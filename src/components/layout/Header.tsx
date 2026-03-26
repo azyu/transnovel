@@ -4,6 +4,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useDebugStore } from '../../stores/debugStore';
 import { useTranslationStore } from '../../stores/translationStore';
+import appIcon from '../../assets/app-icon.png';
 import type { TabType } from '../../types';
 
 export const Header: React.FC = () => {
@@ -34,11 +35,13 @@ export const Header: React.FC = () => {
   return (
     <header className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} border-b min-h-16 pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 shrink-0 z-50 relative transition-colors duration-200`}>
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/20">
-          A
-        </div>
+        <img
+          src={appIcon}
+          alt="TransNovel"
+          className="w-8 h-8 rounded-lg object-cover shadow-lg"
+        />
         <h1 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-          AI 소설 번역기
+          TransNovel
         </h1>
       </div>
 
