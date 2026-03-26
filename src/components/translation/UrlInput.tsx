@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -31,6 +31,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const [history, setHistory] = useState<UrlHistoryItem[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputId = useId();
   const isDark = theme === 'dark';
 
   useEffect(() => {
@@ -83,62 +84,67 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
     <div className={`p-6 rounded-xl border shadow-lg ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
       <form onSubmit={handleSubmit} className="flex gap-4 items-end">
         <div className="flex-1 relative" ref={containerRef}>
+          <div className="mb-1.5 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+            <label htmlFor={inputId} className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              소설 URL 입력
+            </label>
+            <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              <span>지원 사이트</span>
+              {SUPPORTED_SITES.map((site, idx) => (
+                <span key={site.name} className="flex items-center gap-2">
+                  {idx > 0 && <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>}
+                  <button
+                    type="button"
+                    onClick={() => invoke('open_url', { url: site.url })}
+                    className={`cursor-pointer text-left hover:underline ${isDark ? 'text-slate-400 hover:text-blue-400' : 'text-slate-500 hover:text-blue-500'}`}
+                  >
+                    {site.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
           <Input
-            label="소설 URL 입력"
+            id={inputId}
             value={localUrl}
             onChange={(e) => setLocalUrl(e.target.value)}
             onFocus={() => history.length > 0 && setShowDropdown(true)}
-            placeholder="https://ncode.syosetu.com/..."
-            disabled={loading || isTranslating}
-          />
-          {showDropdown && history.length > 0 && (
-            <div className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-              {history.map((item, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelectHistory(item.url)}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`truncate flex-1 min-w-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      {item.url}
-                    </span>
-                    {item.novelTitle && (
-                      <>
-                        <span className={`text-xs shrink-0 max-w-[180px] truncate text-right ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                          {item.novelTitle}
-                        </span>
-                        <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                          {item.chapterNumber ? `${item.chapterNumber}화` : ''}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+              placeholder="https://ncode.syosetu.com/..."
+              disabled={loading || isTranslating}
+            />
+            {showDropdown && history.length > 0 && (
+              <div className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+                {history.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectHistory(item.url)}
+                    className={`w-full px-3 py-2 text-left text-sm transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`truncate flex-1 min-w-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {item.url}
+                      </span>
+                      {item.novelTitle && (
+                        <>
+                          <span className={`text-xs shrink-0 max-w-[180px] truncate text-right ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {item.novelTitle}
+                          </span>
+                          <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {item.chapterNumber ? `${item.chapterNumber}화` : ''}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
         <Button type="submit" isLoading={loading} disabled={!localUrl || isTranslating}>
           불러오기
         </Button>
       </form>
-      <div className={`mt-3 text-xs flex gap-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        <span>지원 사이트:</span>
-        {SUPPORTED_SITES.map((site, idx) => (
-          <span key={site.name} className="flex items-center gap-2">
-            {idx > 0 && <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>}
-            <button
-              type="button"
-              onClick={() => invoke('open_url', { url: site.url })}
-              className={`hover:underline cursor-pointer ${isDark ? 'text-slate-400 hover:text-blue-400' : 'text-slate-500 hover:text-blue-500'}`}
-            >
-              {site.name}
-            </button>
-          </span>
-        ))}
-      </div>
     </div>
   );
 };

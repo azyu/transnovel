@@ -17,6 +17,7 @@
 
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
+- [x] URL 입력 옆 지원 사이트 배치 조정 — Codex
 
 ## Done
 
