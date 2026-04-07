@@ -22,25 +22,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macOS
+          - runner: macos-14
             target: aarch64-apple-darwin
             name: macOS-ARM64
-          - platform: ubuntu-22.04
+          - runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             name: Linux-AMD64
-          - platform: ubuntu-22.04
+          - runner: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             name: Linux-ARM64
-          - platform: windows-latest
+          - runner: windows-latest
             target: x86_64-pc-windows-msvc
             name: Windows-x64
-          - platform: windows-latest
+          - runner: windows-11-arm
             target: aarch64-pc-windows-msvc
             name: Windows-ARM64
 
-    runs-on:
-      - self-hosted
-      - ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
     name: Build (${{ matrix.name }})
 
     steps:
@@ -68,7 +66,7 @@ jobs:
           workspaces: src-tauri -> target
 
       - name: Install Linux dependencies (native)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.target == 'x86_64-unknown-linux-gnu'
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -78,7 +76,7 @@ jobs:
             patchelf
 
       - name: Install Linux dependencies (cross ARM64)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.target == 'aarch64-unknown-linux-gnu'
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo dpkg --add-architecture arm64
           sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
