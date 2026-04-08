@@ -1,5 +1,26 @@
 export type TabType = 'translation' | 'series' | 'settings';
 
+export interface WatchlistItem {
+  site: string;
+  workUrl: string;
+  novelId: string;
+  title: string;
+  author: string | null;
+  lastKnownChapter: number;
+  lastCheckedAt: string | null;
+  lastCheckStatus: string;
+  lastCheckError: string | null;
+  newEpisodeCount: number;
+}
+
+export interface WatchlistEpisode {
+  chapterNumber: number;
+  chapterUrl: string;
+  title: string | null;
+  isNew: boolean;
+  isViewed: boolean;
+}
+
 export interface NovelMetadata {
   site: string;
   novel_id: string;

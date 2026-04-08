@@ -62,3 +62,28 @@ pub struct TranslationProgress {
     pub status: String,
     pub error_message: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchlistItem {
+    pub site: String,
+    pub work_url: String,
+    pub novel_id: String,
+    pub title: String,
+    pub author: Option<String>,
+    pub last_known_chapter: u32,
+    pub last_checked_at: Option<String>,
+    pub last_check_status: String,
+    pub last_check_error: Option<String>,
+    pub new_episode_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchlistEpisode {
+    pub chapter_number: u32,
+    pub chapter_url: String,
+    pub title: Option<String>,
+    pub is_new: bool,
+    pub is_viewed: bool,
+}

@@ -16,6 +16,7 @@
 ## In Progress
 
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
+- [x] 관심작품 프로토타입 구현 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
 - [x] 설정 탭 width를 번역 탭 기준으로 확장 — Codex
 - [x] Release workflow의 self-hosted 의존성 제거 — Codex

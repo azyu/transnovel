@@ -18,12 +18,13 @@ export const Header: React.FC = () => {
   );
 
   const batchProgress = useSeriesStore((s) => s.batchProgress);
+  const watchlistBadgeCount = useSeriesStore((s) => s.watchlistBadgeCount);
   const isTranslating = useTranslationStore((s) => s.isTranslating);
   const debugMode = useDebugStore((s) => s.debugMode);
 
   const allTabs: { id: TabType; label: string; devOnly?: boolean }[] = [
     { id: 'translation', label: '번역' },
-    { id: 'series', label: '시리즈', devOnly: true },
+    { id: 'series', label: '관심작품' },
     { id: 'settings', label: '설정' },
   ];
 
@@ -67,7 +68,20 @@ export const Header: React.FC = () => {
                   : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
-            {tab.label}
+            <span className="inline-flex items-center gap-2">
+              <span>{tab.label}</span>
+              {tab.id === 'series' && watchlistBadgeCount > 0 && (
+                <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                  currentTab === tab.id
+                    ? 'bg-white/20 text-white'
+                    : isDark
+                      ? 'bg-blue-500/20 text-blue-300'
+                      : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {watchlistBadgeCount}
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </nav>

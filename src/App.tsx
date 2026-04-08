@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { StatusBar } from './components/layout/StatusBar';
 import { Toast } from './components/common/Toast';
@@ -6,14 +7,20 @@ import { SeriesManager } from './components/series/SeriesManager';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { useUIStore } from './stores/uiStore';
 import { useTauriEvents } from './hooks/useTauriEvents';
+import { useWatchlist } from './hooks/useWatchlist';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 function App() {
   const currentTab = useUIStore((s) => s.currentTab);
   const theme = useUIStore((s) => s.theme);
+  const { loadWatchlistOnStartup } = useWatchlist();
   
   useTauriEvents();
   useKeyboardShortcuts();
+
+  useEffect(() => {
+    void loadWatchlistOnStartup();
+  }, [loadWatchlistOnStartup]);
 
   return (
     <div className={`flex flex-col h-screen font-sans selection:bg-blue-500/30 transition-colors duration-200 ${
