@@ -13,6 +13,7 @@
 - 문단 단위 스트리밍으로 번역 결과를 실시간 표시합니다.
 - 시리즈 전체를 배치 번역하고 진행 상태와 완료 챕터를 추적합니다.
 - 소설별 번역 캐시를 저장해 중복 API 호출을 줄입니다.
+- Syosetu 작품을 관심작품으로 등록하고, 시작 시 갱신과 수동 새로고침, 새 화/본 화 표시를 지원합니다.
 - 번역 결과를 TXT 또는 HTML로 저장합니다.
 - 설정 화면에서 API 요청/응답 로그를 확인합니다.
 - 제공자, 모델, 프롬프트, 치환 규칙, 보기 설정을 앱 안에서 관리합니다.
@@ -32,6 +33,9 @@
 | --- | --- | --- |
 | Gemini | Google Generative AI | API 키 |
 | OpenRouter | OpenAI 호환 Chat Completions | Bearer 토큰 |
+| Anthropic | OpenAI 호환 Chat Completions | Bearer 토큰 |
+| OpenAI | OpenAI 호환 Chat Completions | Bearer 토큰 |
+| OpenAI (Codex) | Codex Backend API | ChatGPT OAuth |
 | Custom | OpenAI 호환 Chat Completions | Bearer 토큰 |
 
 내부적으로 `anthropic`, `openai`, `custom` 타입은 모두 OpenAI 호환 클라이언트 경로를 사용합니다.
@@ -42,6 +46,7 @@
 - 문단 의미 ID (`title`, `subtitle`, `p-1`, ...)
 - 정규식 기반 전/후처리 치환 파이프라인
 - 소설별 SHA256 캐시 분리
+- Syosetu 관심작품, 시작 시 체크, 수동 새로고침, 새 화/본 화 배지
 - 설정 화면에서 제공자/모델 CRUD
 - 요청/응답 상세를 보는 API 로그 뷰어
 - 배치 번역 일시정지, 재개, 중지, 완료 챕터 추적
@@ -108,7 +113,8 @@ cd src-tauri && cargo clippy -- -D warnings
 2. 사용할 제공자와 모델을 선택합니다.
 3. 지원 사이트의 챕터 또는 시리즈 URL을 입력합니다.
 4. 단일 챕터를 번역하거나 시리즈 전체 배치 번역을 시작합니다.
-5. 필요하면 TXT 또는 HTML로 내보냅니다.
+5. 필요하면 Syosetu 작품을 `관심작품`에 추가해 새 화를 추적합니다.
+6. 필요하면 TXT 또는 HTML로 내보냅니다.
 
 ## 구현 상태
 
@@ -118,6 +124,7 @@ cd src-tauri && cargo clippy -- -D warnings
 - 스트리밍 번역
 - 배치 번역
 - 소설별 캐시
+- Syosetu 관심작품 프로토타입
 - API 로그
 - 제공자/모델 관리
 - TXT/HTML 내보내기

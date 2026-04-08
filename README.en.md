@@ -13,6 +13,7 @@ Desktop app for translating Japanese web novels into Korean with a React fronten
 - Translate chapter content with streaming paragraph updates
 - Run batch translation across a series with progress tracking and completed chapter history
 - Store per-novel translation cache to avoid repeated API calls
+- Track Syosetu works in a watchlist with startup refresh, manual refresh, and new/viewed episode status
 - Save translated output as TXT or HTML
 - Inspect API request and response logs from the settings panel
 - Manage providers, models, prompts, substitutions, and view settings inside the app
@@ -32,6 +33,9 @@ Desktop app for translating Japanese web novels into Korean with a React fronten
 | --- | --- | --- |
 | Gemini | Google Generative AI | API key |
 | OpenRouter | OpenAI-compatible chat completions | Bearer token |
+| Anthropic | OpenAI-compatible chat completions | Bearer token |
+| OpenAI | OpenAI-compatible chat completions | Bearer token |
+| OpenAI (Codex) | Codex Backend API | ChatGPT OAuth |
 | Custom | OpenAI-compatible chat completions | Bearer token |
 
 `anthropic`, `openai`, and `custom` provider types all use the OpenAI-compatible client path internally.
@@ -42,6 +46,7 @@ Desktop app for translating Japanese web novels into Korean with a React fronten
 - Per-paragraph semantic IDs (`title`, `subtitle`, `p-1`, ...)
 - Regex-based pre/post substitution pipeline
 - Per-novel SHA256 cache isolation
+- Syosetu watchlist with startup checks, manual refresh, and viewed/new episode badges
 - Provider and model CRUD in settings
 - API log viewer with request/response details
 - Batch translation pause, resume, stop, and chapter completion tracking
@@ -108,7 +113,8 @@ cd src-tauri && cargo clippy -- -D warnings
 2. Choose a provider and model.
 3. Paste a supported chapter or series URL.
 4. Translate a single chapter or start batch translation for the full series.
-5. Export results as TXT or HTML when needed.
+5. Optionally add a Syosetu work to `관심작품` to track new episodes.
+6. Export results as TXT or HTML when needed.
 
 ## Implementation Status
 
@@ -118,6 +124,7 @@ Implemented today:
 - Streaming translation
 - Batch translation
 - Per-novel cache
+- Syosetu watchlist prototype
 - API logging
 - Provider/model management
 - TXT/HTML export
