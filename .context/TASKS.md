@@ -17,6 +17,7 @@
 
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
+- [x] 설정 탭 width를 번역 탭 기준으로 확장 — Codex
 - [x] Release workflow의 self-hosted 의존성 제거 — Codex
 - [x] macOS Dock 이름을 TransNovel로 맞추기 위한 bin 타깃 검증 — Codex
 - [x] URL 입력 옆 지원 사이트 배치 조정 — Codex

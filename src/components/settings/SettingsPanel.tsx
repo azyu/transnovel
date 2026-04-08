@@ -26,7 +26,7 @@ export const SettingsPanel: React.FC = () => {
   const isDark = theme === 'dark';
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-6 space-y-6 w-full">
       <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
         <nav className={`flex p-1 rounded-xl ${isDark ? 'bg-slate-900/50' : 'bg-slate-200'}`}>
           {tabs.map((tab) => (
