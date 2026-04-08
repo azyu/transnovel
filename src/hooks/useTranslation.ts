@@ -12,7 +12,23 @@ import type {
   CharacterDictionaryReview,
   ExportRequest,
   TranslationChunk,
+  WatchlistViewedUpdate,
 } from '../types';
+
+export const markViewedChapter = async (
+  invokeFn: typeof invoke,
+  novelId: string,
+  chapterNumber?: number,
+): Promise<WatchlistViewedUpdate | null> => {
+  if (!chapterNumber || chapterNumber < 1) {
+    return null;
+  }
+
+  return invokeFn<WatchlistViewedUpdate>('mark_episode_viewed', {
+    novelId,
+    chapterNumber,
+  });
+};
 
 const formatTokenCount = (count: number): string => {
   if (count >= 1000) {
@@ -194,6 +210,7 @@ export const useTranslation = () => {
   
   const setChapterList = useSeriesStore((s) => s.setChapterList);
   const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
+  const markWatchlistEpisodeViewed = useSeriesStore((s) => s.markWatchlistEpisodeViewed);
   
   const showError = useUIStore((s) => s.showError);
   const showToast = useUIStore((s) => s.showToast);
@@ -283,6 +300,15 @@ export const useTranslation = () => {
         source_url: url,
       });
 
+      const viewedUpdate = await markViewedChapter(invoke, content.novel_id, content.chapter_number);
+      if (viewedUpdate) {
+        markWatchlistEpisodeViewed(
+          viewedUpdate.novelId,
+          viewedUpdate.chapterNumber,
+          viewedUpdate.remainingNewEpisodeCount,
+        );
+      }
+
       try {
          const list = await invoke<{ chapters: Chapter[] }>('get_chapter_list', { url });
          const completedChapters = await invoke<number[]>('get_completed_chapters', { novelId: content.novel_id });
@@ -303,7 +329,7 @@ export const useTranslation = () => {
     } finally {
       setLoading(false);
     }
-  }, [setChapterContent, setChapterList, showError]);
+  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, showError]);
 
   const parseAndTranslate = useCallback(async (url: string) => {
     if (useTranslationStore.getState().isTranslating) {
@@ -333,6 +359,15 @@ export const useTranslation = () => {
         next_url: content.next_url,
         source_url: url,
       });
+
+      const viewedUpdate = await markViewedChapter(invoke, content.novel_id, content.chapter_number);
+      if (viewedUpdate) {
+        markWatchlistEpisodeViewed(
+          viewedUpdate.novelId,
+          viewedUpdate.chapterNumber,
+          viewedUpdate.remainingNewEpisodeCount,
+        );
+      }
 
       try {
         const list = await invoke<{ chapters: Chapter[] }>('get_chapter_list', { url });
@@ -507,7 +542,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview]);
+  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview]);
 
   const translateText = useCallback(async (site: string, novelId: string, text: string, note?: string) => {
     try {

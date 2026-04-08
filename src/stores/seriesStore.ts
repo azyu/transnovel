@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import type { NovelMetadata, Chapter, TranslationProgress } from '../types';
+import type {
+  NovelMetadata,
+  Chapter,
+  TranslationProgress,
+  WatchlistEpisode,
+  WatchlistItem,
+} from '../types';
 
 interface SeriesState {
   novelMetadata: NovelMetadata | null;
@@ -12,7 +18,29 @@ interface SeriesState {
   batchProgress: TranslationProgress | null;
   setBatchProgress: (progress: TranslationProgress | null) => void;
   updateBatchProgress: (update: Partial<TranslationProgress>) => void;
+
+  watchlistItems: WatchlistItem[];
+  setWatchlistItems: (items: WatchlistItem[]) => void;
+  selectedWatchlistNovelId: string | null;
+  setSelectedWatchlistNovelId: (novelId: string | null) => void;
+  watchlistEpisodes: WatchlistEpisode[];
+  setWatchlistEpisodes: (episodes: WatchlistEpisode[]) => void;
+  markWatchlistEpisodeViewed: (
+    novelId: string,
+    chapterNumber: number,
+    remainingNewEpisodeCount: number,
+  ) => void;
+  isRefreshingWatchlist: boolean;
+  setIsRefreshingWatchlist: (value: boolean) => void;
+  watchlistLoaded: boolean;
+  setWatchlistLoaded: (value: boolean) => void;
+  watchlistError: string | null;
+  setWatchlistError: (value: string | null) => void;
+  watchlistBadgeCount: number;
 }
+
+const countWatchlistBadgeItems = (items: WatchlistItem[]): number =>
+  items.filter((item) => item.newEpisodeCount > 0).length;
 
 export const useSeriesStore = create<SeriesState>((set) => ({
   novelMetadata: null,
@@ -33,4 +61,53 @@ export const useSeriesStore = create<SeriesState>((set) => ({
     set((state) => ({
       batchProgress: state.batchProgress ? { ...state.batchProgress, ...update } : null,
     })),
+
+  watchlistItems: [],
+  setWatchlistItems: (items) =>
+    set({
+      watchlistItems: items,
+      watchlistBadgeCount: countWatchlistBadgeItems(items),
+    }),
+  selectedWatchlistNovelId: null,
+  setSelectedWatchlistNovelId: (novelId) => set({ selectedWatchlistNovelId: novelId }),
+  watchlistEpisodes: [],
+  setWatchlistEpisodes: (episodes) => set({ watchlistEpisodes: episodes }),
+  markWatchlistEpisodeViewed: (novelId, chapterNumber, remainingNewEpisodeCount) =>
+    set((state) => {
+      const shouldUpdateSelectedEpisodes = state.selectedWatchlistNovelId === novelId;
+
+      const watchlistEpisodes = shouldUpdateSelectedEpisodes
+        ? state.watchlistEpisodes.map((episode) => {
+            if (episode.chapterNumber !== chapterNumber) {
+              return episode;
+            }
+
+            return { ...episode, isNew: false, isViewed: true };
+          })
+        : state.watchlistEpisodes;
+
+      const watchlistItems = state.watchlistItems.map((item) => {
+        if (item.novelId !== novelId) {
+          return item;
+        }
+
+        return {
+          ...item,
+          newEpisodeCount: remainingNewEpisodeCount,
+        };
+      });
+
+      return {
+        watchlistEpisodes,
+        watchlistItems,
+        watchlistBadgeCount: countWatchlistBadgeItems(watchlistItems),
+      };
+    }),
+  isRefreshingWatchlist: false,
+  setIsRefreshingWatchlist: (value) => set({ isRefreshingWatchlist: value }),
+  watchlistLoaded: false,
+  setWatchlistLoaded: (value) => set({ watchlistLoaded: value }),
+  watchlistError: null,
+  setWatchlistError: (value) => set({ watchlistError: value }),
+  watchlistBadgeCount: 0,
 }));

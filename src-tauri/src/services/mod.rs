@@ -8,3 +8,4 @@ pub mod openai_oauth;
 pub mod paragraph;
 pub mod substitution;
 pub mod translator;
+pub mod watchlist;

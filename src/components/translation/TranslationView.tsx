@@ -8,6 +8,7 @@ import { CharacterDictionaryModal } from './CharacterDictionaryModal';
 import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
+import { useWatchlist } from '../../hooks/useWatchlist';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
 import {
@@ -33,6 +34,7 @@ export const TranslationView: React.FC = () => {
   const setPendingCharacterDictionaryReview = useTranslationStore((s) => s.setPendingCharacterDictionaryReview);
 
   const { parseAndTranslate, retryFailedParagraphs, getCharacterDictionary, saveCharacterDictionary } = useTranslation();
+  const { addWatchlistItem } = useWatchlist();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showDictionaryModal, setShowDictionaryModal] = useState(false);
@@ -40,6 +42,7 @@ export const TranslationView: React.FC = () => {
   const [dictionaryEntries, setDictionaryEntries] = useState<CharacterDictionaryEntry[]>([]);
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
   const [dictionarySaving, setDictionarySaving] = useState(false);
+  const [addingWatchlist, setAddingWatchlist] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const isDark = theme === 'dark';
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -205,6 +208,22 @@ export const TranslationView: React.FC = () => {
     }
   };
 
+  const handleAddToWatchlist = async () => {
+    if (!chapter || chapter.site !== 'syosetu') {
+      showError('관심작품 추가 실패', '현재는 Syosetu 작품만 관심작품에 추가할 수 있습니다.');
+      return;
+    }
+
+    setAddingWatchlist(true);
+    try {
+      await addWatchlistItem(`https://ncode.syosetu.com/${chapter.novelId}/`);
+    } catch (err) {
+      showError('관심작품 추가 실패', String(err));
+    } finally {
+      setAddingWatchlist(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto w-full">
       {apiConfigured === false && (
@@ -268,6 +287,14 @@ export const TranslationView: React.FC = () => {
       {chapter && (
         <div className={`py-4 px-6 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
           <div className="flex items-center gap-4">
+            <Button
+              variant="secondary"
+              onClick={handleAddToWatchlist}
+              isLoading={addingWatchlist}
+              disabled={isTranslating || retrying || !chapter || chapter.site !== 'syosetu'}
+            >
+              관심작품에 추가
+            </Button>
             <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying || !isTranslationComplete}>
               저장
             </Button>

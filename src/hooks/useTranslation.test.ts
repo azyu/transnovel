@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   applyTranslationChunkToReviewContent,
   buildCharacterDictionaryReviewTexts,
   createCharacterDictionaryReviewContent,
   filterNewProperNounEntries,
+  markViewedChapter,
   mergeCharacterDictionaryEntries,
   resolveCharacterDictionaryTarget,
 } from './useTranslation';
@@ -221,5 +222,30 @@ describe('resolveCharacterDictionaryTarget', () => {
       site: 'kakuyomu',
       novelId: 'current-work',
     });
+  });
+});
+
+describe('markViewedChapter', () => {
+  it('returns the backend view update only when chapter number is present', async () => {
+    const invokeMock = vi.fn(async () => ({
+      novelId: 'review-work',
+      chapterNumber: 3,
+      remainingNewEpisodeCount: 1,
+    }));
+
+    const update = await markViewedChapter(invokeMock as never, 'review-work', 3);
+    const skipped = await markViewedChapter(invokeMock as never, 'review-work', 0);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledWith('mark_episode_viewed', {
+      novelId: 'review-work',
+      chapterNumber: 3,
+    });
+    expect(update).toEqual({
+      novelId: 'review-work',
+      chapterNumber: 3,
+      remainingNewEpisodeCount: 1,
+    });
+    expect(skipped).toBeNull();
   });
 });
