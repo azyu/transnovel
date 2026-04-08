@@ -1,4 +1,4 @@
-use crate::models::novel::{WatchlistEpisode, WatchlistItem};
+use crate::models::novel::{WatchlistEpisode, WatchlistItem, WatchlistViewedUpdate};
 
 #[tauri::command]
 pub async fn add_watchlist_item(url: String) -> Result<WatchlistItem, String> {
@@ -21,6 +21,9 @@ pub async fn get_watchlist_episodes(novel_id: String) -> Result<Vec<WatchlistEpi
 }
 
 #[tauri::command]
-pub async fn mark_episode_viewed(novel_id: String, chapter_number: u32) -> Result<(), String> {
+pub async fn mark_episode_viewed(
+    novel_id: String,
+    chapter_number: u32,
+) -> Result<WatchlistViewedUpdate, String> {
     crate::services::watchlist::mark_episode_viewed(&novel_id, chapter_number).await
 }

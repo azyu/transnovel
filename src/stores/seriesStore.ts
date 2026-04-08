@@ -25,7 +25,11 @@ interface SeriesState {
   setSelectedWatchlistNovelId: (novelId: string | null) => void;
   watchlistEpisodes: WatchlistEpisode[];
   setWatchlistEpisodes: (episodes: WatchlistEpisode[]) => void;
-  markWatchlistEpisodeViewed: (chapterNumber: number) => void;
+  markWatchlistEpisodeViewed: (
+    novelId: string,
+    chapterNumber: number,
+    remainingNewEpisodeCount: number,
+  ) => void;
   isRefreshingWatchlist: boolean;
   setIsRefreshingWatchlist: (value: boolean) => void;
   watchlistLoaded: boolean;
@@ -34,6 +38,9 @@ interface SeriesState {
   setWatchlistError: (value: string | null) => void;
   watchlistBadgeCount: number;
 }
+
+const countWatchlistBadgeItems = (items: WatchlistItem[]): number =>
+  items.filter((item) => item.newEpisodeCount > 0).length;
 
 export const useSeriesStore = create<SeriesState>((set) => ({
   novelMetadata: null,
@@ -59,20 +66,43 @@ export const useSeriesStore = create<SeriesState>((set) => ({
   setWatchlistItems: (items) =>
     set({
       watchlistItems: items,
-      watchlistBadgeCount: items.filter((item) => item.newEpisodeCount > 0).length,
+      watchlistBadgeCount: countWatchlistBadgeItems(items),
     }),
   selectedWatchlistNovelId: null,
   setSelectedWatchlistNovelId: (novelId) => set({ selectedWatchlistNovelId: novelId }),
   watchlistEpisodes: [],
   setWatchlistEpisodes: (episodes) => set({ watchlistEpisodes: episodes }),
-  markWatchlistEpisodeViewed: (chapterNumber) =>
-    set((state) => ({
-      watchlistEpisodes: state.watchlistEpisodes.map((episode) =>
-        episode.chapterNumber === chapterNumber
-          ? { ...episode, isNew: false, isViewed: true }
-          : episode
-      ),
-    })),
+  markWatchlistEpisodeViewed: (novelId, chapterNumber, remainingNewEpisodeCount) =>
+    set((state) => {
+      const shouldUpdateSelectedEpisodes = state.selectedWatchlistNovelId === novelId;
+
+      const watchlistEpisodes = shouldUpdateSelectedEpisodes
+        ? state.watchlistEpisodes.map((episode) => {
+            if (episode.chapterNumber !== chapterNumber) {
+              return episode;
+            }
+
+            return { ...episode, isNew: false, isViewed: true };
+          })
+        : state.watchlistEpisodes;
+
+      const watchlistItems = state.watchlistItems.map((item) => {
+        if (item.novelId !== novelId) {
+          return item;
+        }
+
+        return {
+          ...item,
+          newEpisodeCount: remainingNewEpisodeCount,
+        };
+      });
+
+      return {
+        watchlistEpisodes,
+        watchlistItems,
+        watchlistBadgeCount: countWatchlistBadgeItems(watchlistItems),
+      };
+    }),
   isRefreshingWatchlist: false,
   setIsRefreshingWatchlist: (value) => set({ isRefreshingWatchlist: value }),
   watchlistLoaded: false,

@@ -1,8 +1,7 @@
 use sqlx::{Pool, Row, Sqlite};
 
 use crate::db::get_pool;
-use crate::models::novel::{SeriesInfo, WatchlistEpisode};
-use crate::models::novel::WatchlistItem;
+use crate::models::novel::{SeriesInfo, WatchlistEpisode, WatchlistItem, WatchlistViewedUpdate};
 use crate::parsers::{get_parser_for_url, ParsedUrl};
 
 #[allow(dead_code)]
@@ -87,7 +86,10 @@ pub async fn get_watchlist_episodes(novel_id: &str) -> Result<Vec<WatchlistEpiso
     list_watchlist_episode_rows(pool, novel_id).await
 }
 
-pub async fn mark_episode_viewed(novel_id: &str, chapter_number: u32) -> Result<(), String> {
+pub async fn mark_episode_viewed(
+    novel_id: &str,
+    chapter_number: u32,
+) -> Result<WatchlistViewedUpdate, String> {
     let pool = get_pool()?;
     mark_episode_viewed_with_pool(pool, novel_id, chapter_number).await
 }
@@ -129,7 +131,7 @@ pub async fn add_watchlist_item_from_series(
              ON CONFLICT(novel_id, chapter_number) DO UPDATE SET
                 chapter_url = excluded.chapter_url,
                 title = excluded.title,
-                is_new = 0,
+                is_new = watchlist_episodes.is_new,
                 updated_at = CURRENT_TIMESTAMP",
         )
         .bind(&series.novel_id)
@@ -299,7 +301,20 @@ pub async fn mark_episode_viewed_with_pool(
     pool: &Pool<Sqlite>,
     novel_id: &str,
     chapter_number: u32,
-) -> Result<(), String> {
+) -> Result<WatchlistViewedUpdate, String> {
+    let cleared_new_flag = sqlx::query(
+        "SELECT is_new
+         FROM watchlist_episodes
+         WHERE novel_id = ? AND chapter_number = ?",
+    )
+    .bind(novel_id)
+    .bind(i64::from(chapter_number))
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .map(|row| row.get::<i64, _>("is_new") != 0)
+    .unwrap_or(false);
+
     sqlx::query(
         "INSERT INTO viewed_episodes (novel_id, chapter_number, viewed_at)
          VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -322,7 +337,23 @@ pub async fn mark_episode_viewed_with_pool(
     .await
     .map_err(|e| e.to_string())?;
 
-    Ok(())
+    let remaining_new_episode_count = sqlx::query(
+        "SELECT COUNT(*) AS count
+         FROM watchlist_episodes
+         WHERE novel_id = ? AND is_new = 1",
+    )
+    .bind(novel_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .get::<i64, _>("count") as u32;
+
+    Ok(WatchlistViewedUpdate {
+        novel_id: novel_id.to_string(),
+        chapter_number,
+        cleared_new_flag,
+        remaining_new_episode_count,
+    })
 }
 
 #[cfg(test)]
@@ -465,6 +496,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn readding_watchlist_item_preserves_existing_new_flags() {
+        let pool = setup_test_pool().await;
+
+        let series = SeriesInfo {
+            site: "syosetu".into(),
+            novel_id: "n3645ly".into(),
+            title: "작품".into(),
+            author: Some("작가".into()),
+            total_chapters: 2,
+            chapters: vec![
+                ChapterInfo {
+                    number: 1,
+                    url: "https://ncode.syosetu.com/n3645ly/1/".into(),
+                    title: Some("1화".into()),
+                    status: "pending".into(),
+                },
+                ChapterInfo {
+                    number: 2,
+                    url: "https://ncode.syosetu.com/n3645ly/2/".into(),
+                    title: Some("2화".into()),
+                    status: "pending".into(),
+                },
+            ],
+        };
+
+        add_watchlist_item_from_series(&pool, "https://ncode.syosetu.com/n3645ly/", &series)
+            .await
+            .expect("seed watchlist item");
+
+        sqlx::query(
+            "UPDATE watchlist_episodes
+             SET is_new = 1
+             WHERE novel_id = ? AND chapter_number = ?",
+        )
+        .bind("n3645ly")
+        .bind(2_i64)
+        .execute(&pool)
+        .await
+        .expect("mark chapter as new");
+
+        add_watchlist_item_from_series(&pool, "https://ncode.syosetu.com/n3645ly/", &series)
+            .await
+            .expect("re-add watchlist item");
+
+        let episodes = list_watchlist_episode_rows(&pool, "n3645ly")
+            .await
+            .expect("episode rows");
+        let chapter_two = episodes
+            .iter()
+            .find(|episode| episode.chapter_number == 2)
+            .expect("chapter 2");
+
+        assert!(chapter_two.is_new);
+    }
+
+    #[tokio::test]
     async fn list_watchlist_items_includes_new_episode_count() {
         let pool = setup_test_pool().await;
 
@@ -536,9 +623,14 @@ mod tests {
             .await
             .expect("mark new");
 
-        mark_episode_viewed_with_pool(&pool, "n3645ly", 1)
+        let update = mark_episode_viewed_with_pool(&pool, "n3645ly", 1)
             .await
             .expect("mark viewed");
+
+        assert_eq!(update.novel_id, "n3645ly");
+        assert_eq!(update.chapter_number, 1);
+        assert_eq!(update.remaining_new_episode_count, 0);
+        assert!(update.cleared_new_flag);
 
         let episodes = list_watchlist_episode_rows(&pool, "n3645ly")
             .await

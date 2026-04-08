@@ -21,6 +21,13 @@ export interface WatchlistEpisode {
   isViewed: boolean;
 }
 
+export interface WatchlistViewedUpdate {
+  novelId: string;
+  chapterNumber: number;
+  clearedNewFlag: boolean;
+  remainingNewEpisodeCount: number;
+}
+
 export interface NovelMetadata {
   site: string;
   novel_id: string;

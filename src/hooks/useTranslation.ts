@@ -12,18 +12,19 @@ import type {
   CharacterDictionaryReview,
   ExportRequest,
   TranslationChunk,
+  WatchlistViewedUpdate,
 } from '../types';
 
 export const markViewedChapter = async (
   invokeFn: typeof invoke,
   novelId: string,
   chapterNumber?: number,
-): Promise<void> => {
+): Promise<WatchlistViewedUpdate | null> => {
   if (!chapterNumber || chapterNumber < 1) {
-    return;
+    return null;
   }
 
-  await invokeFn('mark_episode_viewed', {
+  return invokeFn<WatchlistViewedUpdate>('mark_episode_viewed', {
     novelId,
     chapterNumber,
   });
@@ -299,9 +300,13 @@ export const useTranslation = () => {
         source_url: url,
       });
 
-      await markViewedChapter(invoke, content.novel_id, content.chapter_number);
-      if (content.chapter_number) {
-        markWatchlistEpisodeViewed(content.chapter_number);
+      const viewedUpdate = await markViewedChapter(invoke, content.novel_id, content.chapter_number);
+      if (viewedUpdate) {
+        markWatchlistEpisodeViewed(
+          viewedUpdate.novelId,
+          viewedUpdate.chapterNumber,
+          viewedUpdate.remainingNewEpisodeCount,
+        );
       }
 
       try {
@@ -355,9 +360,13 @@ export const useTranslation = () => {
         source_url: url,
       });
 
-      await markViewedChapter(invoke, content.novel_id, content.chapter_number);
-      if (content.chapter_number) {
-        markWatchlistEpisodeViewed(content.chapter_number);
+      const viewedUpdate = await markViewedChapter(invoke, content.novel_id, content.chapter_number);
+      if (viewedUpdate) {
+        markWatchlistEpisodeViewed(
+          viewedUpdate.novelId,
+          viewedUpdate.chapterNumber,
+          viewedUpdate.remainingNewEpisodeCount,
+        );
       }
 
       try {

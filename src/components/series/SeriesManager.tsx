@@ -6,6 +6,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useWatchlist } from '../../hooks/useWatchlist';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
+import { LegacySeriesManager } from './LegacySeriesManager';
 import type { WatchlistEpisode, WatchlistItem } from '../../types';
 
 const formatCheckedAt = (value: string | null): string => {
@@ -204,24 +205,38 @@ export const SeriesManager: React.FC = () => {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        <h3
+                          className={`truncate text-sm font-semibold ${
+                            isDark ? 'text-white' : 'text-slate-900'
+                          }`}
+                        >
                           {item.title}
                         </h3>
-                        <p className={`mt-1 truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <p
+                          className={`mt-1 truncate text-xs ${
+                            isDark ? 'text-slate-400' : 'text-slate-500'
+                          }`}
+                        >
                           {item.author ?? '작가 미상'}
                         </p>
                       </div>
                       {item.newEpisodeCount > 0 && (
                         <span
                           className={`rounded-full px-2 py-1 text-xs font-bold ${
-                            isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+                            isDark
+                              ? 'bg-emerald-500/15 text-emerald-300'
+                              : 'bg-emerald-100 text-emerald-700'
                           }`}
                         >
                           {item.newEpisodeCount}
                         </span>
                       )}
                     </div>
-                    <div className={`mt-3 flex items-center justify-between text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    <div
+                      className={`mt-3 flex items-center justify-between text-xs ${
+                        isDark ? 'text-slate-500' : 'text-slate-500'
+                      }`}
+                    >
                       <span>Syosetu</span>
                       <span>{formatCheckedAt(item.lastCheckedAt)}</span>
                     </div>
@@ -237,7 +252,9 @@ export const SeriesManager: React.FC = () => {
                       ) : item.newEpisodeCount > 0 ? (
                         <span
                           className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                            isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+                            isDark
+                              ? 'bg-emerald-500/15 text-emerald-300'
+                              : 'bg-emerald-100 text-emerald-700'
                           }`}
                         >
                           새 화 {item.newEpisodeCount}개
@@ -265,14 +282,23 @@ export const SeriesManager: React.FC = () => {
           >
             {selectedItem && (
               <>
-                <header className={`border-b px-6 py-5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                <header
+                  className={`border-b px-6 py-5 ${
+                    isDark ? 'border-slate-700' : 'border-slate-200'
+                  }`}
+                >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      <h3
+                        className={`text-xl font-semibold ${
+                          isDark ? 'text-white' : 'text-slate-900'
+                        }`}
+                      >
                         {selectedItem.title}
                       </h3>
                       <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {selectedItem.author ?? '작가 미상'} · 마지막 확인 {formatCheckedAt(selectedItem.lastCheckedAt)}
+                        {selectedItem.author ?? '작가 미상'} · 마지막 확인{' '}
+                        {formatCheckedAt(selectedItem.lastCheckedAt)}
                       </p>
                     </div>
                     {selectedItem.lastCheckStatus === 'error' ? (
@@ -312,7 +338,11 @@ export const SeriesManager: React.FC = () => {
                           <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
                             #{episode.chapterNumber}
                           </p>
-                          <p className={`truncate text-sm font-medium ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                          <p
+                            className={`truncate text-sm font-medium ${
+                              isDark ? 'text-slate-100' : 'text-slate-800'
+                            }`}
+                          >
                             {episode.title ?? `제${episode.chapterNumber}화`}
                           </p>
                         </div>
@@ -326,6 +356,24 @@ export const SeriesManager: React.FC = () => {
           </section>
         </div>
       )}
+
+      <section
+        className={`rounded-2xl border ${
+          isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
+        }`}
+      >
+        <header className={`border-b px-6 py-5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            기존 시리즈 도구
+          </h2>
+          <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            기존 챕터 목록, 일괄 번역, 내보내기 흐름은 별도 코드로 유지합니다.
+          </p>
+        </header>
+        <div className="p-6">
+          <LegacySeriesManager />
+        </div>
+      </section>
     </div>
   );
 };
