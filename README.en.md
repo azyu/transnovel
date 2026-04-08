@@ -5,7 +5,7 @@
 
 Desktop app for translating Japanese web novels into Korean with a React frontend, Rust backend, and Tauri 2.0 shell.
 
-[한국어 문서](./README.ko-kr.md)
+[한국어 문서](./README.ko.md)
 
 ## What It Does
 
