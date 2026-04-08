@@ -8,6 +8,7 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { LegacySeriesManager } from './LegacySeriesManager';
 import type { WatchlistEpisode, WatchlistItem } from '../../types';
+import { formatWatchlistSiteLabel, getWatchlistItemKey } from '../../utils/watchlist';
 
 const formatCheckedAt = (value: string | null): string => {
   if (!value) {
@@ -60,7 +61,7 @@ export const SeriesManager: React.FC = () => {
   const isDark = theme === 'dark';
   const selectedItem = useMemo(
     () =>
-      watchlistItems.find((item) => item.novelId === selectedWatchlistNovelId) ??
+      watchlistItems.find((item) => getWatchlistItemKey(item) === selectedWatchlistNovelId) ??
       watchlistItems[0] ??
       null,
     [selectedWatchlistNovelId, watchlistItems],
@@ -68,7 +69,7 @@ export const SeriesManager: React.FC = () => {
 
   useEffect(() => {
     if (!selectedWatchlistNovelId && watchlistItems.length > 0) {
-      void loadWatchlistEpisodes(watchlistItems[0].novelId);
+      void loadWatchlistEpisodes(watchlistItems[0].site, watchlistItems[0].novelId);
     }
   }, [loadWatchlistEpisodes, selectedWatchlistNovelId, watchlistItems]);
 
@@ -82,7 +83,7 @@ export const SeriesManager: React.FC = () => {
     setRegisterError(null);
     try {
       const item = await addWatchlistItem(registerUrl.trim());
-      await loadWatchlistEpisodes(item.novelId);
+      await loadWatchlistEpisodes(item.site, item.novelId);
       setRegisterUrl('');
     } catch (error) {
       setRegisterError(error instanceof Error ? error.message : String(error));
@@ -93,14 +94,14 @@ export const SeriesManager: React.FC = () => {
 
   const handleRefresh = async () => {
     await refreshWatchlist();
-    const nextNovelId = selectedItem?.novelId ?? watchlistItems[0]?.novelId;
-    if (nextNovelId) {
-      await loadWatchlistEpisodes(nextNovelId);
+    const nextItem = selectedItem ?? watchlistItems[0] ?? null;
+    if (nextItem) {
+      await loadWatchlistEpisodes(nextItem.site, nextItem.novelId);
     }
   };
 
   const handleSelectItem = async (item: WatchlistItem) => {
-    await loadWatchlistEpisodes(item.novelId);
+    await loadWatchlistEpisodes(item.site, item.novelId);
   };
 
   const handleOpenEpisode = async (episode: WatchlistEpisode) => {
@@ -122,7 +123,7 @@ export const SeriesManager: React.FC = () => {
               관심작품
             </h2>
             <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              등록한 Syosetu 작품의 새 화를 시작 시 백그라운드로 확인하고, 수동 새로고침도 할 수 있습니다.
+              등록한 Syosetu / Novel18 작품의 새 화를 시작 시 백그라운드로 확인하고, 수동 새로고침도 할 수 있습니다.
             </p>
           </div>
           <Button variant="secondary" onClick={handleRefresh} isLoading={isRefreshingWatchlist}>
@@ -135,7 +136,7 @@ export const SeriesManager: React.FC = () => {
             <Input
               value={registerUrl}
               onChange={(event) => setRegisterUrl(event.target.value)}
-              placeholder="https://ncode.syosetu.com/n3645ly/"
+              placeholder="https://ncode.syosetu.com/n3645ly/ 또는 https://novel18.syosetu.com/n7098lz/"
               aria-label="관심작품 URL 입력"
               error={registerError ?? undefined}
             />
@@ -176,7 +177,7 @@ export const SeriesManager: React.FC = () => {
             관심작품이 없습니다
           </h3>
           <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            Syosetu 작품 URL을 등록해서 새 화 추적을 시작하세요.
+            Syosetu 또는 Novel18 작품 URL을 등록해서 새 화 추적을 시작하세요.
           </p>
         </div>
       ) : (
@@ -188,11 +189,12 @@ export const SeriesManager: React.FC = () => {
           >
             <div className="space-y-3">
               {watchlistItems.map((item) => {
-                const isSelected = item.novelId === selectedItem?.novelId;
+                const itemKey = getWatchlistItemKey(item);
+                const isSelected = itemKey === (selectedItem ? getWatchlistItemKey(selectedItem) : null);
 
                 return (
                   <button
-                    key={item.novelId}
+                    key={itemKey}
                     type="button"
                     onClick={() => void handleSelectItem(item)}
                     className={`w-full cursor-pointer rounded-xl border p-4 text-left transition-colors ${
@@ -237,7 +239,7 @@ export const SeriesManager: React.FC = () => {
                         isDark ? 'text-slate-500' : 'text-slate-500'
                       }`}
                     >
-                      <span>Syosetu</span>
+                      <span>{formatWatchlistSiteLabel(item.site)}</span>
                       <span>{formatCheckedAt(item.lastCheckedAt)}</span>
                     </div>
                     <div className="mt-3 flex items-center gap-2">

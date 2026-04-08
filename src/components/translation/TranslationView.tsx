@@ -11,6 +11,7 @@ import { DebugPanel } from '../common/DebugPanel';
 import { useWatchlist } from '../../hooks/useWatchlist';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
+import { buildWatchlistWorkUrl, isWatchlistSupportedSite } from '../../utils/watchlist';
 import {
   mergeCharacterDictionaryEntries,
   resolveCharacterDictionaryTarget,
@@ -209,14 +210,20 @@ export const TranslationView: React.FC = () => {
   };
 
   const handleAddToWatchlist = async () => {
-    if (!chapter || chapter.site !== 'syosetu') {
-      showError('관심작품 추가 실패', '현재는 Syosetu 작품만 관심작품에 추가할 수 있습니다.');
+    if (!chapter || !isWatchlistSupportedSite(chapter.site)) {
+      showError('관심작품 추가 실패', '현재는 Syosetu 또는 Novel18 작품만 관심작품에 추가할 수 있습니다.');
+      return;
+    }
+
+    const workUrl = buildWatchlistWorkUrl(chapter.site, chapter.novelId);
+    if (!workUrl) {
+      showError('관심작품 추가 실패', '관심작품 URL을 만들지 못했습니다.');
       return;
     }
 
     setAddingWatchlist(true);
     try {
-      await addWatchlistItem(`https://ncode.syosetu.com/${chapter.novelId}/`);
+      await addWatchlistItem(workUrl);
     } catch (err) {
       showError('관심작품 추가 실패', String(err));
     } finally {
@@ -291,7 +298,7 @@ export const TranslationView: React.FC = () => {
               variant="secondary"
               onClick={handleAddToWatchlist}
               isLoading={addingWatchlist}
-              disabled={isTranslating || retrying || !chapter || chapter.site !== 'syosetu'}
+              disabled={isTranslating || retrying || !chapter || !isWatchlistSupportedSite(chapter.site)}
             >
               관심작품에 추가
             </Button>

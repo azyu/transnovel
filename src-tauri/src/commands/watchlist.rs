@@ -16,14 +16,18 @@ pub async fn refresh_watchlist() -> Result<Vec<WatchlistItem>, String> {
 }
 
 #[tauri::command]
-pub async fn get_watchlist_episodes(novel_id: String) -> Result<Vec<WatchlistEpisode>, String> {
-    crate::services::watchlist::get_watchlist_episodes(&novel_id).await
+pub async fn get_watchlist_episodes(
+    site: String,
+    novel_id: String,
+) -> Result<Vec<WatchlistEpisode>, String> {
+    crate::services::watchlist::get_watchlist_episodes(&site, &novel_id).await
 }
 
 #[tauri::command]
 pub async fn mark_episode_viewed(
+    site: String,
     novel_id: String,
     chapter_number: u32,
 ) -> Result<WatchlistViewedUpdate, String> {
-    crate::services::watchlist::mark_episode_viewed(&novel_id, chapter_number).await
+    crate::services::watchlist::mark_episode_viewed(&site, &novel_id, chapter_number).await
 }

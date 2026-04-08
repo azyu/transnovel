@@ -49,7 +49,7 @@ describe('useSeriesStore watchlist state', () => {
   });
 
   it('updates selected work and episode rows independently', () => {
-    useSeriesStore.getState().setSelectedWatchlistNovelId('n3645ly');
+    useSeriesStore.getState().setSelectedWatchlistNovelId('syosetu:n3645ly');
     useSeriesStore.getState().setWatchlistEpisodes([
       {
         chapterNumber: 1,
@@ -60,7 +60,7 @@ describe('useSeriesStore watchlist state', () => {
       },
     ]);
 
-    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('n3645ly');
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('syosetu:n3645ly');
     expect(useSeriesStore.getState().watchlistEpisodes).toHaveLength(1);
   });
 
@@ -91,7 +91,7 @@ describe('useSeriesStore watchlist state', () => {
         newEpisodeCount: 1,
       },
     ]);
-    useSeriesStore.getState().setSelectedWatchlistNovelId('n1');
+    useSeriesStore.getState().setSelectedWatchlistNovelId('syosetu:n1');
     useSeriesStore.getState().setWatchlistEpisodes([
       {
         chapterNumber: 2,
@@ -109,7 +109,7 @@ describe('useSeriesStore watchlist state', () => {
       },
     ]);
 
-    useSeriesStore.getState().markWatchlistEpisodeViewed('n2', 2, 0);
+    useSeriesStore.getState().markWatchlistEpisodeViewed('syosetu', 'n2', 2, 0);
 
     expect(useSeriesStore.getState().watchlistEpisodes).toEqual([
       {
@@ -130,7 +130,7 @@ describe('useSeriesStore watchlist state', () => {
     expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([1, 0]);
     expect(useSeriesStore.getState().watchlistBadgeCount).toBe(1);
 
-    useSeriesStore.getState().markWatchlistEpisodeViewed('n1', 2, 0);
+    useSeriesStore.getState().markWatchlistEpisodeViewed('syosetu', 'n1', 2, 0);
 
     expect(useSeriesStore.getState().watchlistEpisodes).toEqual([
       {
@@ -150,5 +150,55 @@ describe('useSeriesStore watchlist state', () => {
     ]);
     expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([0, 0]);
     expect(useSeriesStore.getState().watchlistBadgeCount).toBe(0);
+  });
+
+  it('keeps watchlist selection scoped by site when novel ids overlap', () => {
+    useSeriesStore.getState().setWatchlistItems([
+      {
+        novelId: 'n1000aa',
+        title: '일반 작품',
+        site: 'syosetu',
+        workUrl: 'https://ncode.syosetu.com/n1000aa/',
+        author: null,
+        lastKnownChapter: 1,
+        lastCheckedAt: null,
+        lastCheckStatus: 'ok',
+        lastCheckError: null,
+        newEpisodeCount: 0,
+      },
+      {
+        novelId: 'n1000aa',
+        title: 'R18 작품',
+        site: 'nocturne',
+        workUrl: 'https://novel18.syosetu.com/n1000aa/',
+        author: null,
+        lastKnownChapter: 1,
+        lastCheckedAt: null,
+        lastCheckStatus: 'ok',
+        lastCheckError: null,
+        newEpisodeCount: 1,
+      },
+    ]);
+    useSeriesStore.getState().setSelectedWatchlistNovelId('nocturne:n1000aa');
+    useSeriesStore.getState().setWatchlistEpisodes([
+      {
+        chapterNumber: 1,
+        chapterUrl: 'https://novel18.syosetu.com/n1000aa/1/',
+        title: '1화',
+        isNew: true,
+        isViewed: false,
+      },
+    ]);
+
+    useSeriesStore.getState().markWatchlistEpisodeViewed('syosetu', 'n1000aa', 1, 0);
+
+    expect(useSeriesStore.getState().watchlistEpisodes[0]).toEqual({
+      chapterNumber: 1,
+      chapterUrl: 'https://novel18.syosetu.com/n1000aa/1/',
+      title: '1화',
+      isNew: true,
+      isViewed: false,
+    });
+    expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([0, 1]);
   });
 });
