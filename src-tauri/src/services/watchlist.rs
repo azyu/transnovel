@@ -14,6 +14,16 @@ pub fn is_watchlist_supported_site(site: &str) -> bool {
     matches!(site, "syosetu" | "nocturne")
 }
 
+fn find_watchlist_item(
+    items: Vec<WatchlistItem>,
+    site: &str,
+    novel_id: &str,
+) -> Result<WatchlistItem, String> {
+    items.into_iter()
+        .find(|item| item.site == site && item.novel_id == novel_id)
+        .ok_or_else(|| "관심작품 정보를 불러오지 못했습니다.".to_string())
+}
+
 pub async fn add_watchlist_item(url: &str) -> Result<WatchlistItem, String> {
     let parsed = ParsedUrl::from_url(url).ok_or("지원하지 않는 URL 형식입니다.")?;
     if !is_watchlist_supported_site(&parsed.site) || parsed.chapter.is_some() {
@@ -33,10 +43,7 @@ pub async fn add_watchlist_item(url: &str) -> Result<WatchlistItem, String> {
     add_watchlist_item_from_series(pool, url, &series).await?;
 
     let items = list_watchlist_items_with_pool(pool).await?;
-    items
-        .into_iter()
-        .find(|item| item.novel_id == series.novel_id)
-        .ok_or_else(|| "관심작품 정보를 불러오지 못했습니다.".to_string())
+    find_watchlist_item(items, &series.site, &series.novel_id)
 }
 
 pub async fn list_watchlist_items() -> Result<Vec<WatchlistItem>, String> {
@@ -384,13 +391,13 @@ pub async fn mark_episode_viewed_with_pool(
 #[cfg(test)]
 mod tests {
     use super::{
-        add_watchlist_item_from_series, is_watchlist_supported_site, list_watchlist_episode_rows,
-        list_watchlist_items_with_pool, mark_episode_viewed_with_pool,
+        add_watchlist_item_from_series, find_watchlist_item, is_watchlist_supported_site,
+        list_watchlist_episode_rows, list_watchlist_items_with_pool, mark_episode_viewed_with_pool,
         refresh_watchlist_item_from_series,
     };
     use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
 
-    use crate::models::novel::{ChapterInfo, SeriesInfo};
+    use crate::models::novel::{ChapterInfo, SeriesInfo, WatchlistItem};
 
     async fn setup_test_pool() -> Pool<Sqlite> {
         let pool = SqlitePoolOptions::new()
@@ -453,6 +460,44 @@ mod tests {
         assert!(is_watchlist_supported_site("syosetu"));
         assert!(is_watchlist_supported_site("nocturne"));
         assert!(!is_watchlist_supported_site("hameln"));
+    }
+
+    #[test]
+    fn find_watchlist_item_matches_site_and_novel_id() {
+        let item = find_watchlist_item(
+            vec![
+                WatchlistItem {
+                    site: "syosetu".into(),
+                    work_url: "https://ncode.syosetu.com/n1000aa/".into(),
+                    novel_id: "n1000aa".into(),
+                    title: "일반 작품".into(),
+                    author: None,
+                    last_known_chapter: 1,
+                    last_checked_at: None,
+                    last_check_status: "ok".into(),
+                    last_check_error: None,
+                    new_episode_count: 0,
+                },
+                WatchlistItem {
+                    site: "nocturne".into(),
+                    work_url: "https://novel18.syosetu.com/n1000aa/".into(),
+                    novel_id: "n1000aa".into(),
+                    title: "R18 작품".into(),
+                    author: None,
+                    last_known_chapter: 1,
+                    last_checked_at: None,
+                    last_check_status: "ok".into(),
+                    last_check_error: None,
+                    new_episode_count: 1,
+                },
+            ],
+            "nocturne",
+            "n1000aa",
+        )
+        .expect("matching watchlist item");
+
+        assert_eq!(item.site, "nocturne");
+        assert_eq!(item.title, "R18 작품");
     }
 
     #[tokio::test]
