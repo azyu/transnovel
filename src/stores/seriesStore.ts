@@ -6,6 +6,7 @@ import type {
   WatchlistEpisode,
   WatchlistItem,
 } from '../types';
+import { getWatchlistItemKey } from '../utils/watchlist';
 
 interface SeriesState {
   novelMetadata: NovelMetadata | null;
@@ -26,6 +27,7 @@ interface SeriesState {
   watchlistEpisodes: WatchlistEpisode[];
   setWatchlistEpisodes: (episodes: WatchlistEpisode[]) => void;
   markWatchlistEpisodeViewed: (
+    site: string,
     novelId: string,
     chapterNumber: number,
     remainingNewEpisodeCount: number,
@@ -72,9 +74,10 @@ export const useSeriesStore = create<SeriesState>((set) => ({
   setSelectedWatchlistNovelId: (novelId) => set({ selectedWatchlistNovelId: novelId }),
   watchlistEpisodes: [],
   setWatchlistEpisodes: (episodes) => set({ watchlistEpisodes: episodes }),
-  markWatchlistEpisodeViewed: (novelId, chapterNumber, remainingNewEpisodeCount) =>
+  markWatchlistEpisodeViewed: (site, novelId, chapterNumber, remainingNewEpisodeCount) =>
     set((state) => {
-      const shouldUpdateSelectedEpisodes = state.selectedWatchlistNovelId === novelId;
+      const itemKey = getWatchlistItemKey(site, novelId);
+      const shouldUpdateSelectedEpisodes = state.selectedWatchlistNovelId === itemKey;
 
       const watchlistEpisodes = shouldUpdateSelectedEpisodes
         ? state.watchlistEpisodes.map((episode) => {
@@ -87,7 +90,7 @@ export const useSeriesStore = create<SeriesState>((set) => ({
         : state.watchlistEpisodes;
 
       const watchlistItems = state.watchlistItems.map((item) => {
-        if (item.novelId !== novelId) {
+        if (item.site !== site || item.novelId !== novelId) {
           return item;
         }
 
