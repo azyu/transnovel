@@ -91,6 +91,7 @@ pub struct WatchlistEpisode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchlistViewedUpdate {
+    pub site: String,
     pub novel_id: String,
     pub chapter_number: u32,
     pub cleared_new_flag: bool,

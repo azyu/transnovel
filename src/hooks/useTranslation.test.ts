@@ -228,20 +228,23 @@ describe('resolveCharacterDictionaryTarget', () => {
 describe('markViewedChapter', () => {
   it('returns the backend view update only when chapter number is present', async () => {
     const invokeMock = vi.fn(async () => ({
+      site: 'kakuyomu',
       novelId: 'review-work',
       chapterNumber: 3,
       remainingNewEpisodeCount: 1,
     }));
 
-    const update = await markViewedChapter(invokeMock as never, 'review-work', 3);
-    const skipped = await markViewedChapter(invokeMock as never, 'review-work', 0);
+    const update = await markViewedChapter(invokeMock as never, 'kakuyomu', 'review-work', 3);
+    const skipped = await markViewedChapter(invokeMock as never, 'kakuyomu', 'review-work', 0);
 
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock).toHaveBeenCalledWith('mark_episode_viewed', {
+      site: 'kakuyomu',
       novelId: 'review-work',
       chapterNumber: 3,
     });
     expect(update).toEqual({
+      site: 'kakuyomu',
       novelId: 'review-work',
       chapterNumber: 3,
       remainingNewEpisodeCount: 1,

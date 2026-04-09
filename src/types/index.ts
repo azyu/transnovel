@@ -22,6 +22,7 @@ export interface WatchlistEpisode {
 }
 
 export interface WatchlistViewedUpdate {
+  site: string;
   novelId: string;
   chapterNumber: number;
   clearedNewFlag: boolean;

@@ -17,6 +17,7 @@ import type {
 
 export const markViewedChapter = async (
   invokeFn: typeof invoke,
+  site: string,
   novelId: string,
   chapterNumber?: number,
 ): Promise<WatchlistViewedUpdate | null> => {
@@ -25,6 +26,7 @@ export const markViewedChapter = async (
   }
 
   return invokeFn<WatchlistViewedUpdate>('mark_episode_viewed', {
+    site,
     novelId,
     chapterNumber,
   });
@@ -300,9 +302,15 @@ export const useTranslation = () => {
         source_url: url,
       });
 
-      const viewedUpdate = await markViewedChapter(invoke, content.novel_id, content.chapter_number);
+      const viewedUpdate = await markViewedChapter(
+        invoke,
+        content.site,
+        content.novel_id,
+        content.chapter_number,
+      );
       if (viewedUpdate) {
         markWatchlistEpisodeViewed(
+          viewedUpdate.site,
           viewedUpdate.novelId,
           viewedUpdate.chapterNumber,
           viewedUpdate.remainingNewEpisodeCount,
@@ -360,9 +368,15 @@ export const useTranslation = () => {
         source_url: url,
       });
 
-      const viewedUpdate = await markViewedChapter(invoke, content.novel_id, content.chapter_number);
+      const viewedUpdate = await markViewedChapter(
+        invoke,
+        content.site,
+        content.novel_id,
+        content.chapter_number,
+      );
       if (viewedUpdate) {
         markWatchlistEpisodeViewed(
+          viewedUpdate.site,
           viewedUpdate.novelId,
           viewedUpdate.chapterNumber,
           viewedUpdate.remainingNewEpisodeCount,

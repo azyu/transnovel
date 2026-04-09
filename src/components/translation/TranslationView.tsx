@@ -17,6 +17,7 @@ import {
   useTranslation,
 } from '../../hooks/useTranslation';
 import type { CharacterDictionaryEntry } from '../../types';
+import { buildWatchlistWorkUrl, isWatchlistSupportedSite } from '../../utils/watchlist';
 
 export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
@@ -209,14 +210,19 @@ export const TranslationView: React.FC = () => {
   };
 
   const handleAddToWatchlist = async () => {
-    if (!chapter || chapter.site !== 'syosetu') {
-      showError('관심작품 추가 실패', '현재는 Syosetu 작품만 관심작품에 추가할 수 있습니다.');
+    if (!chapter || !isWatchlistSupportedSite(chapter.site)) {
+      showError('관심작품 추가 실패', '현재는 Syosetu, Novel18, Kakuyomu 작품만 관심작품에 추가할 수 있습니다.');
       return;
     }
 
     setAddingWatchlist(true);
     try {
-      await addWatchlistItem(`https://ncode.syosetu.com/${chapter.novelId}/`);
+      const workUrl = buildWatchlistWorkUrl(chapter.site, chapter.novelId);
+      if (!workUrl) {
+        throw new Error('관심작품 등록 URL을 만들 수 없습니다.');
+      }
+
+      await addWatchlistItem(workUrl);
     } catch (err) {
       showError('관심작품 추가 실패', String(err));
     } finally {

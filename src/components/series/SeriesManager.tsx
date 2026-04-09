@@ -6,8 +6,8 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useWatchlist } from '../../hooks/useWatchlist';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import { LegacySeriesManager } from './LegacySeriesManager';
 import type { WatchlistEpisode, WatchlistItem } from '../../types';
+import { formatWatchlistSiteLabel, getWatchlistItemKey } from '../../utils/watchlist';
 
 const formatCheckedAt = (value: string | null): string => {
   if (!value) {
@@ -20,25 +20,31 @@ const formatCheckedAt = (value: string | null): string => {
 const EpisodeStatusBadge: React.FC<{ episode: WatchlistEpisode }> = ({ episode }) => {
   if (episode.isNew) {
     return (
-      <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-400">
-        새 화
+      <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-semibold tracking-[0.08em] text-emerald-400">
+        NEW
       </span>
     );
   }
 
   if (episode.isViewed) {
     return (
-      <span className="rounded-full bg-slate-500/15 px-2 py-1 text-xs font-semibold text-slate-400">
-        본 화
+      <span
+        aria-label="본 화"
+        title="본 화"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-500/10 text-slate-400"
+      >
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path
+            fillRule="evenodd"
+            d="M16.704 5.29a1 1 0 0 1 .006 1.414l-8 8.069a1 1 0 0 1-1.42.006l-4-4.035a1 1 0 1 1 1.42-1.408l3.29 3.319 7.296-7.36a1 1 0 0 1 1.408-.005Z"
+            clipRule="evenodd"
+          />
+        </svg>
       </span>
     );
   }
 
-  return (
-    <span className="rounded-full bg-slate-500/10 px-2 py-1 text-xs font-semibold text-slate-500">
-      일반
-    </span>
-  );
+  return null;
 };
 
 export const SeriesManager: React.FC = () => {
@@ -60,7 +66,7 @@ export const SeriesManager: React.FC = () => {
   const isDark = theme === 'dark';
   const selectedItem = useMemo(
     () =>
-      watchlistItems.find((item) => item.novelId === selectedWatchlistNovelId) ??
+      watchlistItems.find((item) => getWatchlistItemKey(item) === selectedWatchlistNovelId) ??
       watchlistItems[0] ??
       null,
     [selectedWatchlistNovelId, watchlistItems],
@@ -68,7 +74,7 @@ export const SeriesManager: React.FC = () => {
 
   useEffect(() => {
     if (!selectedWatchlistNovelId && watchlistItems.length > 0) {
-      void loadWatchlistEpisodes(watchlistItems[0].novelId);
+      void loadWatchlistEpisodes(watchlistItems[0].site, watchlistItems[0].novelId);
     }
   }, [loadWatchlistEpisodes, selectedWatchlistNovelId, watchlistItems]);
 
@@ -82,7 +88,7 @@ export const SeriesManager: React.FC = () => {
     setRegisterError(null);
     try {
       const item = await addWatchlistItem(registerUrl.trim());
-      await loadWatchlistEpisodes(item.novelId);
+      await loadWatchlistEpisodes(item.site, item.novelId);
       setRegisterUrl('');
     } catch (error) {
       setRegisterError(error instanceof Error ? error.message : String(error));
@@ -93,14 +99,14 @@ export const SeriesManager: React.FC = () => {
 
   const handleRefresh = async () => {
     await refreshWatchlist();
-    const nextNovelId = selectedItem?.novelId ?? watchlistItems[0]?.novelId;
-    if (nextNovelId) {
-      await loadWatchlistEpisodes(nextNovelId);
+    const nextItem = selectedItem ?? watchlistItems[0] ?? null;
+    if (nextItem) {
+      await loadWatchlistEpisodes(nextItem.site, nextItem.novelId);
     }
   };
 
   const handleSelectItem = async (item: WatchlistItem) => {
-    await loadWatchlistEpisodes(item.novelId);
+    await loadWatchlistEpisodes(item.site, item.novelId);
   };
 
   const handleOpenEpisode = async (episode: WatchlistEpisode) => {
@@ -122,7 +128,7 @@ export const SeriesManager: React.FC = () => {
               관심작품
             </h2>
             <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              등록한 Syosetu 작품의 새 화를 시작 시 백그라운드로 확인하고, 수동 새로고침도 할 수 있습니다.
+              읽고 싶은 작품을 등록해두고 새로 올라온 화를 한눈에 확인하세요.
             </p>
           </div>
           <Button variant="secondary" onClick={handleRefresh} isLoading={isRefreshingWatchlist}>
@@ -135,7 +141,7 @@ export const SeriesManager: React.FC = () => {
             <Input
               value={registerUrl}
               onChange={(event) => setRegisterUrl(event.target.value)}
-              placeholder="https://ncode.syosetu.com/n3645ly/"
+              placeholder="https://"
               aria-label="관심작품 URL 입력"
               error={registerError ?? undefined}
             />
@@ -176,7 +182,7 @@ export const SeriesManager: React.FC = () => {
             관심작품이 없습니다
           </h3>
           <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            Syosetu 작품 URL을 등록해서 새 화 추적을 시작하세요.
+            작품 URL을 등록해두면 새 화가 올라왔는지 바로 확인할 수 있습니다.
           </p>
         </div>
       ) : (
@@ -188,11 +194,12 @@ export const SeriesManager: React.FC = () => {
           >
             <div className="space-y-3">
               {watchlistItems.map((item) => {
-                const isSelected = item.novelId === selectedItem?.novelId;
+                const itemKey = getWatchlistItemKey(item);
+                const isSelected = itemKey === (selectedItem ? getWatchlistItemKey(selectedItem) : null);
 
                 return (
                   <button
-                    key={item.novelId}
+                    key={itemKey}
                     type="button"
                     onClick={() => void handleSelectItem(item)}
                     className={`w-full cursor-pointer rounded-xl border p-4 text-left transition-colors ${
@@ -237,7 +244,7 @@ export const SeriesManager: React.FC = () => {
                         isDark ? 'text-slate-500' : 'text-slate-500'
                       }`}
                     >
-                      <span>Syosetu</span>
+                      <span>{formatWatchlistSiteLabel(item.site)}</span>
                       <span>{formatCheckedAt(item.lastCheckedAt)}</span>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
@@ -281,99 +288,41 @@ export const SeriesManager: React.FC = () => {
             }`}
           >
             {selectedItem && (
-              <>
-                <header
-                  className={`border-b px-6 py-5 ${
-                    isDark ? 'border-slate-700' : 'border-slate-200'
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3
-                        className={`text-xl font-semibold ${
-                          isDark ? 'text-white' : 'text-slate-900'
-                        }`}
-                      >
-                        {selectedItem.title}
-                      </h3>
-                      <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {selectedItem.author ?? '작가 미상'} · 마지막 확인{' '}
-                        {formatCheckedAt(selectedItem.lastCheckedAt)}
-                      </p>
-                    </div>
-                    {selectedItem.lastCheckStatus === 'error' ? (
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          isDark ? 'bg-red-500/15 text-red-300' : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        확인 실패
-                      </span>
-                    ) : (
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          isDark ? 'bg-blue-500/15 text-blue-300' : 'bg-blue-100 text-blue-700'
-                        }`}
-                      >
-                        새 화 {selectedItem.newEpisodeCount}개
-                      </span>
-                    )}
-                  </div>
-                </header>
-
-                <div className="max-h-[640px] overflow-y-auto px-3 py-3">
-                  <div className="space-y-2">
-                    {watchlistEpisodes.map((episode) => (
-                      <button
-                        key={episode.chapterNumber}
-                        type="button"
-                        onClick={() => void handleOpenEpisode(episode)}
-                        className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
-                          isDark
-                            ? 'border-slate-700 bg-slate-900/40 hover:border-slate-500'
-                            : 'border-slate-200 bg-slate-50 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                            #{episode.chapterNumber}
-                          </p>
-                          <p
-                            className={`truncate text-sm font-medium ${
-                              isDark ? 'text-slate-100' : 'text-slate-800'
-                            }`}
-                          >
-                            {episode.title ?? `제${episode.chapterNumber}화`}
-                          </p>
-                        </div>
-                        <EpisodeStatusBadge episode={episode} />
-                      </button>
-                    ))}
-                  </div>
+              <div className="max-h-[640px] overflow-y-auto p-3">
+                <div className="space-y-2">
+                  {watchlistEpisodes.map((episode) => (
+                    <button
+                      key={episode.chapterNumber}
+                      type="button"
+                      onClick={() => void handleOpenEpisode(episode)}
+                      className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
+                        isDark
+                          ? 'border-slate-700 bg-slate-900/40 hover:border-slate-500'
+                          : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                          #{episode.chapterNumber}
+                        </p>
+                        <p
+                          className={`truncate text-sm font-medium ${
+                            isDark ? 'text-slate-100' : 'text-slate-800'
+                          }`}
+                        >
+                          {episode.title ?? `제${episode.chapterNumber}화`}
+                        </p>
+                      </div>
+                      <EpisodeStatusBadge episode={episode} />
+                    </button>
+                  ))}
                 </div>
-              </>
+              </div>
             )}
           </section>
         </div>
       )}
 
-      <section
-        className={`rounded-2xl border ${
-          isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
-        }`}
-      >
-        <header className={`border-b px-6 py-5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            기존 시리즈 도구
-          </h2>
-          <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            기존 챕터 목록, 일괄 번역, 내보내기 흐름은 별도 코드로 유지합니다.
-          </p>
-        </header>
-        <div className="p-6">
-          <LegacySeriesManager />
-        </div>
-      </section>
     </div>
   );
 };

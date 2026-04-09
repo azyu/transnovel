@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import type { WatchlistEpisode, WatchlistItem } from '../types';
+import { getWatchlistItemKey } from '../utils/watchlist';
 
 export const loadWatchlistOnStartupFlow = async (
   invokeFn: typeof invoke,
@@ -76,14 +77,14 @@ export const useWatchlist = () => {
     const item = await invoke<WatchlistItem>('add_watchlist_item', { url });
     const items = await invoke<WatchlistItem[]>('list_watchlist_items');
     setWatchlistItems(items);
-    setSelectedWatchlistNovelId(item.novelId);
+    setSelectedWatchlistNovelId(getWatchlistItemKey(item));
     showToast('관심작품에 추가했습니다.');
     return item;
   }, [setSelectedWatchlistNovelId, setWatchlistItems, showToast]);
 
-  const loadWatchlistEpisodes = useCallback(async (novelId: string) => {
-    const episodes = await invoke<WatchlistEpisode[]>('get_watchlist_episodes', { novelId });
-    setSelectedWatchlistNovelId(novelId);
+  const loadWatchlistEpisodes = useCallback(async (site: string, novelId: string) => {
+    const episodes = await invoke<WatchlistEpisode[]>('get_watchlist_episodes', { site, novelId });
+    setSelectedWatchlistNovelId(getWatchlistItemKey(site, novelId));
     setWatchlistEpisodes(episodes);
     return episodes;
   }, [setSelectedWatchlistNovelId, setWatchlistEpisodes]);

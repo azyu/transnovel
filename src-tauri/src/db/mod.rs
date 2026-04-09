@@ -84,6 +84,20 @@ async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
             .await
             .map_err(|e| e.to_string())?;
     }
+
+    let watchlist_episode_has_site: Vec<(String,)> = sqlx::query_as(
+        "SELECT name FROM pragma_table_info('watchlist_episodes') WHERE name = 'site'",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if watchlist_episode_has_site.is_empty() {
+        sqlx::query(include_str!("migrations/006_watchlist_site_scope.sql"))
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
     
     Ok(())
 }
