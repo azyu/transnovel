@@ -26,6 +26,8 @@
 - [x] 관심작품 탭에서 legacy series 도구 숨김 — Codex
 - [x] 관심작품 상세 패널에서 작품 요약 헤더 제거 — Codex
 - [x] 관심작품 에피소드 상태 표시를 `NEW` 배지와 체크 아이콘으로 단순화 — Codex
+- [x] 관심작품 카드 새 화 중복 표시 제거 — Codex
+- [x] 관심작품 작가명 접두사 정규화 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
 - [x] 번역 캐시 소설별 메타데이터 표시 확장 — Codex
 - [x] 설정 탭 width를 번역 탭 기준으로 확장 — Codex

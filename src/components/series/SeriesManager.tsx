@@ -227,7 +227,17 @@ export const SeriesManager: React.FC = () => {
                           {item.author ?? '작가 미상'}
                         </p>
                       </div>
-                      {item.newEpisodeCount > 0 && (
+                      {item.lastCheckStatus === 'error' ? (
+                        <span
+                          aria-label="확인 실패"
+                          title="확인 실패"
+                          className={`rounded-full px-2 py-1 text-xs font-bold ${
+                            isDark ? 'bg-red-500/15 text-red-300' : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          !
+                        </span>
+                      ) : item.newEpisodeCount > 0 ? (
                         <span
                           className={`rounded-full px-2 py-1 text-xs font-bold ${
                             isDark
@@ -237,7 +247,7 @@ export const SeriesManager: React.FC = () => {
                         >
                           {item.newEpisodeCount}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <div
                       className={`mt-3 flex items-center justify-between text-xs ${
@@ -246,35 +256,6 @@ export const SeriesManager: React.FC = () => {
                     >
                       <span>{formatWatchlistSiteLabel(item.site)}</span>
                       <span>{formatCheckedAt(item.lastCheckedAt)}</span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      {item.lastCheckStatus === 'error' ? (
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                            isDark ? 'bg-red-500/15 text-red-300' : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          확인 실패
-                        </span>
-                      ) : item.newEpisodeCount > 0 ? (
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                            isDark
-                              ? 'bg-emerald-500/15 text-emerald-300'
-                              : 'bg-emerald-100 text-emerald-700'
-                          }`}
-                        >
-                          새 화 {item.newEpisodeCount}개
-                        </span>
-                      ) : (
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                            isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          새 화 없음
-                        </span>
-                      )}
                     </div>
                   </button>
                 );

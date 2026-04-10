@@ -63,6 +63,25 @@ pub fn get_parser_for_url(url: &str) -> Option<Box<dyn NovelParser>> {
     None
 }
 
+pub fn normalize_author_name(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let normalized = trimmed
+        .strip_prefix("作者：")
+        .or_else(|| trimmed.strip_prefix("作者:"))
+        .map(str::trim)
+        .unwrap_or(trimmed);
+
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized.to_string())
+    }
+}
+
 pub async fn fetch_html(url: &str) -> Result<String, String> {
     let mut headers = reqwest::header::HeaderMap::new();
     
@@ -93,4 +112,25 @@ pub async fn fetch_html(url: &str) -> Result<String, String> {
         .text()
         .await
         .map_err(|e| format!("텍스트 변환 실패: {}", e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_author_name;
+
+    #[test]
+    fn strips_syosetu_author_prefix() {
+        assert_eq!(
+            normalize_author_name("作者：川坂藍斗"),
+            Some("川坂藍斗".to_string())
+        );
+    }
+
+    #[test]
+    fn keeps_plain_author_name_without_prefix() {
+        assert_eq!(
+            normalize_author_name("川坂藍斗"),
+            Some("川坂藍斗".to_string())
+        );
+    }
 }
