@@ -7,6 +7,8 @@ import { useDebugStore } from '../../stores/debugStore';
 
 interface NovelCacheStats {
   novel_id: string;
+  title: string | null;
+  site: string | null;
   count: number;
   total_hits: number;
 }
@@ -16,6 +18,19 @@ interface CacheStatsDetailed {
   total_hits: number;
   by_novel: NovelCacheStats[];
 }
+
+const SITE_DOMAIN_LABELS: Record<string, string> = {
+  syosetu: 'ncode.syosetu.com',
+  nocturne: 'novel18.syosetu.com',
+  hameln: 'syosetu.org',
+  kakuyomu: 'kakuyomu.jp',
+};
+
+const formatNovelCacheLabel = (novel: NovelCacheStats): string => {
+  const title = novel.title?.trim() || '알 수 없는 작품';
+  const domain = novel.site ? (SITE_DOMAIN_LABELS[novel.site] ?? novel.site) : '알 수 없는 사이트';
+  return `${title} | ${domain} | ${novel.novel_id}`;
+};
 
 export const AdvancedSettings: React.FC = () => {
   const [cacheStats, setCacheStats] = useState<CacheStatsDetailed | null>(null);
@@ -140,8 +155,11 @@ export const AdvancedSettings: React.FC = () => {
                       className={`flex items-center justify-between px-4 py-2 border-b last:border-b-0 ${isDark ? 'border-slate-700/30' : 'border-slate-100'}`}
                     >
                       <div className="flex-1 min-w-0 mr-4">
-                        <p className={`text-sm font-mono truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                          {novel.novel_id}
+                        <p
+                          className={`text-sm truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
+                          title={formatNovelCacheLabel(novel)}
+                        >
+                          {formatNovelCacheLabel(novel)}
                         </p>
                         <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                           {novel.count}개 · {novel.total_hits}회 사용

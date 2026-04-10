@@ -22,12 +22,12 @@ pub struct Setting {
 #[tauri::command]
 pub async fn get_settings() -> Result<Vec<Setting>, String> {
     let pool = get_pool()?;
-    
+
     let rows = sqlx::query("SELECT key, value FROM settings")
         .fetch_all(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     let settings: Vec<Setting> = rows
         .iter()
         .map(|row| Setting {
@@ -35,36 +35,45 @@ pub async fn get_settings() -> Result<Vec<Setting>, String> {
             value: row.get("value"),
         })
         .collect();
-    
+
     if settings.is_empty() {
         return Ok(get_default_settings());
     }
-    
+
     Ok(settings)
 }
 
 fn get_default_settings() -> Vec<Setting> {
     vec![
-        Setting { key: "model".into(), value: "gemini-2.0-flash".into() },
-        Setting { key: "temperature".into(), value: "1.0".into() },
-        Setting { key: "top_p".into(), value: "0.95".into() },
+        Setting {
+            key: "model".into(),
+            value: "gemini-2.0-flash".into(),
+        },
+        Setting {
+            key: "temperature".into(),
+            value: "1.0".into(),
+        },
+        Setting {
+            key: "top_p".into(),
+            value: "0.95".into(),
+        },
     ]
 }
 
 #[tauri::command]
 pub async fn set_setting(key: String, value: String) -> Result<(), String> {
     let pool = get_pool()?;
-    
+
     sqlx::query(
         "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP"
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
     )
     .bind(&key)
     .bind(&value)
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
@@ -155,14 +164,14 @@ pub async fn fetch_openai_oauth_models(
 #[tauri::command]
 pub async fn get_api_keys() -> Result<Vec<ApiKey>, String> {
     let pool = get_pool()?;
-    
+
     let rows = sqlx::query(
-        "SELECT id, key_type, api_key, is_active, daily_usage FROM api_keys WHERE is_active = 1"
+        "SELECT id, key_type, api_key, is_active, daily_usage FROM api_keys WHERE is_active = 1",
     )
     .fetch_all(pool)
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(rows
         .iter()
         .map(|row| ApiKey {
@@ -178,16 +187,16 @@ pub async fn get_api_keys() -> Result<Vec<ApiKey>, String> {
 #[tauri::command]
 pub async fn add_api_key(key_type: String, api_key: String) -> Result<ApiKey, String> {
     let pool = get_pool()?;
-    
+
     let result = sqlx::query(
-        "INSERT INTO api_keys (key_type, api_key, is_active, daily_usage) VALUES (?, ?, 1, 0)"
+        "INSERT INTO api_keys (key_type, api_key, is_active, daily_usage) VALUES (?, ?, 1, 0)",
     )
     .bind(&key_type)
     .bind(&api_key)
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(ApiKey {
         id: result.last_insert_rowid(),
         key_type,
@@ -200,16 +209,15 @@ pub async fn add_api_key(key_type: String, api_key: String) -> Result<ApiKey, St
 #[tauri::command]
 pub async fn remove_api_key(id: i64) -> Result<(), String> {
     let pool = get_pool()?;
-    
+
     sqlx::query("DELETE FROM api_keys WHERE id = ?")
         .bind(id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
-
 
 #[tauri::command]
 pub async fn open_url(url: String) -> Result<(), String> {
@@ -303,10 +311,8 @@ pub async fn fetch_gemini_models(api_key: String) -> Result<Vec<GeminiModel>, St
 }
 
 fn format_model_name(id: &str) -> String {
-    let name = id
-        .replace("-", " ")
-        .replace("_", " ");
-    
+    let name = id.replace("-", " ").replace("_", " ");
+
     let words: Vec<String> = name
         .split_whitespace()
         .map(|w| {
@@ -317,7 +323,7 @@ fn format_model_name(id: &str) -> String {
             }
         })
         .collect();
-    
+
     words.join(" ")
 }
 
@@ -370,11 +376,15 @@ pub async fn fetch_openrouter_models(api_key: String) -> Result<Vec<OpenRouterMo
         .into_iter()
         .filter(|m| {
             let id = m.id.to_lowercase();
-            (id.contains("claude") || id.contains("gpt") || id.contains("gemini") || 
-             id.contains("llama") || id.contains("deepseek") || id.contains("mistral") ||
-             id.contains("qwen"))
-            && !id.contains("free")
-            && !id.contains(":extended")
+            (id.contains("claude")
+                || id.contains("gpt")
+                || id.contains("gemini")
+                || id.contains("llama")
+                || id.contains("deepseek")
+                || id.contains("mistral")
+                || id.contains("qwen"))
+                && !id.contains("free")
+                && !id.contains(":extended")
         })
         .map(|m| OpenRouterModel {
             id: m.id.clone(),
@@ -394,12 +404,24 @@ pub async fn fetch_openrouter_models(api_key: String) -> Result<Vec<OpenRouterMo
 
 fn get_openrouter_model_score(id: &str) -> i32 {
     let mut score = 0;
-    if id.contains("claude") { score += 100; }
-    if id.contains("sonnet-4") { score += 50; }
-    if id.contains("gpt-4o") { score += 80; }
-    if id.contains("gemini-2") { score += 70; }
-    if id.contains("deepseek") { score += 60; }
-    if id.contains("llama") { score += 40; }
+    if id.contains("claude") {
+        score += 100;
+    }
+    if id.contains("sonnet-4") {
+        score += 50;
+    }
+    if id.contains("gpt-4o") {
+        score += 80;
+    }
+    if id.contains("gemini-2") {
+        score += 70;
+    }
+    if id.contains("deepseek") {
+        score += 60;
+    }
+    if id.contains("llama") {
+        score += 40;
+    }
     score
 }
 
@@ -411,6 +433,8 @@ pub struct CacheStats {
 #[derive(Debug, Serialize)]
 pub struct NovelCacheStats {
     pub novel_id: String,
+    pub title: Option<String>,
+    pub site: Option<String>,
     pub count: i64,
     pub total_hits: i64,
 }
@@ -422,15 +446,17 @@ pub struct CacheStatsDetailed {
     pub by_novel: Vec<NovelCacheStats>,
 }
 
+type NovelCacheStatsRow = (Option<String>, i64, i64, Option<String>, Option<String>);
+
 #[tauri::command]
 pub async fn get_cache_stats() -> Result<CacheStats, String> {
     let pool = get_pool()?;
-    
+
     let row = sqlx::query("SELECT COUNT(*) as count FROM translation_cache")
         .fetch_one(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     Ok(CacheStats {
         count: row.get::<i64, _>("count"),
     })
@@ -439,31 +465,58 @@ pub async fn get_cache_stats() -> Result<CacheStats, String> {
 #[tauri::command]
 pub async fn get_cache_stats_detailed() -> Result<CacheStatsDetailed, String> {
     let pool = get_pool()?;
-    
-    let total: (i64, i64) = sqlx::query_as(
-        "SELECT COUNT(*), COALESCE(SUM(hit_count), 0) FROM translation_cache"
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-    
-    let by_novel: Vec<(Option<String>, i64, i64)> = sqlx::query_as(
-        "SELECT novel_id, COUNT(*), COALESCE(SUM(hit_count), 0) 
-         FROM translation_cache 
-         GROUP BY novel_id 
-         ORDER BY COUNT(*) DESC"
+    get_cache_stats_detailed_with_pool(pool).await
+}
+
+async fn get_cache_stats_detailed_with_pool(
+    pool: &Pool<Sqlite>,
+) -> Result<CacheStatsDetailed, String> {
+    let total: (i64, i64) =
+        sqlx::query_as("SELECT COUNT(*), COALESCE(SUM(hit_count), 0) FROM translation_cache")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+    let by_novel: Vec<NovelCacheStatsRow> = sqlx::query_as(
+        "SELECT
+            translation_cache.novel_id,
+            COUNT(*),
+            COALESCE(SUM(translation_cache.hit_count), 0),
+            (
+                SELECT title
+                FROM novels
+                WHERE novels.novel_id = translation_cache.novel_id
+                  AND title IS NOT NULL
+                  AND title != ''
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 1
+            ) AS title,
+            (
+                SELECT site
+                FROM novels
+                WHERE novels.novel_id = translation_cache.novel_id
+                  AND site IS NOT NULL
+                  AND site != ''
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 1
+            ) AS site
+         FROM translation_cache
+         GROUP BY translation_cache.novel_id
+         ORDER BY COUNT(*) DESC",
     )
     .fetch_all(pool)
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(CacheStatsDetailed {
         total_count: total.0,
         total_hits: total.1,
         by_novel: by_novel
             .into_iter()
-            .map(|(novel_id, count, hits)| NovelCacheStats {
+            .map(|(novel_id, count, hits, title, site)| NovelCacheStats {
                 novel_id: novel_id.unwrap_or_else(|| "(unknown)".to_string()),
+                title,
+                site,
                 count,
                 total_hits: hits,
             })
@@ -474,17 +527,17 @@ pub async fn get_cache_stats_detailed() -> Result<CacheStatsDetailed, String> {
 #[tauri::command]
 pub async fn clear_cache() -> Result<i64, String> {
     let pool = get_pool()?;
-    
+
     let result = sqlx::query("DELETE FROM translation_cache")
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     sqlx::query("DELETE FROM completed_chapters")
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     Ok(result.rows_affected() as i64)
 }
 
@@ -526,7 +579,9 @@ pub(crate) async fn clear_cache_by_novel_internal(novel_id: &str) -> Result<i64,
     clear_cache_by_novel_with_pool(pool, novel_id).await
 }
 
-pub(crate) async fn clear_translation_cache_by_novel_internal(novel_id: &str) -> Result<i64, String> {
+pub(crate) async fn clear_translation_cache_by_novel_internal(
+    novel_id: &str,
+) -> Result<i64, String> {
     let pool = get_pool()?;
     clear_translation_cache_by_novel_with_pool(pool, novel_id).await
 }
@@ -679,10 +734,12 @@ mod tests {
     async fn reset_all_with_pool_clears_character_dictionaries() {
         let pool = setup_test_pool().await;
 
-        sqlx::query(include_str!("../db/migrations/004_novel_character_dictionary.sql"))
-            .execute(&pool)
-            .await
-            .expect("apply dictionary migration");
+        sqlx::query(include_str!(
+            "../db/migrations/004_novel_character_dictionary.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("apply dictionary migration");
 
         sqlx::query(
             "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text) VALUES (?, ?, ?, ?)",
@@ -712,12 +769,14 @@ mod tests {
             .await
             .expect("insert setting");
 
-        sqlx::query("INSERT INTO api_keys (key_type, api_key, is_active, daily_usage) VALUES (?, ?, 1, 0)")
-            .bind("gemini")
-            .bind("secret")
-            .execute(&pool)
-            .await
-            .expect("insert api key");
+        sqlx::query(
+            "INSERT INTO api_keys (key_type, api_key, is_active, daily_usage) VALUES (?, ?, 1, 0)",
+        )
+        .bind("gemini")
+        .bind("secret")
+        .execute(&pool)
+        .await
+        .expect("insert api key");
 
         sqlx::query(
             "INSERT INTO novel_character_dictionary (site, novel_id, entries_json) VALUES (?, ?, ?)",
@@ -729,14 +788,67 @@ mod tests {
         .await
         .expect("insert character dictionary");
 
-        reset_all_with_pool(&pool)
-            .await
-            .expect("reset all data");
+        reset_all_with_pool(&pool).await.expect("reset all data");
 
         assert_eq!(count_all_rows(&pool, "translation_cache").await, 0);
         assert_eq!(count_all_rows(&pool, "completed_chapters").await, 0);
         assert_eq!(count_all_rows(&pool, "settings").await, 0);
         assert_eq!(count_all_rows(&pool, "api_keys").await, 0);
         assert_eq!(count_all_rows(&pool, "novel_character_dictionary").await, 0);
+    }
+
+    #[tokio::test]
+    async fn get_cache_stats_detailed_with_pool_includes_latest_novel_metadata() {
+        let pool = setup_test_pool().await;
+
+        sqlx::query(
+            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text, hit_count)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("hash-1")
+        .bind("n6233ly")
+        .bind("원문 1")
+        .bind("번역 1")
+        .bind(10_i64)
+        .execute(&pool)
+        .await
+        .expect("insert first cache row");
+
+        sqlx::query(
+            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text, hit_count)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("hash-2")
+        .bind("n6233ly")
+        .bind("원문 2")
+        .bind("번역 2")
+        .bind(5_i64)
+        .execute(&pool)
+        .await
+        .expect("insert second cache row");
+
+        sqlx::query(
+            "INSERT INTO novels (site, novel_id, title, total_chapters) VALUES (?, ?, ?, ?)",
+        )
+        .bind("syosetu")
+        .bind("n6233ly")
+        .bind("작품 제목")
+        .bind(232_i64)
+        .execute(&pool)
+        .await
+        .expect("insert novel metadata");
+
+        let stats = get_cache_stats_detailed_with_pool(&pool)
+            .await
+            .expect("get cache stats");
+
+        assert_eq!(stats.total_count, 2);
+        assert_eq!(stats.total_hits, 15);
+        assert_eq!(stats.by_novel.len(), 1);
+        assert_eq!(stats.by_novel[0].novel_id, "n6233ly");
+        assert_eq!(stats.by_novel[0].title.as_deref(), Some("작품 제목"));
+        assert_eq!(stats.by_novel[0].site.as_deref(), Some("syosetu"));
+        assert_eq!(stats.by_novel[0].count, 2);
+        assert_eq!(stats.by_novel[0].total_hits, 15);
     }
 }
