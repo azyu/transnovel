@@ -49,7 +49,7 @@ describe('useSeriesStore watchlist state', () => {
   });
 
   it('updates selected work and episode rows independently', () => {
-    useSeriesStore.getState().setSelectedWatchlistNovelId('n3645ly');
+    useSeriesStore.getState().setSelectedWatchlistNovelId('syosetu:n3645ly');
     useSeriesStore.getState().setWatchlistEpisodes([
       {
         chapterNumber: 1,
@@ -60,7 +60,7 @@ describe('useSeriesStore watchlist state', () => {
       },
     ]);
 
-    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('n3645ly');
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('syosetu:n3645ly');
     expect(useSeriesStore.getState().watchlistEpisodes).toHaveLength(1);
   });
 

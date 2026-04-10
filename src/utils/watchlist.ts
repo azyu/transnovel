@@ -15,7 +15,6 @@ export const buildWatchlistWorkUrl = (site: string, novelId: string): string | n
   if (site === 'kakuyomu') {
     return `https://kakuyomu.jp/works/${novelId}`;
   }
-
   return null;
 };
 
@@ -31,7 +30,6 @@ export const formatWatchlistSiteLabel = (site: string): string => {
   if (site === 'kakuyomu') {
     return 'Kakuyomu';
   }
-
   return site;
 };
 
