@@ -18,7 +18,19 @@
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
 - [x] 관심작품 프로토타입 구현 — Codex
 - [x] 관심작품 리뷰 피드백 반영 및 legacy series UI 보존 — Codex
+- [x] 관심작품 프로토타입 설계 문서화 — Codex
+- [x] 관심작품에 novel18.syosetu.com 지원 추가 — Codex
+- [x] 관심작품에 Kakuyomu 지원 추가 — Codex
+- [x] 관심작품 UI 문구를 사용자 관점으로 정리하고 placeholder 단순화 — Codex
+- [x] 번역 탭 URL placeholder를 `https://`로 통일 — Codex
+- [x] 관심작품 탭에서 legacy series 도구 숨김 — Codex
+- [x] 관심작품 상세 패널에서 작품 요약 헤더 제거 — Codex
+- [x] 관심작품 에피소드 상태 표시를 `NEW` 배지와 체크 아이콘으로 단순화 — Codex
+- [x] 관심작품 카드 새 화 중복 표시 제거 — Codex
+- [x] 관심작품 작가명 접두사 정규화 — Codex
+- [x] PR #4 merge conflict 해결 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
+- [x] 번역 캐시 소설별 메타데이터 표시 확장 — Codex
 - [x] 설정 탭 width를 번역 탭 기준으로 확장 — Codex
 - [x] Release workflow의 self-hosted 의존성 제거 — Codex
 - [x] macOS Dock 이름을 TransNovel로 맞추기 위한 bin 타깃 검증 — Codex

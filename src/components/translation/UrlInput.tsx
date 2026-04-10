@@ -109,37 +109,37 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             value={localUrl}
             onChange={(e) => setLocalUrl(e.target.value)}
             onFocus={() => history.length > 0 && setShowDropdown(true)}
-              placeholder="https://ncode.syosetu.com/..."
-              disabled={loading || isTranslating}
-            />
-            {showDropdown && history.length > 0 && (
-              <div className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-                {history.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSelectHistory(item.url)}
-                    className={`w-full px-3 py-2 text-left text-sm transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`truncate flex-1 min-w-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {item.url}
-                      </span>
-                      {item.novelTitle && (
-                        <>
-                          <span className={`text-xs shrink-0 max-w-[180px] truncate text-right ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                            {item.novelTitle}
-                          </span>
-                          <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                            {item.chapterNumber ? `${item.chapterNumber}화` : ''}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+            placeholder="https://"
+            disabled={loading || isTranslating}
+          />
+          {showDropdown && history.length > 0 && (
+            <div className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+              {history.map((item, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSelectHistory(item.url)}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`truncate flex-1 min-w-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {item.url}
+                    </span>
+                    {item.novelTitle && (
+                      <>
+                        <span className={`text-xs shrink-0 max-w-[180px] truncate text-right ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                          {item.novelTitle}
+                        </span>
+                        <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {item.chapterNumber ? `${item.chapterNumber}화` : ''}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <Button type="submit" isLoading={loading} disabled={!localUrl || isTranslating}>
           불러오기

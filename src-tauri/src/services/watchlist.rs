@@ -11,7 +11,7 @@ pub struct RefreshWatchlistSummary {
 }
 
 pub fn is_watchlist_supported_site(site: &str) -> bool {
-    matches!(site, "syosetu" | "nocturne")
+    matches!(site, "syosetu" | "nocturne" | "kakuyomu")
 }
 
 fn find_watchlist_item(
@@ -28,7 +28,7 @@ pub async fn add_watchlist_item(url: &str) -> Result<WatchlistItem, String> {
     let parsed = ParsedUrl::from_url(url).ok_or("지원하지 않는 URL 형식입니다.")?;
     if !is_watchlist_supported_site(&parsed.site) || parsed.chapter.is_some() {
         return Err(
-            "현재는 Syosetu 또는 Novel18 작품 페이지 URL만 관심작품으로 등록할 수 있습니다."
+            "현재는 Syosetu, Novel18, Kakuyomu 작품 페이지 URL만 관심작품으로 등록할 수 있습니다."
                 .to_string(),
         );
     }
@@ -36,7 +36,10 @@ pub async fn add_watchlist_item(url: &str) -> Result<WatchlistItem, String> {
     let parser = get_parser_for_url(url).ok_or("지원하지 않는 사이트입니다.")?;
     let series = parser.get_series_info(url).await?;
     if !is_watchlist_supported_site(&series.site) {
-        return Err("현재는 Syosetu 또는 Novel18 작품만 관심작품으로 등록할 수 있습니다.".to_string());
+        return Err(
+            "현재는 Syosetu, Novel18, Kakuyomu 작품만 관심작품으로 등록할 수 있습니다."
+                .to_string(),
+        );
     }
 
     let pool = get_pool()?;
@@ -97,7 +100,10 @@ pub async fn refresh_watchlist_item(work_url: &str) -> Result<RefreshWatchlistSu
     refresh_watchlist_item_from_series(pool, &series.novel_id, &series).await
 }
 
-pub async fn get_watchlist_episodes(site: &str, novel_id: &str) -> Result<Vec<WatchlistEpisode>, String> {
+pub async fn get_watchlist_episodes(
+    site: &str,
+    novel_id: &str,
+) -> Result<Vec<WatchlistEpisode>, String> {
     let pool = get_pool()?;
     list_watchlist_episode_rows(pool, site, novel_id).await
 }
@@ -456,9 +462,10 @@ mod tests {
     }
 
     #[test]
-    fn watchlist_supports_syosetu_and_nocturne_only() {
+    fn watchlist_supports_syosetu_nocturne_and_kakuyomu() {
         assert!(is_watchlist_supported_site("syosetu"));
         assert!(is_watchlist_supported_site("nocturne"));
+        assert!(is_watchlist_supported_site("kakuyomu"));
         assert!(!is_watchlist_supported_site("hameln"));
     }
 
@@ -701,12 +708,12 @@ mod tests {
              SET is_new = 1
              WHERE site = ? AND novel_id = ? AND chapter_number = ?",
         )
-            .bind("syosetu")
-            .bind("n3645ly")
-            .bind(1_i64)
-            .execute(&pool)
-            .await
-            .expect("mark new");
+        .bind("syosetu")
+        .bind("n3645ly")
+        .bind(1_i64)
+        .execute(&pool)
+        .await
+        .expect("mark new");
 
         let update = mark_episode_viewed_with_pool(&pool, "syosetu", "n3645ly", 1)
             .await

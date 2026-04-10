@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use regex::Regex;
 use scraper::{Html, Selector};
 
-use super::{fetch_html, NovelParser, ParsedUrl};
+use super::{fetch_html, normalize_author_name, NovelParser, ParsedUrl};
 use crate::models::novel::{ChapterContent, ChapterInfo, SeriesInfo};
 
 pub struct SyosetuParser {
@@ -153,7 +153,7 @@ impl NovelParser for SyosetuParser {
         let author = document
             .select(&author_selector)
             .next()
-            .map(|el| el.text().collect::<String>().trim().to_string());
+            .and_then(|el| normalize_author_name(&el.text().collect::<String>()));
 
         let chapters = Self::parse_chapter_list(&document);
 

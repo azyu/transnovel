@@ -211,7 +211,7 @@ export const TranslationView: React.FC = () => {
 
   const handleAddToWatchlist = async () => {
     if (!chapter || !isWatchlistSupportedSite(chapter.site)) {
-      showError('관심작품 추가 실패', '현재는 Syosetu 또는 Novel18 작품만 관심작품에 추가할 수 있습니다.');
+      showError('관심작품 추가 실패', '현재는 Syosetu, Novel18, Kakuyomu 작품만 관심작품에 추가할 수 있습니다.');
       return;
     }
 

@@ -1,7 +1,7 @@
 import type { WatchlistItem } from '../types';
 
 export const isWatchlistSupportedSite = (site: string): boolean =>
-  site === 'syosetu' || site === 'nocturne';
+  site === 'syosetu' || site === 'nocturne' || site === 'kakuyomu';
 
 export const buildWatchlistWorkUrl = (site: string, novelId: string): string | null => {
   if (site === 'syosetu') {
@@ -12,6 +12,9 @@ export const buildWatchlistWorkUrl = (site: string, novelId: string): string | n
     return `https://novel18.syosetu.com/${novelId}/`;
   }
 
+  if (site === 'kakuyomu') {
+    return `https://kakuyomu.jp/works/${novelId}`;
+  }
   return null;
 };
 
@@ -24,6 +27,9 @@ export const formatWatchlistSiteLabel = (site: string): string => {
     return 'Novel18';
   }
 
+  if (site === 'kakuyomu') {
+    return 'Kakuyomu';
+  }
   return site;
 };
 
