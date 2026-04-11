@@ -16,6 +16,7 @@
 ## In Progress
 
 - [x] 캐시 통계 메타데이터 ambiguity 보정 — Codex
+- [x] Kakuyomu 다음 화 이동이 첫 화로 되돌아오는 버그 수정 — Codex
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
 - [x] 관심작품 프로토타입 구현 — Codex
 - [x] 관심작품 리뷰 피드백 반영 및 legacy series UI 보존 — Codex
