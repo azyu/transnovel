@@ -486,6 +486,11 @@ async fn get_cache_stats_detailed_with_pool(
                 SELECT title
                 FROM novels
                 WHERE novels.novel_id = translation_cache.novel_id
+                  AND (
+                      SELECT COUNT(DISTINCT site)
+                      FROM novels AS novel_sites
+                      WHERE novel_sites.novel_id = translation_cache.novel_id
+                  ) = 1
                   AND title IS NOT NULL
                   AND title != ''
                 ORDER BY updated_at DESC, id DESC
@@ -495,6 +500,11 @@ async fn get_cache_stats_detailed_with_pool(
                 SELECT site
                 FROM novels
                 WHERE novels.novel_id = translation_cache.novel_id
+                  AND (
+                      SELECT COUNT(DISTINCT site)
+                      FROM novels AS novel_sites
+                      WHERE novel_sites.novel_id = translation_cache.novel_id
+                  ) = 1
                   AND site IS NOT NULL
                   AND site != ''
                 ORDER BY updated_at DESC, id DESC
@@ -850,5 +860,58 @@ mod tests {
         assert_eq!(stats.by_novel[0].site.as_deref(), Some("syosetu"));
         assert_eq!(stats.by_novel[0].count, 2);
         assert_eq!(stats.by_novel[0].total_hits, 15);
+    }
+
+    #[tokio::test]
+    async fn get_cache_stats_detailed_with_pool_omits_ambiguous_metadata_for_shared_novel_ids() {
+        let pool = setup_test_pool().await;
+
+        sqlx::query(
+            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text, hit_count)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("hash-1")
+        .bind("n6233ly")
+        .bind("원문 1")
+        .bind("번역 1")
+        .bind(3_i64)
+        .execute(&pool)
+        .await
+        .expect("insert cache row");
+
+        sqlx::query(
+            "INSERT INTO novels (site, novel_id, title, total_chapters) VALUES (?, ?, ?, ?)",
+        )
+        .bind("syosetu")
+        .bind("n6233ly")
+        .bind("시리즈 A")
+        .bind(10_i64)
+        .execute(&pool)
+        .await
+        .expect("insert syosetu metadata");
+
+        sqlx::query(
+            "INSERT INTO novels (site, novel_id, title, total_chapters) VALUES (?, ?, ?, ?)",
+        )
+        .bind("nocturne")
+        .bind("n6233ly")
+        .bind("시리즈 B")
+        .bind(10_i64)
+        .execute(&pool)
+        .await
+        .expect("insert nocturne metadata");
+
+        let stats = get_cache_stats_detailed_with_pool(&pool)
+            .await
+            .expect("get cache stats");
+
+        assert_eq!(stats.total_count, 1);
+        assert_eq!(stats.total_hits, 3);
+        assert_eq!(stats.by_novel.len(), 1);
+        assert_eq!(stats.by_novel[0].novel_id, "n6233ly");
+        assert_eq!(stats.by_novel[0].title, None);
+        assert_eq!(stats.by_novel[0].site, None);
+        assert_eq!(stats.by_novel[0].count, 1);
+        assert_eq!(stats.by_novel[0].total_hits, 3);
     }
 }
