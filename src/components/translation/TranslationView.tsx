@@ -10,6 +10,7 @@ import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
 import { useWatchlist } from '../../hooks/useWatchlist';
 import { useUIStore } from '../../stores/uiStore';
+import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
 import { buildWatchlistWorkUrl, isWatchlistSupportedSite } from '../../utils/watchlist';
 import {
@@ -23,6 +24,7 @@ export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
   const showError = useUIStore((s) => s.showError);
   const showToast = useUIStore((s) => s.showToast);
+  const watchlistItems = useSeriesStore((s) => s.watchlistItems);
   const chapter = useTranslationStore((s) => s.chapter);
   const translatedTitle = useTranslationStore((s) => s.translatedTitle);
   const translatedSubtitle = useTranslationStore((s) => s.translatedSubtitle);
@@ -52,6 +54,9 @@ export const TranslationView: React.FC = () => {
     translatedCount === paragraphIds.length && 
     failedParagraphIndices.length === 0 &&
     paragraphIds.length > 0;
+  const isAlreadyInWatchlist = chapter
+    ? watchlistItems.some((item) => item.site === chapter.site && item.novelId === chapter.novelId)
+    : false;
 
   const checkApiConfig = useCallback(async () => {
     try {
@@ -298,7 +303,13 @@ export const TranslationView: React.FC = () => {
               variant="secondary"
               onClick={handleAddToWatchlist}
               isLoading={addingWatchlist}
-              disabled={isTranslating || retrying || !chapter || !isWatchlistSupportedSite(chapter.site)}
+              disabled={
+                isTranslating ||
+                retrying ||
+                !chapter ||
+                !isWatchlistSupportedSite(chapter.site) ||
+                isAlreadyInWatchlist
+              }
             >
               관심작품에 추가
             </Button>
