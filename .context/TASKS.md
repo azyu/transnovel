@@ -44,6 +44,8 @@
 
 ## Done
 
+- [x] src-tauri/Cargo.lock Git 추적 전환 — Codex
+- [x] Rust 안전 범위 의존성 업데이트 — Codex
 - [x] AGENTS.md 검증 절 중복 정리 — Codex
 - [x] AGENTS.md에 After Code Changes 검증 절 추가 — Codex
 - [x] README 배너 추가 (main 기준) — Codex

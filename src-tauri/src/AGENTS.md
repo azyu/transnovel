@@ -82,8 +82,8 @@ pub enum ApiClient {
 
 - Run the backend checks that match the change:
   ```bash
-  cargo test -p app_lib
-  cargo test -p app_lib -- --ignored
+  cargo test
+  cargo test -- --ignored
   cargo clippy -- -D warnings
   ```
 - Use the ignored test pass only when the task touches parser or network-backed behavior.
