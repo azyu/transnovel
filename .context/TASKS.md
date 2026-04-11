@@ -17,6 +17,7 @@
 
 - [x] PR #6 Kakuyomu episode fallback chapter number 보정 — Codex
 - [x] 캐시 통계 메타데이터 ambiguity 보정 — Codex
+- [x] 이미 등록된 작품에서 관심작품 추가 버튼 비활성화 — Codex
 - [x] 번역 중 관심작품 탭에서 다른 소설 선택 차단 — Codex
 - [x] Kakuyomu 다음 화 이동이 첫 화로 되돌아오는 버그 수정 — Codex
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
