@@ -49,6 +49,7 @@ const EpisodeStatusBadge: React.FC<{ episode: WatchlistEpisode }> = ({ episode }
 
 export const SeriesManager: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
+  const showError = useUIStore((s) => s.showError);
   const setTab = useUIStore((s) => s.setTab);
   const watchlistItems = useSeriesStore((s) => s.watchlistItems);
   const selectedWatchlistNovelId = useSeriesStore((s) => s.selectedWatchlistNovelId);
@@ -56,6 +57,8 @@ export const SeriesManager: React.FC = () => {
   const isRefreshingWatchlist = useSeriesStore((s) => s.isRefreshingWatchlist);
   const watchlistLoaded = useSeriesStore((s) => s.watchlistLoaded);
   const watchlistError = useSeriesStore((s) => s.watchlistError);
+  const chapter = useTranslationStore((s) => s.chapter);
+  const isTranslating = useTranslationStore((s) => s.isTranslating);
   const setUrl = useTranslationStore((s) => s.setUrl);
   const { parseAndTranslate } = useTranslation();
   const { addWatchlistItem, loadWatchlistEpisodes, refreshWatchlist } = useWatchlist();
@@ -64,6 +67,7 @@ export const SeriesManager: React.FC = () => {
   const [registering, setRegistering] = useState(false);
 
   const isDark = theme === 'dark';
+  const translationNavigationBlockedMessage = '현재 소설이 번역 중이므로 다른 작품이나 화로 이동할 수 없습니다.';
   const selectedItem = useMemo(
     () =>
       watchlistItems.find((item) => getWatchlistItemKey(item) === selectedWatchlistNovelId) ??
@@ -106,10 +110,23 @@ export const SeriesManager: React.FC = () => {
   };
 
   const handleSelectItem = async (item: WatchlistItem) => {
+    const currentNovelKey = chapter ? getWatchlistItemKey(chapter.site, chapter.novelId) : null;
+    const targetNovelKey = getWatchlistItemKey(item);
+
+    if (isTranslating && currentNovelKey && currentNovelKey !== targetNovelKey) {
+      showError(translationNavigationBlockedMessage);
+      return;
+    }
+
     await loadWatchlistEpisodes(item.site, item.novelId);
   };
 
   const handleOpenEpisode = async (episode: WatchlistEpisode) => {
+    if (isTranslating) {
+      showError(translationNavigationBlockedMessage);
+      return;
+    }
+
     setUrl(episode.chapterUrl);
     setTab('translation');
     await parseAndTranslate(episode.chapterUrl);
