@@ -5,14 +5,10 @@ import { Input } from '../common/Input';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
+import { messages } from '../../i18n';
 import { getUrlHistory, saveUrlHistory, type UrlHistoryItem } from '../../utils/urlHistory';
 
-const SUPPORTED_SITES = [
-  { name: 'syosetu.com', url: 'https://syosetu.com' },
-  { name: 'novel18.syosetu.com', url: 'https://novel18.syosetu.com' },
-  { name: 'syosetu.org (Hameln)', url: 'https://syosetu.org' },
-  { name: 'kakuyomu.jp', url: 'https://kakuyomu.jp' },
-];
+const SUPPORTED_SITES = messages.translation.urlInput.supportedSiteLinks;
 
 interface UrlInputProps {
   historyKey?: string;
@@ -86,10 +82,10 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
         <div className="flex-1 relative" ref={containerRef}>
           <div className="mb-1.5 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
             <label htmlFor={inputId} className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              소설 URL 입력
+              {messages.translation.urlInput.label}
             </label>
             <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              <span>지원 사이트</span>
+              <span>{messages.translation.urlInput.supportedSites}</span>
               {SUPPORTED_SITES.map((site, idx) => (
                 <span key={site.name} className="flex items-center gap-2">
                   {idx > 0 && <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>}
@@ -109,7 +105,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             value={localUrl}
             onChange={(e) => setLocalUrl(e.target.value)}
             onFocus={() => history.length > 0 && setShowDropdown(true)}
-            placeholder="https://"
+            placeholder={messages.common.placeholders.url}
             disabled={loading || isTranslating}
           />
           {showDropdown && history.length > 0 && (
@@ -142,7 +138,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
           )}
         </div>
         <Button type="submit" isLoading={loading} disabled={!localUrl || isTranslating}>
-          불러오기
+          {messages.common.actions.load}
         </Button>
       </form>
     </div>
