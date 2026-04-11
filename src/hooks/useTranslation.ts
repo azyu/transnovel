@@ -5,6 +5,7 @@ import { useTranslationStore } from '../stores/translationStore';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import { useDebugStore } from '../stores/debugStore';
+import { messages } from '../i18n';
 import type {
   Chapter,
   ChapterContent,
@@ -430,7 +431,7 @@ export const useTranslation = () => {
         if (failedIndices.length > 0) {
           showError(
             '일부 번역 실패',
-            `${failedIndices.length}개 항목 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`
+            messages.translation.translation.partialFailure(failedIndices.length)
           );
         }
       });
@@ -459,9 +460,14 @@ export const useTranslation = () => {
         setIsTranslating(false);
         
         if (success && (input_tokens > 0 || output_tokens > 0)) {
-          showToast(`번역이 완료되었습니다. (input=${formatTokenCount(input_tokens)}, output=${formatTokenCount(output_tokens)})`);
+          showToast(
+            messages.translation.translation.completeWithTokens(
+              formatTokenCount(input_tokens),
+              formatTokenCount(output_tokens),
+            ),
+          );
         } else if (success) {
-          showToast('번역이 완료되었습니다. (캐시에서 로드됨)');
+          showToast(messages.translation.translation.completeFromCache);
         }
         
         if (content.chapter_number > 0 && success) {
@@ -629,7 +635,7 @@ await invoke('start_batch_translation', {
           setIsTranslating(false);
           const errMsg = String(err);
           setError(errMsg);
-          showError('일괄 번역 실패', errMsg);
+          showError(messages.translation.translation.batchFailed, errMsg);
       }
   }, [setIsTranslating, showError]);
 
@@ -641,7 +647,7 @@ await invoke('start_batch_translation', {
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
-          showError('번역 중지 실패', errMsg);
+          showError(messages.translation.translation.stopFailed, errMsg);
       }
   }, [setIsTranslating, showError, setBatchProgress]);
 
@@ -651,7 +657,7 @@ await invoke('start_batch_translation', {
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
-          showError('번역 일시정지 실패', errMsg);
+          showError(messages.translation.translation.pauseFailed, errMsg);
       }
   }, [showError]);
 

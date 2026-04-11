@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import type { WatchlistEpisode, WatchlistItem } from '../types';
+import { messages } from '../i18n';
 import { getWatchlistItemKey } from '../utils/watchlist';
 
 export const loadWatchlistOnStartupFlow = async (
@@ -67,7 +68,7 @@ export const useWatchlist = () => {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setWatchlistError(message);
-      showError('관심작품 새로고침 실패', message);
+      showError(messages.series.refreshFailed, message);
     } finally {
       setIsRefreshingWatchlist(false);
     }
@@ -78,7 +79,7 @@ export const useWatchlist = () => {
     const items = await invoke<WatchlistItem[]>('list_watchlist_items');
     setWatchlistItems(items);
     setSelectedWatchlistNovelId(getWatchlistItemKey(item));
-    showToast('관심작품에 추가했습니다.');
+    showToast(messages.series.addSuccess);
     return item;
   }, [setSelectedWatchlistNovelId, setWatchlistItems, showToast]);
 
