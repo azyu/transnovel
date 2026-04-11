@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::novel::{ChapterContent, ChapterInfo, SeriesInfo};
 use crate::parsers::{get_parser_for_url, ParsedUrl};
+use crate::services::novel_metadata::upsert_novel_metadata;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ParseUrlResult {
@@ -48,19 +49,37 @@ pub async fn get_chapter_content(url: String) -> Result<ChapterContent, String> 
 #[tauri::command]
 pub async fn get_series_info(url: String) -> Result<SeriesInfo, String> {
     let parser = get_parser_for_url(&url).ok_or("지원하지 않는 사이트입니다.")?;
-    parser.get_series_info(&url).await
+    let series_info = parser.get_series_info(&url).await?;
+
+    if let Err(error) = upsert_novel_metadata(
+        &series_info.site,
+        &series_info.novel_id,
+        Some(&series_info.title),
+        series_info.author.as_deref(),
+        Some(series_info.total_chapters),
+    )
+    .await
+    {
+        log::warn!(
+            "Failed to persist series metadata for {}: {}",
+            series_info.novel_id,
+            error
+        );
+    }
+
+    Ok(series_info)
 }
 
 #[tauri::command]
 pub async fn parse_chapter(url: String) -> Result<ParseChapterResult, String> {
     let parsed = ParsedUrl::from_url(&url).ok_or("지원하지 않는 URL 형식입니다.")?;
     let parser = get_parser_for_url(&url).ok_or("지원하지 않는 사이트입니다.")?;
-    
+
     let (actual_url, chapter_number) = if let Some(chapter) = parsed.chapter {
         (url.clone(), chapter)
     } else {
         let series_info = parser.get_series_info(&url).await.ok();
-        
+
         if let Some(info) = series_info {
             if !info.chapters.is_empty() {
                 let first_chapter_url = &info.chapters[0].url;
@@ -72,12 +91,28 @@ pub async fn parse_chapter(url: String) -> Result<ParseChapterResult, String> {
             (url.clone(), 1u32)
         }
     };
-    
+
     let actual_parsed = ParsedUrl::from_url(&actual_url).unwrap_or(parsed);
     let content = parser.get_chapter(&actual_url).await?;
-    
+
+    if let Err(error) = upsert_novel_metadata(
+        &actual_parsed.site,
+        &actual_parsed.novel_id,
+        content.novel_title.as_deref(),
+        None,
+        None,
+    )
+    .await
+    {
+        log::warn!(
+            "Failed to persist chapter metadata for {}: {}",
+            actual_parsed.novel_id,
+            error
+        );
+    }
+
     let paragraphs = extract_paragraphs(&content.content);
-    
+
     Ok(ParseChapterResult {
         site: actual_parsed.site,
         novel_id: actual_parsed.novel_id,
@@ -95,7 +130,23 @@ pub async fn parse_chapter(url: String) -> Result<ParseChapterResult, String> {
 pub async fn get_chapter_list(url: String) -> Result<ChapterListResult, String> {
     let parser = get_parser_for_url(&url).ok_or("지원하지 않는 사이트입니다.")?;
     let series_info = parser.get_series_info(&url).await?;
-    
+
+    if let Err(error) = upsert_novel_metadata(
+        &series_info.site,
+        &series_info.novel_id,
+        Some(&series_info.title),
+        series_info.author.as_deref(),
+        Some(series_info.total_chapters),
+    )
+    .await
+    {
+        log::warn!(
+            "Failed to persist chapter list metadata for {}: {}",
+            series_info.novel_id,
+            error
+        );
+    }
+
     Ok(ChapterListResult {
         chapters: series_info.chapters,
     })
@@ -103,10 +154,10 @@ pub async fn get_chapter_list(url: String) -> Result<ChapterListResult, String> 
 
 fn extract_paragraphs(html: &str) -> Vec<String> {
     use scraper::{Html, Selector};
-    
+
     let document = Html::parse_fragment(html);
     let p_selector = Selector::parse("p").unwrap();
-    
+
     document
         .select(&p_selector)
         .map(|el| el.text().collect::<Vec<_>>().join("").trim().to_string())

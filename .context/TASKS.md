@@ -15,6 +15,7 @@
 
 ## In Progress
 
+- [x] 캐시 통계 메타데이터 ambiguity 보정 — Codex
 - [x] OpenAI-compatible provider 정리 및 transport client 명칭 일반화 — Codex
 - [x] 관심작품 프로토타입 구현 — Codex
 - [x] 관심작품 리뷰 피드백 반영 및 legacy series UI 보존 — Codex
@@ -29,6 +30,7 @@
 - [x] 관심작품 카드 새 화 중복 표시 제거 — Codex
 - [x] 관심작품 작가명 접두사 정규화 — Codex
 - [x] PR #4 merge conflict 해결 — Codex
+- [x] 소설 메타데이터 저장 및 설정 캐시 통계 표시 개선 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
 - [x] 번역 캐시 소설별 메타데이터 표시 확장 — Codex
 - [x] 설정 탭 width를 번역 탭 기준으로 확장 — Codex

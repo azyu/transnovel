@@ -3,6 +3,7 @@ pub mod cache;
 pub mod character_dictionary;
 pub mod codex;
 pub mod gemini;
+pub mod novel_metadata;
 pub mod openai_compatible;
 pub mod openai_oauth;
 pub mod paragraph;
