@@ -75,7 +75,12 @@ pub async fn parse_chapter(url: String) -> Result<ParseChapterResult, String> {
     let parsed = ParsedUrl::from_url(&url).ok_or("지원하지 않는 URL 형식입니다.")?;
     let parser = get_parser_for_url(&url).ok_or("지원하지 않는 사이트입니다.")?;
     let (actual_url, chapter_number) = if has_explicit_chapter_url(&parsed, &url) {
-        let chapter = parsed.chapter.unwrap_or(1);
+        let series_info = if parsed.chapter.is_none() && parsed.site == "kakuyomu" {
+            parser.get_series_info(&url).await.ok()
+        } else {
+            None
+        };
+        let chapter = resolve_explicit_chapter_number(&parsed, &url, series_info.as_ref());
         (url.clone(), chapter)
     } else {
         let series_info = parser.get_series_info(&url).await.ok();
@@ -169,6 +174,19 @@ fn has_explicit_chapter_url(parsed: &ParsedUrl, url: &str) -> bool {
     parsed.chapter.is_some() || (parsed.site == "kakuyomu" && url.contains("/episodes/"))
 }
 
+fn resolve_explicit_chapter_number(
+    parsed: &ParsedUrl,
+    url: &str,
+    series_info: Option<&SeriesInfo>,
+) -> u32 {
+    parsed.chapter.unwrap_or_else(|| {
+        series_info
+            .and_then(|info| info.chapters.iter().find(|chapter| chapter.url == url))
+            .map(|chapter| chapter.number)
+            .unwrap_or(1)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,5 +220,51 @@ mod tests {
             &parsed,
             "https://ncode.syosetu.com/n1234ab/"
         ));
+    }
+
+    #[test]
+    fn kakuyomu_episode_url_without_u32_chapter_uses_series_order_as_fallback() {
+        let parsed = ParsedUrl {
+            site: "kakuyomu".to_string(),
+            novel_id: "822139846571948770".to_string(),
+            chapter: None,
+        };
+        let series_info = SeriesInfo {
+            site: "kakuyomu".to_string(),
+            novel_id: "822139846571948770".to_string(),
+            title: "테스트 작품".to_string(),
+            author: None,
+            total_chapters: 3,
+            chapters: vec![
+                ChapterInfo {
+                    number: 1,
+                    url: "https://kakuyomu.jp/works/822139846571948770/episodes/100".to_string(),
+                    title: Some("첫 화".to_string()),
+                    status: "pending".to_string(),
+                },
+                ChapterInfo {
+                    number: 2,
+                    url: "https://kakuyomu.jp/works/822139846571948770/episodes/101".to_string(),
+                    title: Some("둘째 화".to_string()),
+                    status: "pending".to_string(),
+                },
+                ChapterInfo {
+                    number: 3,
+                    url: "https://kakuyomu.jp/works/822139846571948770/episodes/99999999999999999999"
+                        .to_string(),
+                    title: Some("셋째 화".to_string()),
+                    status: "pending".to_string(),
+                },
+            ],
+        };
+
+        assert_eq!(
+            resolve_explicit_chapter_number(
+                &parsed,
+                "https://kakuyomu.jp/works/822139846571948770/episodes/99999999999999999999",
+                Some(&series_info),
+            ),
+            3
+        );
     }
 }
