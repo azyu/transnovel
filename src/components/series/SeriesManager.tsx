@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
@@ -66,6 +66,7 @@ export const SeriesManager: React.FC = () => {
   const [registerUrl, setRegisterUrl] = useState('');
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
+  const selectionRequestIdRef = useRef(0);
 
   const isDark = theme === 'dark';
   const translationNavigationBlockedMessage = messages.series.translationNavigationBlocked;
@@ -103,10 +104,31 @@ export const SeriesManager: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    await refreshWatchlist();
-    const nextItem = selectedItem ?? watchlistItems[0] ?? null;
+    if (isTranslating) {
+      showError(translationNavigationBlockedMessage);
+      return;
+    }
+
+    await refreshWatchlist({
+      shouldApply: () => !useTranslationStore.getState().isTranslating,
+    });
+
+    if (useTranslationStore.getState().isTranslating) {
+      return;
+    }
+
+    const nextState = useSeriesStore.getState();
+    const nextItem =
+      nextState.watchlistItems.find(
+        (item) => getWatchlistItemKey(item) === nextState.selectedWatchlistNovelId,
+      ) ??
+      nextState.watchlistItems[0] ??
+      null;
+
     if (nextItem) {
-      await loadWatchlistEpisodes(nextItem.site, nextItem.novelId);
+      await loadWatchlistEpisodes(nextItem.site, nextItem.novelId, {
+        shouldApply: () => !useTranslationStore.getState().isTranslating,
+      });
     }
   };
 
@@ -119,7 +141,13 @@ export const SeriesManager: React.FC = () => {
       return;
     }
 
-    await loadWatchlistEpisodes(item.site, item.novelId);
+    const requestId = selectionRequestIdRef.current + 1;
+    selectionRequestIdRef.current = requestId;
+
+    await loadWatchlistEpisodes(item.site, item.novelId, {
+      shouldApply: () =>
+        !useTranslationStore.getState().isTranslating && requestId === selectionRequestIdRef.current,
+    });
   };
 
   const handleOpenEpisode = async (episode: WatchlistEpisode) => {
