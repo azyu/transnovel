@@ -8,8 +8,10 @@
   <meta property="og:title" content="TransNovel — AI 일본 웹소설 번역기">
   <meta property="og:description" content="일본 웹소설을 한국어로 편하게 읽기 위한 AI 번역 데스크톱 앱">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="images/app-icon.png">
+  <meta property="og:url" content="https://azyu.github.io/transnovel/">
+  <meta property="og:image" content="https://azyu.github.io/transnovel/images/app-icon.png">
   <meta name="twitter:card" content="summary">
+  <meta name="twitter:image" content="https://azyu.github.io/transnovel/images/app-icon.png">
   <link rel="icon" href="images/app-icon.png" type="image/png">
 
   <!-- Fonts -->
@@ -64,7 +66,21 @@
         <a href="https://github.com/azyu/transnovel" target="_blank" rel="noopener" class="text-white/50 hover:text-white/90 transition-colors" aria-label="GitHub">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
         </a>
-        <a href="#download" class="btn-primary text-sm !py-2 !px-4">다운로드</a>
+        <a href="#download" class="btn-primary text-sm !py-2 !px-4 hidden lg:inline-flex">다운로드</a>
+        <!-- Mobile menu button -->
+        <button id="mobile-menu-btn" class="lg:hidden text-white/50 hover:text-white/90 transition-colors" aria-label="메뉴 열기" aria-expanded="false">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile menu -->
+    <div id="mobile-menu" class="lg:hidden hidden" style="background: rgba(8, 9, 12, 0.95); backdrop-filter: blur(24px); border-bottom: 1px solid var(--border);">
+      <div class="max-w-6xl mx-auto px-6 py-4 flex flex-col gap-3">
+        <a href="#features" class="mobile-nav-link text-sm py-2 no-underline" style="color: var(--text-secondary);">기능</a>
+        <a href="#sites" class="mobile-nav-link text-sm py-2 no-underline" style="color: var(--text-secondary);">지원 사이트</a>
+        <a href="#download" class="mobile-nav-link text-sm py-2 no-underline" style="color: var(--text-secondary);">다운로드</a>
+        <a href="#faq" class="mobile-nav-link text-sm py-2 no-underline" style="color: var(--text-secondary);">FAQ</a>
       </div>
     </div>
   </nav>
@@ -114,7 +130,7 @@
           <span class="traffic-maximize"></span>
         </div>
         <div class="relative bg-surface-solid">
-          <img src="images/transnovel-translate.png" alt="TransNovel 번역 화면" class="w-full h-auto block" loading="lazy">
+          <img src="images/transnovel-translate.png" alt="TransNovel 번역 화면" class="w-full h-auto block">
         </div>
       </div>
     </div>
@@ -204,28 +220,28 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Syosetu -->
         <div class="site-card" data-animate>
-          <p class="text-lg font-semibold mb-1">小説家になろう</p>
+          <p class="text-lg font-semibold mb-1" lang="ja">小説家になろう</p>
           <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">ncode.syosetu.com</p>
           <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(16, 185, 129, 0.1); color: #34d399;">전체 지원</span>
         </div>
 
         <!-- Hameln -->
         <div class="site-card" data-animate>
-          <p class="text-lg font-semibold mb-1">ハーメルン</p>
+          <p class="text-lg font-semibold mb-1" lang="ja">ハーメルン</p>
           <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">syosetu.org</p>
           <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(16, 185, 129, 0.1); color: #34d399;">전체 지원</span>
         </div>
 
         <!-- Kakuyomu -->
         <div class="site-card" data-animate>
-          <p class="text-lg font-semibold mb-1">カクヨム</p>
+          <p class="text-lg font-semibold mb-1" lang="ja">カクヨム</p>
           <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">kakuyomu.jp</p>
           <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(245, 158, 11, 0.1); color: #fbbf24;">개별 화 지원</span>
         </div>
 
         <!-- Nocturne -->
         <div class="site-card" data-animate>
-          <p class="text-lg font-semibold mb-1">ノクターンノベルズ</p>
+          <p class="text-lg font-semibold mb-1" lang="ja">ノクターンノベルズ</p>
           <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">novel18.syosetu.com</p>
           <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(16, 185, 129, 0.1); color: #34d399;">전체 지원</span>
         </div>
