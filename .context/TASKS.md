@@ -15,6 +15,7 @@
 
 ## In Progress
 
+- [x] Tauri npm/Rust 버전 정합성 복구 및 릴리즈 자동화 복구 — Codex
 - [x] PR #6 Kakuyomu episode fallback chapter number 보정 — Codex
 - [x] 캐시 통계 메타데이터 ambiguity 보정 — Codex
 - [x] 관심작품 번역 중 새로고침/지연 응답 상태 전환 차단 — Codex
