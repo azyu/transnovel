@@ -67,7 +67,7 @@ const updates = await Promise.all([
   ),
   updateRegex(
     path.join(root, 'src-tauri', 'Cargo.lock'),
-    /(\[\[package\]\]\nname = "transnovel"\nversion = ")[^"]+(")/,
+    /(\[\[package\]\]\r?\nname = "transnovel"\r?\nversion = ")[^"]+(")/,
     `$1${version}$2`,
   ),
 ]);
