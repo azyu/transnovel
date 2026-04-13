@@ -27,7 +27,7 @@
 | Kakuyomu | `kakuyomu.jp` | 내장 JSON 파싱, 배치 미지원 |
 | Nocturne | `novel18.syosetu.com` | 18+ 쿠키 전송 |
 
-## 지원 제공자
+## 지원 LLM 제공자
 
 | 제공자 타입 | 프로토콜 | 인증 |
 | --- | --- | --- |
@@ -57,7 +57,6 @@
 
 - 프론트엔드: React 19, TypeScript, Vite, Zustand, Headless UI, Tailwind CSS
 - 백엔드: Rust, Tauri 2.0, tokio, sqlx, reqwest, scraper
-- 저장소: 설정, API 로그, 진행 상태 메타데이터를 SQLite에 저장
 
 ## 프로젝트 구조
 
