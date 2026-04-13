@@ -7,11 +7,12 @@ import { useWatchlist } from '../../hooks/useWatchlist';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import type { WatchlistEpisode, WatchlistItem } from '../../types';
+import { messages } from '../../i18n';
 import { formatWatchlistSiteLabel, getWatchlistItemKey } from '../../utils/watchlist';
 
 const formatCheckedAt = (value: string | null): string => {
   if (!value) {
-    return '아직 확인 전';
+    return messages.series.notCheckedYet;
   }
 
   return value.replace('T', ' ').replace('Z', '');
@@ -21,7 +22,7 @@ const EpisodeStatusBadge: React.FC<{ episode: WatchlistEpisode }> = ({ episode }
   if (episode.isNew) {
     return (
       <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-semibold tracking-[0.08em] text-emerald-400">
-        NEW
+        {messages.series.status.new}
       </span>
     );
   }
@@ -29,8 +30,8 @@ const EpisodeStatusBadge: React.FC<{ episode: WatchlistEpisode }> = ({ episode }
   if (episode.isViewed) {
     return (
       <span
-        aria-label="본 화"
-        title="본 화"
+        aria-label={messages.series.status.viewed}
+        title={messages.series.status.viewed}
         className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-500/10 text-slate-400"
       >
         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -67,7 +68,7 @@ export const SeriesManager: React.FC = () => {
   const [registering, setRegistering] = useState(false);
 
   const isDark = theme === 'dark';
-  const translationNavigationBlockedMessage = '현재 소설이 번역 중이므로 다른 작품이나 화로 이동할 수 없습니다.';
+  const translationNavigationBlockedMessage = messages.series.translationNavigationBlocked;
   const selectedItem = useMemo(
     () =>
       watchlistItems.find((item) => getWatchlistItemKey(item) === selectedWatchlistNovelId) ??
@@ -142,14 +143,14 @@ export const SeriesManager: React.FC = () => {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              관심작품
+              {messages.series.title}
             </h2>
             <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              읽고 싶은 작품을 등록해두고 새로 올라온 화를 한눈에 확인하세요.
+              {messages.series.description}
             </p>
           </div>
           <Button variant="secondary" onClick={handleRefresh} isLoading={isRefreshingWatchlist}>
-            새로고침
+            {messages.common.actions.refresh}
           </Button>
         </div>
 
@@ -158,13 +159,13 @@ export const SeriesManager: React.FC = () => {
             <Input
               value={registerUrl}
               onChange={(event) => setRegisterUrl(event.target.value)}
-              placeholder="https://"
-              aria-label="관심작품 URL 입력"
+              placeholder={messages.common.placeholders.url}
+              aria-label={messages.series.inputAriaLabel}
               error={registerError ?? undefined}
             />
           </div>
           <Button type="submit" isLoading={registering} disabled={!registerUrl.trim()}>
-            관심작품에 추가
+            {messages.series.add}
           </Button>
         </form>
 
@@ -176,7 +177,7 @@ export const SeriesManager: React.FC = () => {
                 : 'border-red-200 bg-red-50 text-red-700'
             }`}
           >
-            관심작품 확인 중 오류가 있었습니다: {watchlistError}
+            {messages.series.loadErrorPrefix} {watchlistError}
           </div>
         )}
       </div>
@@ -187,7 +188,7 @@ export const SeriesManager: React.FC = () => {
             isDark ? 'border-slate-700 bg-slate-800 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
           }`}
         >
-          관심작품을 불러오는 중입니다...
+          {messages.series.loading}
         </div>
       ) : watchlistItems.length === 0 ? (
         <div
@@ -196,10 +197,10 @@ export const SeriesManager: React.FC = () => {
           }`}
         >
           <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            관심작품이 없습니다
+            {messages.series.emptyTitle}
           </h3>
           <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            작품 URL을 등록해두면 새 화가 올라왔는지 바로 확인할 수 있습니다.
+            {messages.series.emptyDescription}
           </p>
         </div>
       ) : (
@@ -241,13 +242,13 @@ export const SeriesManager: React.FC = () => {
                             isDark ? 'text-slate-400' : 'text-slate-500'
                           }`}
                         >
-                          {item.author ?? '작가 미상'}
+                          {item.author ?? messages.series.authorUnknown}
                         </p>
                       </div>
                       {item.lastCheckStatus === 'error' ? (
                         <span
-                          aria-label="확인 실패"
-                          title="확인 실패"
+                          aria-label={messages.series.status.checkFailed}
+                          title={messages.series.status.checkFailed}
                           className={`rounded-full px-2 py-1 text-xs font-bold ${
                             isDark ? 'bg-red-500/15 text-red-300' : 'bg-red-100 text-red-700'
                           }`}

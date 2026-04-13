@@ -4,6 +4,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useDebugStore } from '../../stores/debugStore';
 import { useTranslationStore } from '../../stores/translationStore';
+import { messages } from '../../i18n';
 import appIcon from '../../assets/app-icon.png';
 import type { TabType } from '../../types';
 
@@ -23,9 +24,9 @@ export const Header: React.FC = () => {
   const debugMode = useDebugStore((s) => s.debugMode);
 
   const allTabs: { id: TabType; label: string; devOnly?: boolean }[] = [
-    { id: 'translation', label: '번역' },
-    { id: 'series', label: '관심작품' },
-    { id: 'settings', label: '설정' },
+    { id: 'translation', label: messages.common.tabs.translation },
+    { id: 'series', label: messages.common.tabs.series },
+    { id: 'settings', label: messages.common.tabs.settings },
   ];
 
   const tabs = allTabs.filter(tab => !tab.devOnly || debugMode);
