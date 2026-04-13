@@ -59,6 +59,8 @@
 
 ## Done
 
+- [x] README 소개 섹션에 번역 화면 스크린샷 추가 — Codex
+- [x] README에 지원 플랫폼 배지 추가 — Codex
 - [x] README에서 배치 번역 노출 축소 — Codex
 - [x] README 헤더를 앱 번들 아이콘으로 교체 — Codex
 - [x] README 배지에서 Tauri 브랜딩 제거 — Codex

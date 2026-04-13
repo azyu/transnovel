@@ -7,6 +7,9 @@
 <p align="center">
   <a href="https://github.com/azyu/transnovel/releases"><img src="https://img.shields.io/github/v/release/azyu/transnovel?display_name=tag" alt="Latest Release"></a>
   <a href="https://github.com/azyu/transnovel/actions/workflows/ci.yml"><img src="https://github.com/azyu/transnovel/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20arm64-black?logo=apple" alt="macOS arm64">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-0078D6?logo=windows" alt="Windows x64">
+  <img src="https://img.shields.io/badge/platform-Windows%20ARM64-0078D6?logo=windows" alt="Windows ARM64">
 </p>
 
 <p align="center">
@@ -18,6 +21,10 @@
 TransNovel lets you paste a Japanese web novel URL, load the work, and translate it into Korean with the LLM provider you prefer. It is designed around a simple flow for reading and saving chapters comfortably.
 
 It is built to reduce the manual work of hopping between raw source pages, translation tools, and saved notes just to keep reading.
+
+<p align="center">
+  <img src="docs/images/transnovel-translate.png" alt="TransNovel translation screen" width="1100">
+</p>
 
 ## Why It Helps
 

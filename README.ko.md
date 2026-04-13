@@ -7,6 +7,9 @@
 <p align="center">
   <a href="https://github.com/azyu/transnovel/releases"><img src="https://img.shields.io/github/v/release/azyu/transnovel?display_name=tag" alt="Latest Release"></a>
   <a href="https://github.com/azyu/transnovel/actions/workflows/ci.yml"><img src="https://github.com/azyu/transnovel/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20arm64-black?logo=apple" alt="macOS arm64">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-0078D6?logo=windows" alt="Windows x64">
+  <img src="https://img.shields.io/badge/platform-Windows%20ARM64-0078D6?logo=windows" alt="Windows ARM64">
 </p>
 
 <p align="center">
@@ -18,6 +21,10 @@
 TransNovel은 일본 웹소설 URL만 붙여 넣으면 작품을 불러오고, 원하는 LLM으로 한국어 번역을 진행할 수 있게 만든 앱입니다. 한 화를 빠르게 읽고 저장하는 흐름에 맞춰 설계했습니다.
 
 웹에서 원문을 찾아다니고, 번역기를 따로 붙여 넣고, 이미 읽은 화를 다시 정리하는 과정을 줄이는 데 초점을 맞췄습니다.
+
+<p align="center">
+  <img src="docs/images/transnovel-translate.png" alt="TransNovel translation screen" width="1100">
+</p>
 
 ## 이런 점이 편합니다
 
