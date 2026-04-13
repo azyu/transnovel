@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite};
+use std::time::Duration;
 
 use crate::db::get_pool;
 use crate::services::openai_oauth;
@@ -17,6 +18,35 @@ pub struct ApiKey {
 pub struct Setting {
     pub key: String,
     pub value: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatestReleaseInfo {
+    pub version: String,
+    pub tag_name: String,
+    pub name: String,
+    pub html_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubLatestReleaseResponse {
+    tag_name: String,
+    html_url: String,
+    name: Option<String>,
+}
+
+fn normalize_release_version(tag: &str) -> Result<String, String> {
+    let version = tag
+        .strip_prefix('v')
+        .ok_or_else(|| "릴리즈 버전 형식이 올바르지 않습니다.".to_string())?;
+
+    let segments: Vec<&str> = version.split('.').collect();
+    if segments.len() != 3 || segments.iter().any(|segment| segment.parse::<u64>().is_err()) {
+        return Err("릴리즈 버전 형식이 올바르지 않습니다.".to_string());
+    }
+
+    Ok(version.to_string())
 }
 
 #[tauri::command]
@@ -223,6 +253,43 @@ pub async fn remove_api_key(id: i64) -> Result<(), String> {
 pub async fn open_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn fetch_latest_release_info() -> Result<LatestReleaseInfo, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("업데이트 확인 준비 실패: {}", e))?;
+
+    let response = client
+        .get("https://api.github.com/repos/azyu/transnovel/releases/latest")
+        .header(reqwest::header::USER_AGENT, "TransNovel")
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|e| format!("업데이트 확인 실패: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "업데이트 정보를 불러오지 못했습니다. 상태 코드: {}",
+            response.status()
+        ));
+    }
+
+    let release: GitHubLatestReleaseResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("릴리즈 정보 해석 실패: {}", e))?;
+
+    let version = normalize_release_version(&release.tag_name)?;
+
+    Ok(LatestReleaseInfo {
+        version,
+        tag_name: release.tag_name.clone(),
+        name: release.name.unwrap_or_else(|| release.tag_name.clone()),
+        html_url: release.html_url,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -913,5 +980,19 @@ mod tests {
         assert_eq!(stats.by_novel[0].site, None);
         assert_eq!(stats.by_novel[0].count, 1);
         assert_eq!(stats.by_novel[0].total_hits, 3);
+    }
+
+    #[test]
+    fn normalize_release_version_strips_leading_v() {
+        assert_eq!(
+            normalize_release_version("v0.1.2").expect("normalize version"),
+            "0.1.2"
+        );
+    }
+
+    #[test]
+    fn normalize_release_version_rejects_malformed_tag() {
+        let error = normalize_release_version("release-0.1.2").expect_err("invalid tag");
+        assert!(error.contains("버전"));
     }
 }

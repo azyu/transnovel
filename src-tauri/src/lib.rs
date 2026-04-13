@@ -41,6 +41,7 @@ pub fn run() {
             commands::settings::add_api_key,
             commands::settings::remove_api_key,
             commands::settings::open_url,
+            commands::settings::fetch_latest_release_info,
             commands::settings::fetch_gemini_models,
             commands::settings::fetch_openrouter_models,
             commands::settings::start_openai_oauth,
