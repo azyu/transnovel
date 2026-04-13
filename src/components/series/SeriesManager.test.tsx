@@ -159,4 +159,148 @@ describe('SeriesManager', () => {
     expect(errorBadges.length).toBeGreaterThan(0);
     expect(container.textContent).not.toContain('확인 실패');
   });
+
+  it('does not switch to a different watchlist novel while the current novel is translating', async () => {
+    const currentItem = {
+      site: 'syosetu',
+      workUrl: 'https://ncode.syosetu.com/n1234ab/',
+      novelId: 'n1234ab',
+      title: '현재 번역 중인 작품',
+      author: '테스트 작가',
+      lastKnownChapter: 12,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 0,
+    };
+    const otherItem = {
+      site: 'kakuyomu',
+      workUrl: 'https://kakuyomu.jp/works/123',
+      novelId: '123',
+      title: '다른 작품',
+      author: '다른 작가',
+      lastKnownChapter: 4,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 0,
+    };
+
+    useSeriesStore.setState({
+      watchlistItems: [currentItem, otherItem],
+      selectedWatchlistNovelId: getWatchlistItemKey(currentItem),
+      watchlistEpisodes: [],
+      isRefreshingWatchlist: false,
+      watchlistLoaded: true,
+      watchlistError: null,
+      watchlistBadgeCount: 0,
+    });
+
+    useTranslationStore.setState({
+      isTranslating: true,
+      chapter: {
+        site: currentItem.site,
+        novelId: currentItem.novelId,
+        novelTitle: currentItem.title,
+        chapterNumber: 1,
+        title: '1화',
+        subtitle: '',
+        prevUrl: null,
+        nextUrl: null,
+        sourceUrl: 'https://ncode.syosetu.com/n1234ab/1/',
+      },
+    });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const otherNovelButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent?.includes('다른 작품'),
+    );
+
+    expect(otherNovelButton).toBeTruthy();
+
+    await act(async () => {
+      otherNovelButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(loadWatchlistEpisodes).not.toHaveBeenCalledWith(otherItem.site, otherItem.novelId);
+    expect(useUIStore.getState().toast).toEqual({
+      message: '현재 소설이 번역 중이므로 다른 작품이나 화로 이동할 수 없습니다.',
+      type: 'error',
+      detail: undefined,
+    });
+  });
+
+  it('does not change the translation url when another episode is clicked during translation', async () => {
+    const currentItem = {
+      site: 'nocturne',
+      workUrl: 'https://novel18.syosetu.com/n0112ma/',
+      novelId: 'n0112ma',
+      title: '현재 번역 중인 소설',
+      author: '테스트 작가',
+      lastKnownChapter: 4,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 0,
+    };
+
+    useSeriesStore.setState({
+      watchlistItems: [currentItem],
+      selectedWatchlistNovelId: getWatchlistItemKey(currentItem),
+      watchlistEpisodes: [
+        {
+          chapterNumber: 2,
+          chapterUrl: 'https://novel18.syosetu.com/n0112ma/2/',
+          title: '2화',
+          isNew: false,
+          isViewed: false,
+        },
+      ],
+      isRefreshingWatchlist: false,
+      watchlistLoaded: true,
+      watchlistError: null,
+      watchlistBadgeCount: 0,
+    });
+
+    useTranslationStore.setState({
+      currentUrl: 'https://novel18.syosetu.com/n0112ma/4/',
+      isTranslating: true,
+      chapter: {
+        site: currentItem.site,
+        novelId: currentItem.novelId,
+        novelTitle: currentItem.title,
+        chapterNumber: 4,
+        title: '4화',
+        subtitle: '',
+        prevUrl: 'https://novel18.syosetu.com/n0112ma/3/',
+        nextUrl: null,
+        sourceUrl: 'https://novel18.syosetu.com/n0112ma/4/',
+      },
+    });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const episodeButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent?.includes('2화'),
+    );
+
+    expect(episodeButton).toBeTruthy();
+
+    await act(async () => {
+      episodeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(useTranslationStore.getState().currentUrl).toBe('https://novel18.syosetu.com/n0112ma/4/');
+    expect(parseAndTranslate).not.toHaveBeenCalledWith('https://novel18.syosetu.com/n0112ma/2/');
+    expect(useUIStore.getState().toast).toEqual({
+      message: '현재 소설이 번역 중이므로 다른 작품이나 화로 이동할 수 없습니다.',
+      type: 'error',
+      detail: undefined,
+    });
+  });
 });
