@@ -77,12 +77,12 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
       - name: Enable pnpm via Corepack
         run: |
           corepack enable
-          corepack prepare pnpm@9 --activate
+          corepack prepare pnpm@10.27.0 --activate
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -184,6 +184,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
 
       - name: Sync workspace version to release tag
         run: node scripts/sync-release-version.mjs ${{ needs.prepare.outputs.version }}
