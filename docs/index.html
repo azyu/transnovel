@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransNovel — AI 일본 웹소설 번역기</title>
+  <meta name="description" content="URL만 넣으면 자동 파싱부터 실시간 번역까지. Gemini, Claude, OpenAI 등 원하는 LLM으로 일본 웹소설을 한국어로 번역하세요.">
+  <meta property="og:title" content="TransNovel — AI 일본 웹소설 번역기">
+  <meta property="og:description" content="일본 웹소설을 한국어로 편하게 읽기 위한 AI 번역 데스크톱 앱">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="images/app-icon.png">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="images/app-icon.png" type="image/png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            midnight: '#08090c',
+            surface: 'rgba(255, 255, 255, 0.025)',
+            'surface-solid': '#111419',
+            accent: { DEFAULT: '#3b82f6', bright: '#60a5fa' },
+          },
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans KR', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+        },
+      },
+    }
+  </script>
+
+  <link rel="stylesheet" href="css/custom.css">
+</head>
+<body class="bg-midnight">
+
+  <!-- ════ Navbar ════ -->
+  <nav class="fixed top-0 w-full z-50 transition-all duration-300">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <!-- Logo -->
+      <a href="#" class="flex items-center gap-2.5 text-white font-bold text-lg no-underline">
+        <img src="images/app-icon.png" alt="TransNovel" width="28" height="28" class="rounded-md">
+        TransNovel
+      </a>
+
+      <!-- Nav links (desktop) -->
+      <div class="nav-links hidden lg:flex items-center gap-8">
+        <a href="#features" class="text-sm text-white/50 hover:text-white/90 transition-colors no-underline">기능</a>
+        <a href="#sites" class="text-sm text-white/50 hover:text-white/90 transition-colors no-underline">지원 사이트</a>
+        <a href="#download" class="text-sm text-white/50 hover:text-white/90 transition-colors no-underline">다운로드</a>
+        <a href="#faq" class="text-sm text-white/50 hover:text-white/90 transition-colors no-underline">FAQ</a>
+      </div>
+
+      <!-- Right actions -->
+      <div class="flex items-center gap-3">
+        <a href="https://github.com/azyu/transnovel" target="_blank" rel="noopener" class="text-white/50 hover:text-white/90 transition-colors" aria-label="GitHub">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        </a>
+        <a href="#download" class="btn-primary text-sm !py-2 !px-4">다운로드</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ════ Hero ════ -->
+  <section class="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+    <!-- Ambient orbs -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <div class="relative z-10 max-w-4xl mx-auto px-6 text-center">
+      <!-- Eyebrow -->
+      <div class="eyebrow-pill mb-8" data-animate>
+        <span class="dot"></span>
+        AI 번역 데스크톱 앱
+      </div>
+
+      <!-- Headline -->
+      <h1 class="gradient-text mb-6" data-animate style="font-size: clamp(2.8rem, 7vw, 4.5rem); line-height: 1.1; letter-spacing: -0.04em; font-weight: 800;">
+        일본 웹소설을<br>한국어로 편하게
+      </h1>
+
+      <!-- Subtitle -->
+      <p class="text-lg md:text-xl max-w-2xl mx-auto mb-10" data-animate style="color: var(--text-secondary); line-height: 1.7;">
+        URL만 넣으면 자동 파싱부터 실시간 번역까지.<br class="hidden sm:block">
+        Gemini, Claude, OpenAI 등 원하는 LLM으로.
+      </p>
+
+      <!-- CTAs -->
+      <div class="hero-actions flex items-center justify-center gap-4 mb-16" data-animate>
+        <a href="#download" class="btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          다운로드
+        </a>
+        <a href="https://github.com/azyu/transnovel" target="_blank" rel="noopener" class="btn-ghost">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+
+      <!-- App screenshot frame -->
+      <div class="app-frame max-w-3xl mx-auto" data-animate>
+        <div class="app-frame-titlebar">
+          <span class="traffic-close"></span>
+          <span class="traffic-minimize"></span>
+          <span class="traffic-maximize"></span>
+        </div>
+        <div class="relative bg-surface-solid" style="aspect-ratio: 16/10;">
+          <!-- Placeholder: replace src with actual screenshot -->
+          <div class="absolute inset-0 flex items-center justify-center" style="color: var(--text-tertiary);">
+            <div class="text-center">
+              <svg class="mx-auto mb-3 opacity-30" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+              <p class="text-sm">스크린샷 준비 중</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ Features ════ -->
+  <section id="features" class="py-24 md:py-32">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16" data-animate>
+        <p class="section-eyebrow">주요 기능</p>
+        <h2 class="text-3xl md:text-4xl font-bold" style="letter-spacing: -0.03em;">
+          번역에 필요한 것만 담았습니다
+        </h2>
+      </div>
+
+      <!-- Bento grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        <!-- 1. Streaming (span-2) -->
+        <div class="bento-card lg:col-span-2" data-animate>
+          <div class="feature-icon" style="background: rgba(59, 130, 246, 0.1); color: #60a5fa;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">실시간 스트리밍 번역</h3>
+          <p style="color: var(--text-secondary); line-height: 1.7;">번역 결과가 문단 단위로 실시간 표시됩니다. 긴 챕터도 기다리기 덜 답답하게, 앞부분부터 바로 읽을 수 있습니다.</p>
+        </div>
+
+        <!-- 2. Batch -->
+        <div class="bento-card" data-animate>
+          <div class="feature-icon" style="background: rgba(16, 185, 129, 0.1); color: #34d399;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">배치 번역</h3>
+          <p style="color: var(--text-secondary); line-height: 1.7;">시리즈 전체를 한 번에 돌려 두고 진행 상황을 추적할 수 있습니다.</p>
+        </div>
+
+        <!-- 3. Cache -->
+        <div class="bento-card" data-animate>
+          <div class="feature-icon" style="background: rgba(245, 158, 11, 0.1); color: #fbbf24;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">번역 캐시</h3>
+          <p style="color: var(--text-secondary); line-height: 1.7;">같은 문장을 다시 번역할 때 캐시를 활용해 속도와 비용을 줄입니다.</p>
+        </div>
+
+        <!-- 4. Watchlist -->
+        <div class="bento-card" data-animate>
+          <div class="feature-icon" style="background: rgba(236, 72, 153, 0.1); color: #f472b6;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">관심작품</h3>
+          <p style="color: var(--text-secondary); line-height: 1.7;">자주 보는 작품을 등록하고 새 에피소드가 올라왔는지 확인할 수 있습니다.</p>
+        </div>
+
+        <!-- 5. Multi-provider (span-2) -->
+        <div class="bento-card lg:col-span-2" data-animate>
+          <div class="feature-icon" style="background: rgba(139, 92, 246, 0.1); color: #a78bfa;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">다양한 LLM 지원</h3>
+          <p style="color: var(--text-secondary); line-height: 1.7;">Gemini, Claude, OpenAI, OpenRouter, 또는 직접 지정한 커스텀 엔드포인트까지. 앱 안에서 제공자·모델·프롬프트·치환 규칙을 자유롭게 설정할 수 있습니다.</p>
+        </div>
+
+        <!-- 6. Export -->
+        <div class="bento-card" data-animate>
+          <div class="feature-icon" style="background: rgba(6, 182, 212, 0.1); color: #22d3ee;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">내보내기</h3>
+          <p style="color: var(--text-secondary); line-height: 1.7;">번역 결과를 TXT 또는 HTML로 저장해 오프라인에서도 보관할 수 있습니다.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ Supported Sites ════ -->
+  <section id="sites" class="py-24 md:py-32">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16" data-animate>
+        <p class="section-eyebrow">지원 사이트</p>
+        <h2 class="text-3xl md:text-4xl font-bold" style="letter-spacing: -0.03em;">
+          일본 주요 웹소설 사이트를 지원합니다
+        </h2>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Syosetu -->
+        <div class="site-card" data-animate>
+          <p class="text-lg font-semibold mb-1">小説家になろう</p>
+          <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">ncode.syosetu.com</p>
+          <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(16, 185, 129, 0.1); color: #34d399;">전체 지원</span>
+        </div>
+
+        <!-- Hameln -->
+        <div class="site-card" data-animate>
+          <p class="text-lg font-semibold mb-1">ハーメルン</p>
+          <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">syosetu.org</p>
+          <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(16, 185, 129, 0.1); color: #34d399;">전체 지원</span>
+        </div>
+
+        <!-- Kakuyomu -->
+        <div class="site-card" data-animate>
+          <p class="text-lg font-semibold mb-1">カクヨム</p>
+          <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">kakuyomu.jp</p>
+          <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(245, 158, 11, 0.1); color: #fbbf24;">개별 화 지원</span>
+        </div>
+
+        <!-- Nocturne -->
+        <div class="site-card" data-animate>
+          <p class="text-lg font-semibold mb-1">ノクターンノベルズ</p>
+          <p class="font-mono text-sm mb-3" style="color: var(--text-tertiary);">novel18.syosetu.com</p>
+          <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full" style="background: rgba(16, 185, 129, 0.1); color: #34d399;">전체 지원</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ Download ════ -->
+  <section id="download" class="py-24 md:py-32">
+    <div class="max-w-4xl mx-auto px-6">
+      <div class="text-center mb-12" data-animate>
+        <p class="section-eyebrow">다운로드</p>
+        <h2 class="text-3xl md:text-4xl font-bold mb-4" style="letter-spacing: -0.03em;">
+          지금 바로 시작하세요
+        </h2>
+        <span class="inline-block text-xs font-mono font-medium px-3 py-1 rounded-full" style="background: rgba(255,255,255,0.05); color: var(--text-secondary);" data-version>v0.1.1</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" data-animate>
+        <!-- macOS ARM64 -->
+        <div class="download-card">
+          <div class="mb-3">
+            <svg class="mx-auto" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="color: var(--text-secondary);"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          </div>
+          <p class="font-semibold mb-1">macOS</p>
+          <p class="text-xs mb-4" style="color: var(--text-tertiary);">Apple Silicon (ARM64)</p>
+          <a href="https://github.com/azyu/transnovel/releases/latest" data-platform="macos-arm64" class="btn-download loading">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .dmg 다운로드
+          </a>
+        </div>
+
+        <!-- Windows x64 -->
+        <div class="download-card">
+          <div class="mb-3">
+            <svg class="mx-auto" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="color: var(--text-secondary);"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          </div>
+          <p class="font-semibold mb-1">Windows</p>
+          <p class="text-xs mb-4" style="color: var(--text-tertiary);">x64 (Intel/AMD)</p>
+          <a href="https://github.com/azyu/transnovel/releases/latest" data-platform="windows-x64" class="btn-download loading">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .exe 다운로드
+          </a>
+        </div>
+
+        <!-- Windows ARM64 -->
+        <div class="download-card">
+          <div class="mb-3">
+            <svg class="mx-auto" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="color: var(--text-secondary);"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          </div>
+          <p class="font-semibold mb-1">Windows</p>
+          <p class="text-xs mb-4" style="color: var(--text-tertiary);">ARM64 (Snapdragon)</p>
+          <a href="https://github.com/azyu/transnovel/releases/latest" data-platform="windows-arm64" class="btn-download loading">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .exe 다운로드
+          </a>
+        </div>
+      </div>
+
+      <p class="text-center text-sm" style="color: var(--text-tertiary);">
+        <a href="https://github.com/azyu/transnovel/releases" target="_blank" rel="noopener" class="underline hover:text-white/60 transition-colors" style="color: var(--text-tertiary);">모든 릴리즈 보기</a>
+        &nbsp;·&nbsp; MIT 라이선스 · 오픈소스
+      </p>
+    </div>
+  </section>
+
+  <!-- ════ FAQ ════ -->
+  <section id="faq" class="py-24 md:py-32">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-center mb-16" data-animate>
+        <p class="section-eyebrow">FAQ</p>
+        <h2 class="text-3xl md:text-4xl font-bold" style="letter-spacing: -0.03em;">
+          자주 묻는 질문
+        </h2>
+      </div>
+
+      <div data-animate>
+        <details>
+          <summary>API 키가 필요한가요?</summary>
+          <div class="faq-body">
+            네, 번역에 사용할 LLM 제공자의 API 키가 필요합니다. Gemini, OpenRouter, OpenAI 등에서 API 키를 발급받아 설정에 입력하면 됩니다. OpenAI (Codex)를 선택하면 ChatGPT 로그인으로도 사용할 수 있습니다.
+          </div>
+        </details>
+
+        <details>
+          <summary>어떤 LLM을 추천하나요?</summary>
+          <div class="faq-body">
+            번역 품질과 비용은 모델에 따라 크게 달라집니다. 처음이라면 Gemini나 OpenRouter에서 비용 대비 좋은 모델을 골라 짧은 챕터로 테스트해 보세요. 프롬프트와 치환 규칙도 결과에 큰 영향을 줍니다.
+          </div>
+        </details>
+
+        <details>
+          <summary>번역 비용이 얼마나 드나요?</summary>
+          <div class="faq-body">
+            TransNovel 자체는 무료 오픈소스 앱입니다. 비용은 선택한 LLM 제공자의 API 요금에 따라 달라집니다. 번역 캐시가 같은 문장의 재번역을 줄여 주므로 비용 절감에 도움이 됩니다.
+          </div>
+        </details>
+
+        <details>
+          <summary>번역 결과를 오프라인으로 볼 수 있나요?</summary>
+          <div class="faq-body">
+            네, 번역된 챕터를 TXT 또는 HTML로 내보내면 인터넷 없이도 읽을 수 있습니다. 내보내기는 각 챕터 화면에서 가능합니다.
+          </div>
+        </details>
+
+        <details>
+          <summary>macOS에서 "확인되지 않은 개발자" 경고가 뜹니다</summary>
+          <div class="faq-body">
+            앱을 처음 실행할 때 macOS Gatekeeper가 경고를 띄울 수 있습니다. <strong>시스템 설정 &gt; 개인 정보 보호 및 보안</strong>에서 "확인 없이 열기"를 선택하거나, 터미널에서 <code>xattr -cr /Applications/TransNovel.app</code>을 실행하면 됩니다.
+          </div>
+        </details>
+
+        <details>
+          <summary>지원하지 않는 사이트를 추가할 수 있나요?</summary>
+          <div class="faq-body">
+            현재 Syosetu, Hameln, Kakuyomu, Nocturne을 지원합니다. 추가 사이트 요청은 <a href="https://github.com/azyu/transnovel/issues" target="_blank" rel="noopener" class="underline" style="color: var(--accent-bright);">GitHub Issues</a>에 남겨 주세요.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ Footer ════ -->
+  <footer class="py-8" style="border-top: 1px solid var(--border);">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p class="text-sm" style="color: var(--text-tertiary);">
+        TransNovel &copy; 2026 &middot; MIT License
+      </p>
+      <div class="flex items-center gap-6">
+        <a href="https://github.com/azyu/transnovel" target="_blank" rel="noopener" class="text-sm no-underline hover:text-white/60 transition-colors" style="color: var(--text-tertiary);">GitHub</a>
+        <a href="https://github.com/azyu/transnovel/releases" target="_blank" rel="noopener" class="text-sm no-underline hover:text-white/60 transition-colors" style="color: var(--text-tertiary);">릴리즈</a>
+        <a href="#features" class="text-sm no-underline hover:text-white/60 transition-colors" style="color: var(--text-tertiary);">기능</a>
+        <a href="#faq" class="text-sm no-underline hover:text-white/60 transition-colors" style="color: var(--text-tertiary);">FAQ</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
