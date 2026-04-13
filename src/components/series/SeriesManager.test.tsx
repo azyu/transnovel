@@ -303,4 +303,180 @@ describe('SeriesManager', () => {
       detail: undefined,
     });
   });
+
+  it('does not refresh the watchlist while the current novel is translating', async () => {
+    useTranslationStore.setState({
+      isTranslating: true,
+      chapter: {
+        site: 'syosetu',
+        novelId: 'n1234ab',
+        novelTitle: '현재 번역 중인 작품',
+        chapterNumber: 1,
+        title: '1화',
+        subtitle: '',
+        prevUrl: null,
+        nextUrl: null,
+        sourceUrl: 'https://ncode.syosetu.com/n1234ab/1/',
+      },
+    });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const refreshButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent?.includes('새로고침'),
+    );
+
+    expect(refreshButton).toBeTruthy();
+
+    await act(async () => {
+      refreshButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(refreshWatchlist).not.toHaveBeenCalled();
+    expect(loadWatchlistEpisodes).not.toHaveBeenCalled();
+    expect(useUIStore.getState().toast).toEqual({
+      message: '현재 소설이 번역 중이므로 다른 작품이나 화로 이동할 수 없습니다.',
+      type: 'error',
+      detail: undefined,
+    });
+  });
+
+  it('passes a live apply guard so in-flight watchlist selections are ignored once translation starts', async () => {
+    const currentItem = {
+      site: 'syosetu',
+      workUrl: 'https://ncode.syosetu.com/n1234ab/',
+      novelId: 'n1234ab',
+      title: '현재 작품',
+      author: '테스트 작가',
+      lastKnownChapter: 12,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 0,
+    };
+    const otherItem = {
+      site: 'kakuyomu',
+      workUrl: 'https://kakuyomu.jp/works/123',
+      novelId: '123',
+      title: '다른 작품',
+      author: '다른 작가',
+      lastKnownChapter: 4,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 0,
+    };
+
+    useSeriesStore.setState({
+      watchlistItems: [currentItem, otherItem],
+      selectedWatchlistNovelId: getWatchlistItemKey(currentItem),
+      watchlistEpisodes: [],
+      isRefreshingWatchlist: false,
+      watchlistLoaded: true,
+      watchlistError: null,
+      watchlistBadgeCount: 0,
+    });
+
+    useTranslationStore.setState({
+      isTranslating: false,
+      chapter: {
+        site: currentItem.site,
+        novelId: currentItem.novelId,
+        novelTitle: currentItem.title,
+        chapterNumber: 1,
+        title: '1화',
+        subtitle: '',
+        prevUrl: null,
+        nextUrl: null,
+        sourceUrl: 'https://ncode.syosetu.com/n1234ab/1/',
+      },
+    });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const otherNovelButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent?.includes('다른 작품'),
+    );
+
+    expect(otherNovelButton).toBeTruthy();
+
+    await act(async () => {
+      otherNovelButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const lastCall = loadWatchlistEpisodes.mock.calls.at(-1) as
+      | [string, string, { shouldApply: () => boolean }]
+      | undefined;
+
+    expect(lastCall).toBeDefined();
+    if (!lastCall) {
+      throw new Error('loadWatchlistEpisodes was not called');
+    }
+
+    const [calledSite, calledNovelId, options] = lastCall;
+
+    expect(calledSite).toBe(otherItem.site);
+    expect(calledNovelId).toBe(otherItem.novelId);
+    expect(typeof options.shouldApply).toBe('function');
+
+    act(() => {
+      useTranslationStore.setState({ isTranslating: true });
+    });
+
+    expect(options.shouldApply()).toBe(false);
+  });
+
+  it('passes a live apply guard so in-flight refreshes are ignored once translation starts', async () => {
+    useTranslationStore.setState({
+      isTranslating: false,
+      chapter: {
+        site: 'syosetu',
+        novelId: 'n1234ab',
+        novelTitle: '현재 작품',
+        chapterNumber: 1,
+        title: '1화',
+        subtitle: '',
+        prevUrl: null,
+        nextUrl: null,
+        sourceUrl: 'https://ncode.syosetu.com/n1234ab/1/',
+      },
+    });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const refreshButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent?.includes('새로고침'),
+    );
+
+    expect(refreshButton).toBeTruthy();
+
+    await act(async () => {
+      refreshButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const lastCall = refreshWatchlist.mock.calls.at(-1) as
+      | [{ shouldApply: () => boolean }]
+      | undefined;
+
+    expect(lastCall).toBeDefined();
+    if (!lastCall) {
+      throw new Error('refreshWatchlist was not called');
+    }
+
+    const [options] = lastCall;
+
+    expect(typeof options.shouldApply).toBe('function');
+
+    act(() => {
+      useTranslationStore.setState({ isTranslating: true });
+    });
+
+    expect(options.shouldApply()).toBe(false);
+  });
 });

@@ -6,6 +6,10 @@ import type { WatchlistEpisode, WatchlistItem } from '../types';
 import { messages } from '../i18n';
 import { getWatchlistItemKey } from '../utils/watchlist';
 
+type ApplyGuardOptions = {
+  shouldApply?: () => boolean;
+};
+
 export const loadWatchlistOnStartupFlow = async (
   invokeFn: typeof invoke,
   actions: {
@@ -29,6 +33,60 @@ export const loadWatchlistOnStartupFlow = async (
     setWatchlistError(null);
   } catch (error) {
     setWatchlistError(error instanceof Error ? error.message : String(error));
+  } finally {
+    setIsRefreshingWatchlist(false);
+  }
+};
+
+export const loadWatchlistEpisodesFlow = async (
+  invokeFn: typeof invoke,
+  actions: {
+    setSelectedWatchlistNovelId: (value: string | null) => void;
+    setWatchlistEpisodes: (episodes: WatchlistEpisode[]) => void;
+  },
+  site: string,
+  novelId: string,
+  options?: ApplyGuardOptions,
+) => {
+  const episodes = await invokeFn<WatchlistEpisode[]>('get_watchlist_episodes', { site, novelId });
+
+  if (options?.shouldApply && !options.shouldApply()) {
+    return episodes;
+  }
+
+  actions.setSelectedWatchlistNovelId(getWatchlistItemKey(site, novelId));
+  actions.setWatchlistEpisodes(episodes);
+  return episodes;
+};
+
+export const refreshWatchlistFlow = async (
+  invokeFn: typeof invoke,
+  actions: {
+    setWatchlistItems: (items: WatchlistItem[]) => void;
+    setIsRefreshingWatchlist: (value: boolean) => void;
+    setWatchlistError: (value: string | null) => void;
+    showError: (message: string, detail?: string) => void;
+  },
+  options?: ApplyGuardOptions,
+) => {
+  const { setWatchlistItems, setIsRefreshingWatchlist, setWatchlistError, showError } = actions;
+
+  setIsRefreshingWatchlist(true);
+  try {
+    const items = await invokeFn<WatchlistItem[]>('refresh_watchlist');
+
+    if (options?.shouldApply && !options.shouldApply()) {
+      return items;
+    }
+
+    setWatchlistItems(items);
+    setWatchlistError(null);
+    return items;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setWatchlistError(message);
+    showError(messages.series.refreshFailed, message);
+    throw error;
   } finally {
     setIsRefreshingWatchlist(false);
   }
@@ -59,18 +117,20 @@ export const useWatchlist = () => {
     }
   }, [setIsRefreshingWatchlist, setWatchlistError, setWatchlistItems, setWatchlistLoaded]);
 
-  const refreshWatchlist = useCallback(async () => {
-    setIsRefreshingWatchlist(true);
+  const refreshWatchlist = useCallback(async (options?: ApplyGuardOptions) => {
     try {
-      const items = await invoke<WatchlistItem[]>('refresh_watchlist');
-      setWatchlistItems(items);
-      setWatchlistError(null);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setWatchlistError(message);
-      showError(messages.series.refreshFailed, message);
-    } finally {
-      setIsRefreshingWatchlist(false);
+      return await refreshWatchlistFlow(
+        invoke,
+        {
+          setWatchlistItems,
+          setIsRefreshingWatchlist,
+          setWatchlistError,
+          showError,
+        },
+        options,
+      );
+    } catch {
+      return null;
     }
   }, [setIsRefreshingWatchlist, setWatchlistError, setWatchlistItems, showError]);
 
@@ -83,12 +143,21 @@ export const useWatchlist = () => {
     return item;
   }, [setSelectedWatchlistNovelId, setWatchlistItems, showToast]);
 
-  const loadWatchlistEpisodes = useCallback(async (site: string, novelId: string) => {
-    const episodes = await invoke<WatchlistEpisode[]>('get_watchlist_episodes', { site, novelId });
-    setSelectedWatchlistNovelId(getWatchlistItemKey(site, novelId));
-    setWatchlistEpisodes(episodes);
-    return episodes;
-  }, [setSelectedWatchlistNovelId, setWatchlistEpisodes]);
+  const loadWatchlistEpisodes = useCallback(async (
+    site: string,
+    novelId: string,
+    options?: ApplyGuardOptions,
+  ) =>
+    loadWatchlistEpisodesFlow(
+      invoke,
+      {
+        setSelectedWatchlistNovelId,
+        setWatchlistEpisodes,
+      },
+      site,
+      novelId,
+      options,
+    ), [setSelectedWatchlistNovelId, setWatchlistEpisodes]);
 
   return {
     addWatchlistItem,
