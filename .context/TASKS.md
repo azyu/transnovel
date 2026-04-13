@@ -59,6 +59,12 @@
 
 ## Done
 
+- [x] README에서 배치 번역 노출 축소 — Codex
+- [x] README 헤더를 앱 번들 아이콘으로 교체 — Codex
+- [x] README 배지에서 Tauri 브랜딩 제거 — Codex
+- [x] README 다국어 헤더/영문 사용자 안내 정리 — Codex
+- [x] README 설치 안내를 릴리즈 중심으로 보강 — Codex
+- [x] README 사용자용 설명으로 재작성 — Codex
 - [x] src-tauri/Cargo.lock Git 추적 전환 — Codex
 - [x] Rust 안전 범위 의존성 업데이트 — Codex
 - [x] AGENTS.md 검증 절 중복 정리 — Codex

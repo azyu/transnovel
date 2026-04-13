@@ -1,74 +1,90 @@
-# TransNovel
+<div align="center">
+  <img src="src-tauri/icons/icon.png" alt="TransNovel icon" width="128">
+  <h1>TransNovel</h1>
+  <p>Desktop app for reading Japanese web novels in Korean through LLM translation.</p>
+</div>
 
-[![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%202.0-24C8DB?logo=tauri&logoColor=FFC131)](https://tauri.app/)
-[![CI](https://github.com/azyu/transnovel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/azyu/transnovel/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/azyu/transnovel/releases"><img src="https://img.shields.io/github/v/release/azyu/transnovel?display_name=tag" alt="Latest Release"></a>
+  <a href="https://github.com/azyu/transnovel/actions/workflows/ci.yml"><img src="https://github.com/azyu/transnovel/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+</p>
 
-Desktop app for translating Japanese web novels into Korean with a React frontend, Rust backend, and Tauri 2.0 shell.
+<p align="center">
+  <a href="./README.ko.md">한국어</a>
+</p>
 
-[한국어 문서](./README.ko.md)
+## Overview
 
-## What It Does
+TransNovel lets you paste a Japanese web novel URL, load the work, and translate it into Korean with the LLM provider you prefer. It is designed around a simple flow for reading and saving chapters comfortably.
 
-- Parse chapters and series metadata from Syosetu, Hameln, Kakuyomu, and Nocturne
-- Translate chapter content with streaming paragraph updates
-- Run batch translation across a series with progress tracking and completed chapter history
-- Store per-novel translation cache to avoid repeated API calls
-- Track Syosetu works in a watchlist with startup refresh, manual refresh, and new/viewed episode status
-- Save translated output as TXT or HTML
-- Inspect API request and response logs from the settings panel
-- Manage providers, models, prompts, substitutions, and view settings inside the app
+It is built to reduce the manual work of hopping between raw source pages, translation tools, and saved notes just to keep reading.
+
+## Why It Helps
+
+- Load chapter and series information directly from supported novel sites
+- See translated text stream paragraph by paragraph instead of waiting for the entire chapter
+- Reuse cached translations to save time and API cost on repeated text
+- Add frequently followed works to a watchlist and check for new episodes
+- Export translated output as TXT or HTML for offline reading
+- Manage providers, models, prompts, substitutions, and reading view settings inside the app
+- Inspect API request and response logs when something fails
+
+## Install
+
+The easiest way to use TransNovel is to download a release build for your platform from [Releases](https://github.com/azyu/transnovel/releases).
+
+| Platform | Installer |
+| --- | --- |
+| macOS | `.dmg` |
+| Windows | `.exe`, `.msi` |
+| Linux | `.AppImage`, `.deb` |
+
+> [!TIP]
+> If you just want to use the app, start with a release build instead of running from source.
+
+## Quick Start
+
+1. Open `Settings > LLM Settings` and add the provider you want to use.
+2. Enter an API key, or choose `OpenAI (Codex)` and sign in.
+3. Paste the URL of a supported chapter or series.
+4. Translate the chapter you want to read and start reading right away.
+5. Optionally add the work to your watchlist to keep an eye on new episodes.
+6. Export the result as TXT or HTML if you want to keep a copy.
+
+> [!TIP]
+> Start with a short chapter first to check that the model, prompt, and substitution rules match the reading style you want.
 
 ## Supported Sites
 
-| Site | Domain | Notes |
+| Site | Domain | Current Status |
 | --- | --- | --- |
-| Syosetu | `ncode.syosetu.com` | Reference parser |
-| Hameln | `syosetu.org` | Similar flow to Syosetu |
-| Kakuyomu | `kakuyomu.jp` | Parses embedded JSON, no batch support |
-| Nocturne | `novel18.syosetu.com` | Sends 18+ cookie |
+| Syosetu | `ncode.syosetu.com` | Chapter and series translation supported |
+| Hameln | `syosetu.org` | Chapter and series translation supported |
+| Kakuyomu | `kakuyomu.jp` | Single-episode translation supported |
+| Nocturne | `novel18.syosetu.com` | Chapter and series translation supported |
 
-## Supported Providers
+## Supported LLM Providers
 
-| Provider type | Protocol | Auth |
+| Provider | Auth | Notes |
 | --- | --- | --- |
-| Gemini | Google Generative AI | API key |
-| OpenRouter | OpenAI-compatible chat completions | Bearer token |
-| Anthropic | OpenAI-compatible chat completions | Bearer token |
-| OpenAI | OpenAI-compatible chat completions | Bearer token |
-| OpenAI (Codex) | Codex Backend API | ChatGPT OAuth |
-| Custom | OpenAI-compatible chat completions | Bearer token |
+| Gemini | API key | Google Gemini models |
+| OpenRouter | API key | Access multiple model families in one place |
+| Anthropic | API key | Connected through an OpenAI-compatible path |
+| OpenAI | API key | Connected through an OpenAI-compatible path |
+| OpenAI (Codex) | ChatGPT sign-in | Uses the Codex Backend API |
+| Custom | API key + base URL | Connect your own OpenAI-compatible server |
 
-`anthropic`, `openai`, and `custom` provider types all use the OpenAI-compatible client path internally.
+## Current Limitations
 
-## Current Feature Set
+- EPUB export is not available yet.
+- Watchlist registration currently supports Syosetu, Nocturne, and Kakuyomu work pages.
 
-- Real-time translation streaming over Tauri events
-- Per-paragraph semantic IDs (`title`, `subtitle`, `p-1`, ...)
-- Regex-based pre/post substitution pipeline
-- Per-novel SHA256 cache isolation
-- Syosetu watchlist with startup checks, manual refresh, and viewed/new episode badges
-- Provider and model CRUD in settings
-- API log viewer with request/response details
-- Batch translation pause, resume, stop, and chapter completion tracking
-- Theme and reading view customization
-- TXT and HTML export
+> [!IMPORTANT]
+> Translation quality, speed, and cost depend heavily on the provider, model, and prompt you choose. The same novel can feel noticeably different when you switch models.
 
-## Tech Stack
+## Run From Source
 
-- Frontend: React 19, TypeScript, Vite, Zustand, Headless UI, Tailwind CSS
-- Backend: Rust, Tauri 2.0, tokio, sqlx, reqwest, scraper
-- Persistence: SQLite for settings, API logs, and progress metadata
-
-## Project Layout
-
-```text
-src/                    React UI, hooks, Zustand stores
-src-tauri/src/          Tauri commands, services, parsers, DB code
-docs/references.md      Detailed architecture and command reference
-.context/               Shared task and steering documents
-```
-
-## Getting Started
+If you want to develop or modify the app locally, run it from source.
 
 ### Prerequisites
 
@@ -77,15 +93,13 @@ docs/references.md      Detailed architecture and command reference
 - Rust toolchain
 - Tauri build prerequisites for your OS
 
-### Install
-
 ```bash
-git clone git@github.com:azyu/transnovel.git
+git clone https://github.com/azyu/transnovel.git
 cd transnovel
 pnpm install
 ```
 
-### Run
+### Development Mode
 
 ```bash
 pnpm run tauri dev
@@ -97,7 +111,25 @@ pnpm run tauri dev
 pnpm run tauri build
 ```
 
-## Development Checks
+<details>
+<summary>Developer Notes</summary>
+
+### Tech Stack
+
+- Frontend: React 19, TypeScript, Vite, Zustand, Headless UI, Tailwind CSS
+- Backend: Rust, Tauri 2.0, tokio, sqlx, reqwest, scraper
+- Persistence: SQLite for settings, API logs, and progress metadata
+
+### Project Layout
+
+```text
+src/                    React UI, hooks, Zustand stores
+src-tauri/src/          Tauri commands, services, parsers, DB code
+docs/references.md      Detailed architecture and command reference
+.context/               Shared task and steering documents
+```
+
+### Verification Commands
 
 ```bash
 pnpm run lint
@@ -107,35 +139,8 @@ cd src-tauri && cargo test
 cd src-tauri && cargo clippy -- -D warnings
 ```
 
-## Usage
+</details>
 
-1. Add a provider and API key in `Settings -> LLM Settings`.
-2. Choose a provider and model.
-3. Paste a supported chapter or series URL.
-4. Translate a single chapter or start batch translation for the full series.
-5. Optionally add a Syosetu work to `관심작품` to track new episodes.
-6. Export results as TXT or HTML when needed.
+## More
 
-## Implementation Status
-
-Implemented today:
-
-- Multi-site parsing
-- Streaming translation
-- Batch translation
-- Per-novel cache
-- Syosetu watchlist prototype
-- API logging
-- Provider/model management
-- TXT/HTML export
-
-Not implemented yet:
-
-- EPUB export
-- Automatic retry beyond the current limit
-- API key rotation
-- Full use of `novels`, `chapters`, and `translations` tables in the main flow
-
-## Reference
-
-For command lists, event payloads, schema notes, and module-level architecture, see [docs/references.md](./docs/references.md).
+- For detailed architecture notes and internal command references, see [docs/references.md](./docs/references.md).
