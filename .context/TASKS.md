@@ -40,6 +40,7 @@
 - [x] PR #4 merge conflict 해결 — Codex
 - [x] 소설 메타데이터 저장 및 설정 캐시 통계 표시 개선 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
+- [x] tag push 시 앱 버전 자동 동기화 및 release workflow 반영 — Codex
 - [x] GitHub Actions Node 24 deprecation 대응 — Codex
 - [x] 번역 캐시 소설별 메타데이터 표시 확장 — Codex
 - [x] 설정 탭 width를 번역 탭 기준으로 확장 — Codex

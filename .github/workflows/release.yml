@@ -13,11 +13,38 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Validate release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ env.RELEASE_TAG }}"
+
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: ${TAG}"
+            echo "Expected format: vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +70,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -97,6 +126,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Sync workspace version to release tag
+        run: node scripts/sync-release-version.mjs ${{ needs.prepare.outputs.version }}
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -118,19 +150,12 @@ jobs:
           if-no-files-found: ignore
 
   release:
-    needs: build
+    needs:
+      - prepare
+      - build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Determine tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Download all artifacts
         uses: actions/download-artifact@v6
         with:
@@ -139,7 +164,42 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2.5.0
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
           draft: true
           generate_release_notes: true
           files: artifacts/**/*
+
+  sync-main-version:
+    needs:
+      - prepare
+      - release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Sync workspace version to release tag
+        run: node scripts/sync-release-version.mjs ${{ needs.prepare.outputs.version }}
+
+      - name: Commit and push synced version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json; then
+            echo "Workspace version already matches release tag."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
+          git commit -m "chore(release): sync app version to ${{ needs.prepare.outputs.tag }}"
+          git push origin HEAD:main
