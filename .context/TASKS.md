@@ -40,6 +40,7 @@
 - [x] PR #4 merge conflict 해결 — Codex
 - [x] 소설 메타데이터 저장 및 설정 캐시 통계 표시 개선 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
+- [x] release draft 자동 publish 전환 및 sync-main-version 순서 점검 — Codex
 - [x] release 버전 sync 스크립트의 Windows CRLF 호환성 수정 — Codex
 - [x] Corepack 기반 pnpm 10 고정 및 setup-node 캐시 충돌 수정 — Codex
 - [x] tag push 시 앱 버전 자동 동기화 및 release workflow 반영 — Codex
