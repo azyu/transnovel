@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
@@ -7,6 +7,7 @@ import { useTranslationStore } from '../../stores/translationStore';
 import { messages } from '../../i18n';
 import appIcon from '../../assets/app-icon.png';
 import type { TabType } from '../../types';
+import { getMainTabShortcutLabel } from '../../utils/tabShortcuts';
 
 export const Header: React.FC = () => {
   const { currentTab, setTab, theme, toggleTheme } = useUIStore(
@@ -22,6 +23,7 @@ export const Header: React.FC = () => {
   const watchlistBadgeCount = useSeriesStore((s) => s.watchlistBadgeCount);
   const isTranslating = useTranslationStore((s) => s.isTranslating);
   const debugMode = useDebugStore((s) => s.debugMode);
+  const [hoveredTab, setHoveredTab] = useState<TabType | null>(null);
 
   const allTabs: { id: TabType; label: string; devOnly?: boolean }[] = [
     { id: 'translation', label: messages.common.tabs.translation },
@@ -57,11 +59,16 @@ export const Header: React.FC = () => {
             key={tab.id}
             type="button"
             onClick={() => setTab(tab.id)}
+            title={`${tab.label} (${getMainTabShortcutLabel(tab.id)})`}
+            onMouseOver={() => setHoveredTab(tab.id)}
+            onMouseOut={() => setHoveredTab((current) => (current === tab.id ? null : current))}
+            onFocus={() => setHoveredTab(tab.id)}
+            onBlur={() => setHoveredTab((current) => (current === tab.id ? null : current))}
             id={`tab-${tab.id}`}
             role="tab"
             aria-selected={currentTab === tab.id}
             aria-controls={`panel-${tab.id}`}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            className={`relative px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
               currentTab === tab.id
                 ? 'bg-blue-600 text-white shadow-md'
                 : isDark 
@@ -69,6 +76,16 @@ export const Header: React.FC = () => {
                   : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
+            {hoveredTab === tab.id && (
+              <span
+                role="tooltip"
+                className={`pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium shadow-lg ${
+                  isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-900 text-white'
+                }`}
+              >
+                {tab.label} ({getMainTabShortcutLabel(tab.id)})
+              </span>
+            )}
             <span className="inline-flex items-center gap-2">
               <span>{tab.label}</span>
               {tab.id === 'series' && watchlistBadgeCount > 0 && (

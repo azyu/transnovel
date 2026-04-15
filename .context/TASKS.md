@@ -59,6 +59,9 @@
 
 ## Done
 
+- [x] 번역 탭에서만 Cmd/Ctrl+L로 URL 입력 포커스 지원 — Codex
+- [x] 메인 탭 hover 단축키 툴팁이 표시되지 않는 문제 수정 — Codex
+- [x] 메인 탭 플랫폼별 단축키 표시 및 Cmd/Ctrl+1~3 탭 전환 지원 — Codex
 - [x] README 소개 섹션에 번역 화면 스크린샷 추가 — Codex
 - [x] README에 지원 플랫폼 배지 추가 — Codex
 - [x] README에서 배치 번역 노출 축소 — Codex

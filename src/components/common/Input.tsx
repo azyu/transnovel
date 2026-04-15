@@ -6,13 +6,13 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export const Input: React.FC<InputProps> = ({
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input({
   label,
   error,
   className = '',
   id,
   ...props
-}) => {
+}, ref) {
   const generatedId = React.useId();
   const inputId = id || generatedId;
   const errorId = `${inputId}-error`;
@@ -31,6 +31,7 @@ export const Input: React.FC<InputProps> = ({
         </label>
       )}
       <input
+        ref={ref}
         id={inputId}
         className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${baseStyles} ${className} ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
         {...props}
@@ -40,4 +41,4 @@ export const Input: React.FC<InputProps> = ({
       {error && <span id={errorId} className="text-xs text-red-500">{error}</span>}
     </div>
   );
-};
+});

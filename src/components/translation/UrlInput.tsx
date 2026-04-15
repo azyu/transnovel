@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
 import { messages } from '../../i18n';
 import { getUrlHistory, saveUrlHistory, type UrlHistoryItem } from '../../utils/urlHistory';
+import { FOCUS_TRANSLATION_URL_INPUT_EVENT } from '../../utils/tabShortcuts';
 
 const SUPPORTED_SITES = messages.translation.urlInput.supportedSiteLinks;
 
@@ -27,6 +28,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const [history, setHistory] = useState<UrlHistoryItem[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const isDark = theme === 'dark';
 
@@ -58,6 +60,23 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const handleFocusShortcut = () => {
+      if (loading || isTranslating) {
+        return;
+      }
+
+      inputRef.current?.focus();
+      inputRef.current?.select();
+      if (history.length > 0) {
+        setShowDropdown(true);
+      }
+    };
+
+    window.addEventListener(FOCUS_TRANSLATION_URL_INPUT_EVENT, handleFocusShortcut);
+    return () => window.removeEventListener(FOCUS_TRANSLATION_URL_INPUT_EVENT, handleFocusShortcut);
+  }, [history.length, isTranslating, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +120,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             </div>
           </div>
           <Input
+            ref={inputRef}
             id={inputId}
             value={localUrl}
             onChange={(e) => setLocalUrl(e.target.value)}
