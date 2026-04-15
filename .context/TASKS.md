@@ -15,6 +15,7 @@
 
 ## In Progress
 
+- [x] YAML 기반 LLM 설정 override 설계 문서화 — Codex
 - [x] GitHub Release 기반 앱 업데이트 확인 UI 구현 — Codex
 - [x] 앱 버전 0.1.1 반영 — Codex
 - [x] Tauri npm/Rust 버전 정합성 복구 및 릴리즈 자동화 복구 — Codex
