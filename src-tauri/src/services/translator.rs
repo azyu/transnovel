@@ -107,6 +107,7 @@ struct ModelConfig {
     model_id: String,
 }
 
+#[derive(Debug)]
 struct TranslatorSettings {
     system_prompt: String,
     translation_note: String,
@@ -126,7 +127,7 @@ struct CharacterDictionaryResponse {
 
 impl TranslatorService {
     pub async fn new() -> Result<Self, String> {
-        let settings = Self::load_settings().await;
+        let settings = Self::load_settings().await?;
 
         let client = match settings.provider_type.as_str() {
             "gemini" => {
@@ -173,53 +174,9 @@ impl TranslatorService {
         })
     }
 
-    async fn load_settings() -> TranslatorSettings {
-        let settings = get_settings().await.unwrap_or_default();
-
-        let get_setting = |key: &str| -> Option<String> {
-            settings.iter().find(|s| s.key == key).map(|s| s.value.clone()).filter(|v| !v.is_empty())
-        };
-        
-        let providers_json = get_setting("llm_providers").unwrap_or_else(|| "[]".to_string());
-        let providers: Vec<ProviderConfig> = serde_json::from_str(&providers_json).unwrap_or_default();
-        
-        let models_json = get_setting("llm_models").unwrap_or_else(|| "[]".to_string());
-        let models: Vec<ModelConfig> = serde_json::from_str(&models_json).unwrap_or_default();
-        
-        let active_model_id = get_setting("active_model_id");
-        
-        let active_model = active_model_id
-            .as_ref()
-            .and_then(|id| models.iter().find(|m| &m.id == id));
-        
-        let (provider_type, provider_id, api_key, base_url, model_id) = match active_model {
-            Some(model) => {
-                let provider = providers.iter().find(|p| p.id == model.provider_id);
-                match provider {
-                    Some(p) => (
-                        p.provider_type.clone(),
-                        Some(p.id.clone()),
-                        if p.api_key.is_empty() { None } else { Some(p.api_key.clone()) },
-                        if p.base_url.is_empty() { None } else { Some(p.base_url.clone()) },
-                        Some(model.model_id.clone()),
-                    ),
-                    None => ("".to_string(), None, None, None, None),
-                }
-            },
-            None => ("".to_string(), None, None, None, None),
-        };
-        
-        TranslatorSettings {
-            system_prompt: get_setting("system_prompt").unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string()),
-            translation_note: get_setting("translation_note").unwrap_or_default(),
-            substitutions: get_setting("substitutions").unwrap_or_default(),
-            provider_type,
-            provider_id,
-            api_key,
-            base_url,
-            model: model_id,
-            use_streaming: get_setting("use_streaming").map(|v| v == "true").unwrap_or(true),
-        }
+    async fn load_settings() -> Result<TranslatorSettings, String> {
+        let settings = get_settings().await?;
+        build_translator_settings_from_records(&settings)
     }
 
     async fn build_prompt(
@@ -676,6 +633,62 @@ impl TranslatorService {
     }
 }
 
+fn build_translator_settings_from_records(
+    settings: &[crate::commands::settings::Setting],
+) -> Result<TranslatorSettings, String> {
+    let get_setting = |key: &str| -> Option<String> {
+        settings
+            .iter()
+            .find(|s| s.key == key)
+            .map(|s| s.value.clone())
+            .filter(|v| !v.is_empty())
+    };
+
+    let providers_json = get_setting("llm_providers").unwrap_or_else(|| "[]".to_string());
+    let providers: Vec<ProviderConfig> = serde_json::from_str(&providers_json)
+        .map_err(|e| format!("llm_providers 설정을 읽지 못했습니다: {e}"))?;
+
+    let models_json = get_setting("llm_models").unwrap_or_else(|| "[]".to_string());
+    let models: Vec<ModelConfig> = serde_json::from_str(&models_json)
+        .map_err(|e| format!("llm_models 설정을 읽지 못했습니다: {e}"))?;
+
+    let active_model_id = get_setting("active_model_id").ok_or_else(|| {
+        "사용할 모델이 설정되지 않았습니다. 설정에서 모델을 추가해주세요.".to_string()
+    })?;
+
+    let active_model = models
+        .iter()
+        .find(|model| model.id == active_model_id)
+        .ok_or_else(|| "활성 모델을 찾을 수 없습니다. 설정을 다시 확인해주세요.".to_string())?;
+
+    let provider = providers.iter().find(|provider| provider.id == active_model.provider_id).ok_or_else(|| {
+        "활성 모델의 프로바이더를 찾을 수 없습니다. 설정을 다시 확인해주세요.".to_string()
+    })?;
+
+    Ok(TranslatorSettings {
+        system_prompt: get_setting("system_prompt")
+            .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string()),
+        translation_note: get_setting("translation_note").unwrap_or_default(),
+        substitutions: get_setting("substitutions").unwrap_or_default(),
+        provider_type: provider.provider_type.clone(),
+        provider_id: Some(provider.id.clone()),
+        api_key: if provider.api_key.is_empty() {
+            None
+        } else {
+            Some(provider.api_key.clone())
+        },
+        base_url: if provider.base_url.is_empty() {
+            None
+        } else {
+            Some(provider.base_url.clone())
+        },
+        model: Some(active_model.model_id.clone()),
+        use_streaming: get_setting("use_streaming")
+            .map(|v| v == "true")
+            .unwrap_or(true),
+    })
+}
+
 fn provider_label(provider_type: &str) -> &str {
     match provider_type {
         "openrouter" => "OpenRouter",
@@ -819,6 +832,7 @@ fn parse_character_dictionary_candidates(text: &str) -> Result<Vec<CharacterDict
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::settings::Setting;
 
     #[test]
     fn test_compose_note_joins_sections() {
@@ -865,5 +879,83 @@ mod tests {
 
         assert!(prompt.contains("원문 표기 바로 옆에 후리가나/루비/요미가나가 명시된 항목만 추출합니다."));
         assert!(prompt.contains("일반 명사, 직책명, 수식어, 기술명, 종족명, 일시적 표현은 제외합니다."));
+    }
+
+    #[test]
+    fn build_translator_settings_reads_existing_settings_shape() {
+        let settings = vec![
+            Setting {
+                key: "llm_providers".into(),
+                value: r#"[{"id":"provider-1","type":"custom","apiKey":"sk-test","baseUrl":"https://example.com/v1"}]"#.into(),
+            },
+            Setting {
+                key: "llm_models".into(),
+                value: r#"[{"id":"model-1","name":"model-1","providerId":"provider-1","modelId":"gemma"}]"#.into(),
+            },
+            Setting {
+                key: "active_model_id".into(),
+                value: "model-1".into(),
+            },
+        ];
+
+        let translator_settings =
+            build_translator_settings_from_records(&settings).expect("build settings");
+
+        assert_eq!(translator_settings.provider_type, "custom");
+        assert_eq!(translator_settings.model.as_deref(), Some("gemma"));
+        assert_eq!(
+            translator_settings.base_url.as_deref(),
+            Some("https://example.com/v1")
+        );
+    }
+
+    #[test]
+    fn build_translator_settings_rejects_missing_active_model() {
+        let error = build_translator_settings_from_records(&[]).expect_err("missing active model");
+        assert!(error.contains("모델"));
+    }
+
+    #[test]
+    fn build_translator_settings_rejects_missing_provider_for_active_model() {
+        let settings = vec![
+            Setting {
+                key: "llm_providers".into(),
+                value: r#"[{"id":"provider-1","type":"custom","apiKey":"sk-test","baseUrl":"https://example.com/v1"}]"#.into(),
+            },
+            Setting {
+                key: "llm_models".into(),
+                value: r#"[{"id":"model-1","name":"model-1","providerId":"missing-provider","modelId":"gemma"}]"#.into(),
+            },
+            Setting {
+                key: "active_model_id".into(),
+                value: "model-1".into(),
+            },
+        ];
+
+        let error =
+            build_translator_settings_from_records(&settings).expect_err("missing provider");
+        assert!(error.contains("프로바이더"));
+    }
+
+    #[test]
+    fn build_translator_settings_rejects_malformed_provider_json() {
+        let settings = vec![
+            Setting {
+                key: "llm_providers".into(),
+                value: "not-json".into(),
+            },
+            Setting {
+                key: "llm_models".into(),
+                value: r#"[{"id":"model-1","name":"model-1","providerId":"provider-1","modelId":"gemma"}]"#.into(),
+            },
+            Setting {
+                key: "active_model_id".into(),
+                value: "model-1".into(),
+            },
+        ];
+
+        let error =
+            build_translator_settings_from_records(&settings).expect_err("malformed providers");
+        assert!(error.contains("llm_providers"));
     }
 }
