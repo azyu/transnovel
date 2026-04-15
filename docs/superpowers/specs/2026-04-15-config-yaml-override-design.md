@@ -5,7 +5,7 @@ Status: Approved for implementation
 
 ## Goal
 
-Add an advanced-user configuration file at `~/.config/transnovel/config.yaml` that can override LLM provider settings without replacing the existing SQLite-backed app state.
+Add an advanced-user configuration file at `~/.config/transnovel/config.yaml` that can override the app's LLM provider/model graph without replacing the existing SQLite-backed app state.
 
 The override is intentionally narrow:
 
@@ -19,15 +19,15 @@ Included:
 - A new YAML config file at `~/.config/transnovel/config.yaml`
 - A repo-level `config.example.yaml` that users can copy and edit
 - Runtime loading of YAML-managed LLM settings from Rust
-- Override of active provider and active model when the file exists
-- Override of provider-specific OpenAI-compatible base URL when defined in the file
+- Override of the active model when the file exists
+- Override of provider-specific API keys and OpenAI-compatible base URLs when defined in the file
 - Locking the entire LLM settings UI when the file exists
 - Clear user-facing notice that LLM settings are managed by the file
 
 Excluded:
 
 - Replacing SQLite for non-LLM settings
-- Moving API keys, OAuth tokens, API logs, or watchlist data to YAML
+- Moving OAuth tokens, API logs, or watchlist data to YAML
 - Supporting arbitrary nested provider schemas beyond the fields required now
 - Live file watching or automatic hot reload while the app is open
 
@@ -36,22 +36,34 @@ Excluded:
 The supported file shape is:
 
 ```yaml
-active_provider: openai-compatible
 active_model: gemma-4-26b-a4b-it-4bit
 
 providers:
-  openai-compatible:
+  my-provider-1:
+    type: openai-compatible
+    api_key: sk-...
     base_url: https://example.com/v1
+
+models:
+  gemma-4-26b-a4b-it-4bit:
+    provider: my-provider-1
+    model_id: gemma-4-26b-a4b-it-4bit
 ```
 
 The repository should also include a matching `config.example.yaml` with the same shape and commented guidance so advanced users can copy it into `~/.config/transnovel/config.yaml` and edit only the values they need.
 
 Rules:
 
-- `active_provider` is required when the file exists.
 - `active_model` is required when the file exists.
-- `providers` is optional.
-- `providers.openai-compatible.base_url` is optional, but if present it must be a non-empty string.
+- `providers` is required when the file exists.
+- `models` is required when the file exists.
+- `active_model` must match a key inside `models`.
+- `models.<name>.provider` must match a key inside `providers`.
+- `models.<name>.model_id` is required and must be a non-empty string.
+- `providers.<name>.type` is required and must be a supported API-key-based provider type.
+- `providers.<name>.api_key` is required and must be a non-empty string.
+- `providers.<name>.base_url` is required for `openai-compatible` and rejected for provider types that do not use a custom base URL.
+- `openai-oauth` is not supported in YAML-managed config.
 - Unknown top-level keys should be treated as invalid config instead of being silently ignored.
 
 ## Product Rules
@@ -62,6 +74,7 @@ Rules:
 - The app must not allow editing any LLM settings in the UI while the YAML file exists.
 - The rest of the settings UI remains editable unless it belongs to the LLM settings area.
 - Invalid YAML should fail loudly with a clear user-facing error instead of silently falling back to DB values.
+- YAML-managed providers are limited to API-key-based providers. OAuth login remains DB/UI-managed and unavailable while YAML override is active.
 - The example file in the repo must stay aligned with the supported schema so users can treat it as the canonical starting point.
 
 ## Architecture
@@ -77,10 +90,12 @@ Rules:
 
 - If `config.yaml` is absent, use the current SQLite-backed settings flow.
 - If `config.yaml` is present, use YAML values for:
-  - active provider
   - active model
+  - provider definitions
+  - provider API keys
   - provider-specific OpenAI-compatible base URL when applicable
 - Do not partially mix YAML and DB LLM values once the file exists.
+- Resolve the active provider indirectly through `active_model -> models.<name>.provider -> providers.<name>`.
 
 ### Frontend
 
@@ -95,11 +110,16 @@ Rules:
 If the file exists, validation must enforce:
 
 - valid YAML syntax
-- presence of `active_provider`
 - presence of `active_model`
-- supported provider identifier
-- non-empty `active_model`
-- valid `base_url` string when `providers.openai-compatible.base_url` is present
+- presence of `providers`
+- presence of `models`
+- `active_model` references an existing model entry
+- every model entry has a non-empty `model_id`
+- every model entry references an existing provider entry
+- every provider entry has a supported API-key-based `type`
+- every provider entry has a non-empty `api_key`
+- `openai-compatible` entries include a valid non-empty `base_url`
+- `openai-oauth` is rejected
 - no unsupported top-level keys
 
 Validation failures should surface as explicit errors at the IPC boundary with user-facing Korean messages where the existing settings UI already presents errors.
@@ -108,7 +128,6 @@ Validation failures should surface as explicit errors at the IPC boundary with u
 
 When YAML override is active, lock all controls inside the LLM settings surface, including:
 
-- active provider selection
 - active model selection
 - provider add/remove actions
 - provider credential or endpoint editing UI inside the LLM settings section
@@ -128,7 +147,7 @@ This lock is intentional to keep the source of truth singular and to avoid misle
 Design-level acceptance criteria:
 
 - Without `~/.config/transnovel/config.yaml`, existing LLM settings behavior remains unchanged.
-- With a valid `config.yaml`, translation runtime uses YAML-managed provider and model values.
+- With a valid `config.yaml`, translation runtime resolves the active model and provider entirely from YAML-managed values.
 - With a valid `config.yaml`, the entire LLM settings UI becomes read-only/disabled and explains why.
 - With a malformed `config.yaml`, the app reports a clear configuration error instead of silently falling back to DB-backed LLM settings.
 - Non-LLM settings continue to use existing persistence and remain editable.
