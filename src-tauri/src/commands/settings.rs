@@ -3,6 +3,7 @@ use sqlx::{Pool, Row, Sqlite};
 use std::time::Duration;
 
 use crate::db::get_pool;
+use crate::services::llm_config;
 use crate::services::openai_oauth;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,7 +43,11 @@ fn normalize_release_version(tag: &str) -> Result<String, String> {
         .ok_or_else(|| "릴리즈 버전 형식이 올바르지 않습니다.".to_string())?;
 
     let segments: Vec<&str> = version.split('.').collect();
-    if segments.len() != 3 || segments.iter().any(|segment| segment.parse::<u64>().is_err()) {
+    if segments.len() != 3
+        || segments
+            .iter()
+            .any(|segment| segment.parse::<u64>().is_err())
+    {
         return Err("릴리즈 버전 형식이 올바르지 않습니다.".to_string());
     }
 
@@ -58,7 +63,7 @@ pub async fn get_settings() -> Result<Vec<Setting>, String> {
         .await
         .map_err(|e| e.to_string())?;
 
-    let settings: Vec<Setting> = rows
+    let mut settings: Vec<Setting> = rows
         .iter()
         .map(|row| Setting {
             key: row.get("key"),
@@ -67,10 +72,10 @@ pub async fn get_settings() -> Result<Vec<Setting>, String> {
         .collect();
 
     if settings.is_empty() {
-        return Ok(get_default_settings());
+        settings = get_default_settings();
     }
 
-    Ok(settings)
+    llm_config::load_effective_settings(settings)
 }
 
 fn get_default_settings() -> Vec<Setting> {
