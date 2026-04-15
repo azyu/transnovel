@@ -5,7 +5,7 @@ Status: Approved for implementation
 
 ## Goal
 
-Add an advanced-user configuration file at `~/.config/transnovel/config.yaml` that can override the app's LLM provider/model graph without replacing the existing SQLite-backed app state.
+Add an advanced-user configuration file in the platform config directory that can override the app's LLM provider/model graph without replacing the existing SQLite-backed app state.
 
 The override is intentionally narrow:
 
@@ -16,7 +16,7 @@ The override is intentionally narrow:
 
 Included:
 
-- A new YAML config file at `~/.config/transnovel/config.yaml`
+- A new YAML config file in the platform config directory
 - A repo-level `config.example.yaml` that users can copy and edit
 - Runtime loading of YAML-managed LLM settings from Rust
 - Override of the active model when the file exists
@@ -50,7 +50,16 @@ models:
     model_id: gemma-4-26b-a4b-it-4bit
 ```
 
-The repository should also include a matching `config.example.yaml` with the same shape and commented guidance so advanced users can copy it into `~/.config/transnovel/config.yaml` and edit only the values they need.
+The repository should also include a matching `config.example.yaml` with the same shape and commented guidance so advanced users can copy it into their platform config directory and edit only the values they need.
+
+## Config File Location
+
+The runtime config file path is platform-specific:
+
+- macOS: `~/.config/transnovel/config.yaml`
+- Windows: `%APPDATA%\transnovel\config.yaml`
+
+Backend path resolution should use the OS config directory instead of hardcoding a literal home-relative string.
 
 Rules:
 
@@ -81,7 +90,7 @@ Rules:
 
 ### Backend
 
-- Add a small config loader under the Rust backend that resolves `~/.config/transnovel/config.yaml`.
+- Add a small config loader under the Rust backend that resolves the config file from the platform config directory.
 - Parse the YAML into a typed config struct instead of ad hoc maps.
 - Keep Tauri commands thin and reuse the config loader from existing settings command paths and translation runtime setup.
 - Expose enough information for the frontend to know whether LLM settings are file-managed.
@@ -102,7 +111,7 @@ Rules:
 - Detect from backend settings metadata whether the LLM settings are file-managed.
 - Disable the entire LLM settings area, not just provider/model controls.
 - Show a static explanation such as:
-  - ``LLM 설정은 ~/.config/transnovel/config.yaml 에서 관리되고 있어 앱에서 변경할 수 없습니다.``
+  - ``LLM 설정은 외부 config.yaml 파일에서 관리되고 있어 앱에서 변경할 수 없습니다.``
 - Prevent save actions, provider add/remove actions, model changes, and provider-specific endpoint edits while locked.
 
 ## Validation
@@ -146,7 +155,7 @@ This lock is intentional to keep the source of truth singular and to avoid misle
 
 Design-level acceptance criteria:
 
-- Without `~/.config/transnovel/config.yaml`, existing LLM settings behavior remains unchanged.
+- Without the platform config file, existing LLM settings behavior remains unchanged.
 - With a valid `config.yaml`, translation runtime resolves the active model and provider entirely from YAML-managed values.
 - With a valid `config.yaml`, the entire LLM settings UI becomes read-only/disabled and explains why.
 - With a malformed `config.yaml`, the app reports a clear configuration error instead of silently falling back to DB-backed LLM settings.
