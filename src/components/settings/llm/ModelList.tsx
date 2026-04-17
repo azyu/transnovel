@@ -1,3 +1,4 @@
+import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ModelConfig, ProviderConfig } from './types';
 
@@ -33,6 +34,8 @@ export const ModelList: React.FC<ModelListProps> = ({
   disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const llmMessages = messages.settings.llm;
+  const modelListMessages = llmMessages.modelList;
 
   const getProviderColor = (type: string): string => {
     const colors: Record<string, string> = {
@@ -52,7 +55,7 @@ export const ModelList: React.FC<ModelListProps> = ({
   if (models.length === 0) {
     return (
       <div className={`text-center py-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        등록된 모델이 없습니다. 모델을 추가해주세요.
+        {modelListMessages.empty}
       </div>
     );
   }
@@ -103,7 +106,7 @@ export const ModelList: React.FC<ModelListProps> = ({
               
               {!provider && (
                 <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-500/10 text-red-400 shrink-0">
-                  제공자 없음
+                  {modelListMessages.missingProvider}
                 </span>
               )}
             </button>
@@ -113,13 +116,13 @@ export const ModelList: React.FC<ModelListProps> = ({
                 type="button"
                 disabled={disabled}
                 onClick={() => onEdit(model)}
-                aria-label={`${model.name} 수정`}
+                aria-label={modelListMessages.actions.editAriaLabel(model.name)}
                 className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-200' 
                     : 'hover:bg-slate-200 text-slate-500 hover:text-slate-700'
                 }`}
-                title="수정"
+                title={modelListMessages.actions.editTitle}
               >
                 <EditIcon />
               </button>
@@ -127,13 +130,13 @@ export const ModelList: React.FC<ModelListProps> = ({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDelete(model.id)}
-                aria-label={`${model.name} 삭제`}
+                aria-label={modelListMessages.actions.deleteAriaLabel(model.name)}
                 className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-red-900/30 text-slate-400 hover:text-red-400' 
                     : 'hover:bg-red-100 text-slate-500 hover:text-red-600'
                 }`}
-                title="삭제"
+                title={modelListMessages.actions.deleteTitle}
               >
                 <DeleteIcon />
               </button>

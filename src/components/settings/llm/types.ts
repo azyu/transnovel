@@ -17,66 +17,45 @@ export interface ModelConfig {
 
 export interface ProviderPreset {
   type: ProviderType;
-  label: string;
   defaultBaseUrl: string;
   apiKeyRequired: boolean;
-  apiKeyPlaceholder: string;
   apiKeyHelpUrl?: string;
-  apiKeyHelpText?: string;
 }
 
 export const PROVIDER_PRESETS: Record<ProviderType, ProviderPreset> = {
   gemini: {
     type: 'gemini',
-    label: 'Gemini',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com',
     apiKeyRequired: true,
-    apiKeyPlaceholder: 'AIzaSy...',
     apiKeyHelpUrl: 'https://aistudio.google.com/apikey',
-    apiKeyHelpText: 'Google AI Studio에서 무료로 발급',
   },
   openrouter: {
     type: 'openrouter',
-    label: 'OpenRouter',
     defaultBaseUrl: 'https://openrouter.ai/api',
     apiKeyRequired: true,
-    apiKeyPlaceholder: 'sk-or-...',
     apiKeyHelpUrl: 'https://openrouter.ai/keys',
-    apiKeyHelpText: 'OpenRouter에서 발급',
   },
   anthropic: {
     type: 'anthropic',
-    label: 'Anthropic',
     defaultBaseUrl: 'https://api.anthropic.com',
     apiKeyRequired: true,
-    apiKeyPlaceholder: 'sk-ant-...',
     apiKeyHelpUrl: 'https://console.anthropic.com/settings/keys',
-    apiKeyHelpText: 'Anthropic Console에서 발급',
   },
   openai: {
     type: 'openai',
-    label: 'OpenAI',
     defaultBaseUrl: 'https://api.openai.com',
     apiKeyRequired: true,
-    apiKeyPlaceholder: 'sk-...',
     apiKeyHelpUrl: 'https://platform.openai.com/api-keys',
-    apiKeyHelpText: 'OpenAI Platform에서 발급',
   },
   'openai-oauth': {
     type: 'openai-oauth',
-    label: 'OpenAI (Codex)',
     defaultBaseUrl: 'https://chatgpt.com',
     apiKeyRequired: false,
-    apiKeyPlaceholder: '',
-    apiKeyHelpText: 'ChatGPT 계정으로 로그인하여 인증 (Codex Backend API)',
   },
   custom: {
     type: 'custom',
-    label: 'OpenAI-compatible',
     defaultBaseUrl: '',
     apiKeyRequired: true,
-    apiKeyPlaceholder: 'API 키',
-    apiKeyHelpText: 'OpenAI Chat Completions 호환 API 엔드포인트',
   },
 };
 

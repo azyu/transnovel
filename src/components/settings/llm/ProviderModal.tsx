@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
 import { Modal } from '../../common/Modal';
+import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ProviderConfig, ProviderType } from './types';
 import { PROVIDER_PRESETS } from './types';
@@ -24,6 +25,8 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   const isLocked = disabled;
+  const llmMessages = messages.settings.llm;
+  const providerModalMessages = llmMessages.providerModal;
   
   const [providerType, setProviderType] = useState<ProviderType>('gemini');
   const [name, setName] = useState('');
@@ -41,6 +44,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   const providerBaseUrlId = useId();
 
   const preset = PROVIDER_PRESETS[providerType];
+  const providerTypeMessages = llmMessages.providerTypes[providerType];
   const isEditing = !!editingProvider;
   const isOAuth = providerType === 'openai-oauth';
 
@@ -83,12 +87,12 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
     if (!isEditing) {
       const newPreset = PROVIDER_PRESETS[providerType];
       setBaseUrl(newPreset.defaultBaseUrl);
-      setName(newPreset.label);
+      setName(llmMessages.providerTypes[providerType].label);
       setOauthDone(false);
       setOauthEmail(null);
       setOauthStatusError(null);
     }
-  }, [providerType, isEditing]);
+  }, [providerType, isEditing, llmMessages.providerTypes]);
 
   const handleSave = async () => {
     if (isLocked) return;
@@ -97,7 +101,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       const provider: ProviderConfig = {
         id: providerIdRef.current,
         type: providerType,
-        name: name || preset.label,
+        name: name || providerTypeMessages.label,
         baseUrl,
         apiKey,
       };
@@ -140,7 +144,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       const provider: ProviderConfig = {
         id: providerId,
         type: 'openai-oauth',
-        name: name || preset.label,
+        name: name || llmMessages.providerTypes['openai-oauth'].label,
         baseUrl: baseUrl || preset.defaultBaseUrl,
         apiKey: '',
       };
@@ -192,14 +196,14 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? 'AI 서비스 제공자 수정' : 'AI 서비스 제공자 추가'}
+      title={isEditing ? providerModalMessages.editTitle : providerModalMessages.addTitle}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            취소
+            {providerModalMessages.cancel}
           </Button>
           <Button onClick={handleSave} isLoading={saving} disabled={isLocked || !canSave()}>
-            저장
+            {providerModalMessages.save}
           </Button>
         </>
       }
@@ -207,7 +211,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       <div className="space-y-4">
         <div>
           <label htmlFor={providerTypeId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            종류
+            {providerModalMessages.typeLabel}
           </label>
           <select
             id={providerTypeId}
@@ -221,20 +225,20 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
             } ${(isEditing || isLocked) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {Object.values(PROVIDER_PRESETS).map((p) => (
-              <option key={p.type} value={p.type}>{p.label}</option>
+              <option key={p.type} value={p.type}>{llmMessages.providerTypes[p.type].label}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label htmlFor={providerNameId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            표시 이름
+            {providerModalMessages.nameLabel}
           </label>
           <Input
             id={providerNameId}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={preset.label}
+            placeholder={providerTypeMessages.label}
             disabled={isLocked}
           />
         </div>
@@ -242,7 +246,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
         {isOAuth ? (
           <div>
             <p className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              ChatGPT 인증
+              {providerModalMessages.oauthTitle}
             </p>
             {oauthDone || (isEditing && apiKey) ? (
               <div className="space-y-2">
@@ -254,10 +258,10 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
                         : (isDark ? 'text-green-400' : 'text-green-600')
                     }`}
                   >
-                    {oauthStatusError ? '설정 오류' : (oauthEmail ? `✓ ${oauthEmail}` : '인증됨')}
+                    {oauthStatusError ? providerModalMessages.oauthError : providerModalMessages.oauthAuthenticated(oauthEmail)}
                   </span>
                   <Button variant="secondary" size="sm" onClick={handleOAuthLogin} isLoading={oauthLoading} disabled={isLocked}>
-                    재인증
+                    {providerModalMessages.reauthenticate}
                   </Button>
                 </div>
                 {oauthStatusError && (
@@ -266,17 +270,18 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               </div>
             ) : (
               <Button onClick={handleOAuthLogin} isLoading={oauthLoading} className="w-full" disabled={isLocked}>
-                ChatGPT로 로그인
+                {providerModalMessages.login}
               </Button>
             )}
             <p className={`text-xs mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              브라우저에서 ChatGPT 계정으로 로그인합니다
+              {providerModalMessages.oauthDescription}
             </p>
           </div>
         ) : (
           <div>
             <label htmlFor={providerApiKeyId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              API 키 {!preset.apiKeyRequired && <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>(선택)</span>}
+              {providerModalMessages.apiKeyLabel}{' '}
+              {!preset.apiKeyRequired && <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>({providerModalMessages.optional})</span>}
             </label>
             {preset.apiKeyHelpUrl && (
               <p className={`text-xs mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -286,7 +291,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
                   disabled={isLocked}
                   className="text-blue-400 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {preset.apiKeyHelpText}
+                  {providerTypeMessages.apiKeyHelpText}
                 </button>
               </p>
             )}
@@ -295,7 +300,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={preset.apiKeyPlaceholder || 'API 키'}
+              placeholder={providerTypeMessages.apiKeyPlaceholder || providerModalMessages.apiKeyLabel}
               disabled={isLocked}
             />
           </div>
@@ -304,7 +309,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
         {providerType === 'custom' && (
           <div>
             <label htmlFor={providerBaseUrlId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              기본 URL
+              {providerModalMessages.baseUrlLabel}
             </label>
             <Input
               id={providerBaseUrlId}

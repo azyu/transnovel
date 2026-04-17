@@ -190,6 +190,128 @@ export const settingsMessages = {
       emptyPayload: '(empty)',
     },
   },
+  llm: {
+    title: 'LLM 설정',
+    description: '번역에 사용할 AI 서비스 제공자와 모델을 등록합니다.',
+    loadFailed: (detail: string, configYamlGuidance: boolean) =>
+      `LLM 설정을 불러오지 못했습니다.${configYamlGuidance ? ' config.yaml 형식을 확인하세요.' : ''}${detail ? ` (${detail})` : ''}`,
+    managed: {
+      title: 'config.yaml이 이 LLM 설정을 관리하고 있습니다.',
+      currentFile: (path: string) => `현재 적용 중인 파일: ${path}`,
+      lockedDescription: '이 화면에서는 제공자, 모델, 스트리밍 설정을 수정할 수 없습니다.',
+    },
+    lockedByError: '이 문제가 해결되기 전까지 LLM 설정은 잠긴 상태로 유지됩니다.',
+    providers: {
+      title: 'AI 서비스 제공자',
+      add: '+ 추가',
+      deleteConfirm: (count: number) =>
+        count > 0
+          ? `이 AI 서비스 제공자를 삭제하시겠습니까?\n\n연결된 모델 ${count}개도 함께 삭제됩니다.`
+          : '이 AI 서비스 제공자를 삭제하시겠습니까?',
+      deleteTitle: 'AI 서비스 제공자 삭제',
+    },
+    models: {
+      title: '모델',
+      add: '+ 추가',
+      deleteConfirm: '이 모델을 삭제하시겠습니까?',
+      deleteTitle: '모델 삭제',
+    },
+    streaming: {
+      title: '스트리밍 모드',
+      description: '번역 결과를 실시간으로 표시합니다.',
+    },
+    providerTypes: {
+      gemini: {
+        label: 'Gemini',
+        apiKeyPlaceholder: 'AIzaSy...',
+        apiKeyHelpText: 'Google AI Studio에서 무료로 발급',
+      },
+      openrouter: {
+        label: 'OpenRouter',
+        apiKeyPlaceholder: 'sk-or-...',
+        apiKeyHelpText: 'OpenRouter에서 발급',
+      },
+      anthropic: {
+        label: 'Anthropic',
+        apiKeyPlaceholder: 'sk-ant-...',
+        apiKeyHelpText: 'Anthropic Console에서 발급',
+      },
+      openai: {
+        label: 'OpenAI',
+        apiKeyPlaceholder: 'sk-...',
+        apiKeyHelpText: 'OpenAI Platform에서 발급',
+      },
+      'openai-oauth': {
+        label: 'OpenAI (Codex)',
+        apiKeyPlaceholder: '',
+        apiKeyHelpText: 'ChatGPT 계정으로 로그인하여 인증 (Codex Backend API)',
+      },
+      custom: {
+        label: 'OpenAI-compatible',
+        apiKeyPlaceholder: 'API 키',
+        apiKeyHelpText: 'OpenAI Chat Completions 호환 API 엔드포인트',
+      },
+    },
+    providerList: {
+      empty: '등록된 AI 서비스 제공자가 없습니다. 먼저 추가해주세요.',
+      noApiKey: '(없음)',
+      oauth: {
+        checking: '...',
+        authenticated: (email: string | null) => (email ? `✓ ${email}` : '인증됨'),
+        error: '설정 오류',
+        loginRequired: '로그인 필요',
+      },
+      actions: {
+        editTitle: '수정',
+        deleteTitle: '삭제',
+        editAriaLabel: (name: string) => `${name} 수정`,
+        deleteAriaLabel: (name: string) => `${name} 삭제`,
+      },
+    },
+    modelList: {
+      empty: '등록된 모델이 없습니다. 모델을 추가해주세요.',
+      missingProvider: '제공자 없음',
+      actions: {
+        editTitle: '수정',
+        deleteTitle: '삭제',
+        editAriaLabel: (name: string) => `${name} 수정`,
+        deleteAriaLabel: (name: string) => `${name} 삭제`,
+      },
+    },
+    providerModal: {
+      addTitle: 'AI 서비스 제공자 추가',
+      editTitle: 'AI 서비스 제공자 수정',
+      cancel: '취소',
+      save: '저장',
+      typeLabel: '종류',
+      nameLabel: '표시 이름',
+      oauthTitle: 'ChatGPT 인증',
+      oauthAuthenticated: (email: string | null) => (email ? `✓ ${email}` : '인증됨'),
+      oauthError: '설정 오류',
+      reauthenticate: '재인증',
+      login: 'ChatGPT로 로그인',
+      oauthDescription: '브라우저에서 ChatGPT 계정으로 로그인합니다',
+      apiKeyLabel: 'API 키',
+      optional: '선택',
+      baseUrlLabel: '기본 URL',
+    },
+    modelModal: {
+      addTitle: '모델 추가',
+      editTitle: '모델 수정',
+      cancel: '취소',
+      save: '저장',
+      providerLabel: 'AI 서비스 제공자',
+      noProviders: '먼저 AI 서비스 제공자를 추가해주세요.',
+      modelIdLabel: '모델 ID',
+      modelIdPlaceholder: '예: gpt-4o, claude-sonnet-4, gemini-2.5-flash',
+      refreshModels: '모델 목록 새로고침',
+      manualEntryHint:
+        '모델 ID를 직접 입력하세요. OpenAI-compatible 엔드포인트는 모델 목록 조회를 자동으로 지원하지 않습니다.',
+      displayNameLabel: '표시 이름',
+      optional: '선택',
+      displayNameAutoPlaceholder: '자동 설정',
+    },
+  },
   view: {
     confirmReset: '기본 설정으로 초기화하시겠습니까?',
     confirmResetTitle: '설정 초기화',

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ProviderConfig } from './types';
-import { PROVIDER_PRESETS } from './types';
 
 interface ProviderListProps {
   providers: ProviderConfig[];
@@ -25,6 +25,7 @@ const DeleteIcon = () => (
 
 const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const oauthMessages = messages.settings.llm.providerList.oauth;
   const [status, setStatus] = useState<'checking' | 'authenticated' | 'expired' | 'error'>('checking');
   const [email, setEmail] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -42,12 +43,14 @@ const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
       });
   }, [providerId]);
 
-  if (status === 'checking') return <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>...</span>;
+  if (status === 'checking') {
+    return <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{oauthMessages.checking}</span>;
+  }
 
   if (status === 'authenticated') {
     return (
       <span className={`text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-        {email ? `✓ ${email}` : '인증됨'}
+        {oauthMessages.authenticated(email)}
       </span>
     );
   }
@@ -55,15 +58,15 @@ const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
   if (status === 'error') {
     return (
       <span
-        className={`text-xs ${isDark ? 'text-rose-400' : 'text-rose-600'}`}
-        title={errorMessage ?? undefined}
-      >
-        설정 오류
+      className={`text-xs ${isDark ? 'text-rose-400' : 'text-rose-600'}`}
+      title={errorMessage ?? undefined}
+    >
+        {oauthMessages.error}
       </span>
     );
   }
 
-  return <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>로그인 필요</span>;
+  return <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>{oauthMessages.loginRequired}</span>;
 };
 
 export const ProviderList: React.FC<ProviderListProps> = ({
@@ -73,6 +76,8 @@ export const ProviderList: React.FC<ProviderListProps> = ({
   disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const llmMessages = messages.settings.llm;
+  const providerListMessages = llmMessages.providerList;
 
   const getProviderColor = (type: string): string => {
     const colors: Record<string, string> = {
@@ -87,7 +92,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
   };
 
   const maskApiKey = (apiKey: string): string => {
-    if (!apiKey) return '(없음)';
+    if (!apiKey) return providerListMessages.noApiKey;
     if (apiKey.length <= 8) return '••••••••';
     return `${apiKey.slice(0, 4)}••••${apiKey.slice(-4)}`;
   };
@@ -95,7 +100,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
   if (providers.length === 0) {
     return (
       <div className={`text-center py-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        등록된 AI 서비스 제공자가 없습니다. 먼저 추가해주세요.
+        {providerListMessages.empty}
       </div>
     );
   }
@@ -103,7 +108,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
   return (
     <div className="space-y-2">
       {providers.map((provider) => {
-        const preset = PROVIDER_PRESETS[provider.type];
+        const providerTypeMessages = llmMessages.providerTypes[provider.type];
         
         return (
           <div
@@ -116,7 +121,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
           >
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getProviderColor(provider.type)}`}>
-                {preset?.label || provider.type}
+                {providerTypeMessages?.label || provider.type}
               </span>
               
               <span className={`font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -137,13 +142,13 @@ export const ProviderList: React.FC<ProviderListProps> = ({
                 type="button"
                 disabled={disabled}
                 onClick={() => onEdit(provider)}
-                aria-label={`${provider.name} 수정`}
+                aria-label={providerListMessages.actions.editAriaLabel(provider.name)}
                 className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-200' 
                     : 'hover:bg-slate-200 text-slate-500 hover:text-slate-700'
                 }`}
-                title="수정"
+                title={providerListMessages.actions.editTitle}
               >
                 <EditIcon />
               </button>
@@ -151,13 +156,13 @@ export const ProviderList: React.FC<ProviderListProps> = ({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDelete(provider.id)}
-                aria-label={`${provider.name} 삭제`}
+                aria-label={providerListMessages.actions.deleteAriaLabel(provider.name)}
                 className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-red-900/30 text-slate-400 hover:text-red-400' 
                     : 'hover:bg-red-100 text-slate-500 hover:text-red-600'
                 }`}
-                title="삭제"
+                title={providerListMessages.actions.deleteTitle}
               >
                 <DeleteIcon />
               </button>

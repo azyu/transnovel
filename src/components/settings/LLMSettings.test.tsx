@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { LLMSettings } from './LLMSettings';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -33,6 +34,7 @@ describe('LLMSettings', () => {
   let container: HTMLDivElement;
   let root: Root;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let originalSettingsMessages: unknown;
 
   const managedSettings = [
     {
@@ -76,6 +78,7 @@ describe('LLMSettings', () => {
     root = createRoot(container);
 
     useUIStore.setState({ theme: 'dark' });
+    originalSettingsMessages = messages.settings;
   });
 
   afterEach(() => {
@@ -84,6 +87,7 @@ describe('LLMSettings', () => {
     });
     container.remove();
     consoleErrorSpy.mockRestore();
+    (messages as { settings: unknown }).settings = originalSettingsMessages;
     vi.clearAllMocks();
     vi.useRealTimers();
   });
@@ -320,5 +324,68 @@ describe('LLMSettings', () => {
 
     expect(providerModalProps).toMatchObject({ isOpen: false, disabled: true });
     expect(modelModalProps).toMatchObject({ isOpen: false, disabled: true });
+  });
+
+  it('renders llm surface labels from settings i18n messages', async () => {
+    const originalSettings = originalSettingsMessages as typeof messages.settings;
+    (messages as { settings: unknown }).settings = {
+      ...originalSettings,
+      llm: {
+        ...originalSettings.llm,
+        title: 'LLM title sentinel',
+        description: 'LLM description sentinel',
+        loadFailed: (detail: string, configYamlGuidance: boolean) =>
+          `LLM load sentinel ${configYamlGuidance ? 'yaml ' : ''}${detail}`,
+        managed: {
+          title: 'Managed title sentinel',
+          currentFile: (path: string) => `Managed path sentinel: ${path}`,
+          lockedDescription: 'Managed locked sentinel',
+        },
+        lockedByError: 'Locked by error sentinel',
+        providers: {
+          title: 'Providers title sentinel',
+          add: 'Add provider sentinel',
+          deleteConfirm: (count: number) => `Delete provider sentinel ${count}`,
+          deleteTitle: 'Delete provider title sentinel',
+        },
+        models: {
+          title: 'Models title sentinel',
+          add: 'Add model sentinel',
+          deleteConfirm: 'Delete model sentinel',
+          deleteTitle: 'Delete model title sentinel',
+        },
+        streaming: {
+          title: 'Streaming title sentinel',
+          description: 'Streaming description sentinel',
+        },
+      },
+    };
+
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') {
+        return managedSettings;
+      }
+
+      return undefined;
+    });
+
+    await act(async () => {
+      root.render(<LLMSettings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('LLM title sentinel');
+    expect(container.textContent).toContain('LLM description sentinel');
+    expect(container.textContent).toContain('Managed title sentinel');
+    expect(container.textContent).toContain('Managed path sentinel: /Users/test/.config/transnovel/config.yaml');
+    expect(container.textContent).toContain('Providers title sentinel');
+    expect(container.textContent).toContain('Add provider sentinel');
+    expect(container.textContent).toContain('Models title sentinel');
+    expect(container.textContent).toContain('Add model sentinel');
+    expect(container.textContent).toContain('Streaming title sentinel');
+    expect(container.textContent).toContain('Streaming description sentinel');
   });
 });
