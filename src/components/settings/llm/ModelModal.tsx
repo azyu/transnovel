@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
 import { Modal } from '../../common/Modal';
+import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ModelConfig, ProviderConfig, ModelOption } from './types';
 import { PROVIDER_PRESETS, FALLBACK_MODELS } from './types';
@@ -38,6 +39,8 @@ export const ModelModal: React.FC<ModelModalProps> = ({
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   const isLocked = disabled;
+  const llmMessages = messages.settings.llm;
+  const modelModalMessages = llmMessages.modelModal;
   
   const [providerId, setProviderId] = useState('');
   const [name, setName] = useState('');
@@ -181,14 +184,14 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? '모델 수정' : '모델 추가'}
+      title={isEditing ? modelModalMessages.editTitle : modelModalMessages.addTitle}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            취소
+            {modelModalMessages.cancel}
           </Button>
           <Button onClick={handleSave} isLoading={saving} disabled={isLocked || !canSave()}>
-            저장
+            {modelModalMessages.save}
           </Button>
         </>
       }
@@ -196,11 +199,11 @@ export const ModelModal: React.FC<ModelModalProps> = ({
       <div className="space-y-4">
         <div>
           <label htmlFor={providerIdInputId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            AI 서비스 제공자
+            {modelModalMessages.providerLabel}
           </label>
           {providers.length === 0 ? (
             <p className={`text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-              먼저 AI 서비스 제공자를 추가해주세요.
+              {modelModalMessages.noProviders}
             </p>
           ) : (
             <select
@@ -216,7 +219,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
             >
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({PROVIDER_PRESETS[p.type]?.label || p.type})
+                  {p.name} ({llmMessages.providerTypes[p.type].label || p.type})
                 </option>
               ))}
             </select>
@@ -225,14 +228,14 @@ export const ModelModal: React.FC<ModelModalProps> = ({
 
         <div>
           <label htmlFor={modelIdInputId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            모델 ID
+            {modelModalMessages.modelIdLabel}
           </label>
           <div className="flex gap-2 mb-2">
               <Input
                 id={modelIdInputId}
                 value={modelId}
                 onChange={(e) => setModelId(e.target.value)}
-                placeholder="예: gpt-4o, claude-sonnet-4, gemini-2.5-flash"
+                placeholder={modelModalMessages.modelIdPlaceholder}
                 className="flex-1"
                 disabled={isLocked || !providerId}
               />
@@ -243,13 +246,15 @@ export const ModelModal: React.FC<ModelModalProps> = ({
               isLoading={loadingModels}
               className="shrink-0"
               disabled={isLocked || !providerId || !supportsModelDiscovery}
+              title={modelModalMessages.refreshModels}
+              aria-label={modelModalMessages.refreshModels}
             >
               ↻
             </Button>
           </div>
           {!supportsModelDiscovery && providerType === 'custom' && (
             <p className={`text-xs mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              모델 ID를 직접 입력하세요. OpenAI-compatible 엔드포인트는 모델 목록 조회를 자동으로 지원하지 않습니다.
+              {modelModalMessages.manualEntryHint}
             </p>
           )}
           {models.length > 0 && (
@@ -280,13 +285,14 @@ export const ModelModal: React.FC<ModelModalProps> = ({
 
         <div>
           <label htmlFor={modelNameInputId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            표시 이름 <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>(선택)</span>
+            {modelModalMessages.displayNameLabel}{' '}
+            <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>({modelModalMessages.optional})</span>
           </label>
           <Input
             id={modelNameInputId}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={models.find(m => m.id === modelId)?.name || '자동 설정'}
+            placeholder={models.find(m => m.id === modelId)?.name || modelModalMessages.displayNameAutoPlaceholder}
             disabled={isLocked || !providerId}
           />
         </div>

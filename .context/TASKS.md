@@ -70,6 +70,7 @@
 
 ## Done
 
+- [x] #18 LLM 설정 및 제공자/모델 모달 i18n 정리 — Codex
 - [x] #17 번역 설정·고급 설정·API 로그 화면 i18n 정리 — Codex
 - [x] #16 설정 탭 공통/About/View 화면 i18n 정리 — Codex
 - [x] #14 translation/common 기존 i18n 상수 연결 1차 구현 — Codex

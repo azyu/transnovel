@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { ModelModal } from './llm/ModelModal';
 import { ModelList } from './llm/ModelList';
 import { ProviderModal } from './llm/ProviderModal';
 import { ProviderList } from './llm/ProviderList';
 import type { ModelConfig, ProviderConfig, ProviderType } from './llm/types';
-import { PROVIDER_PRESETS } from './llm/types';
 
 interface OldModelConfig {
   id: string;
@@ -27,11 +27,11 @@ function migrateOldData(oldModels: OldModelConfig[]): { providers: ProviderConfi
     const providerKey = `${oldModel.providerType}-${oldModel.apiKey}-${oldModel.baseUrl}`;
 
     if (!providerMap.has(providerKey)) {
-      const preset = PROVIDER_PRESETS[oldModel.providerType];
+      const providerTypeMessages = messages.settings.llm.providerTypes[oldModel.providerType];
       providerMap.set(providerKey, {
         id: crypto.randomUUID(),
         type: oldModel.providerType,
-        name: preset?.label || oldModel.providerType,
+        name: providerTypeMessages?.label || oldModel.providerType,
         apiKey: oldModel.apiKey,
         baseUrl: oldModel.baseUrl,
       });
@@ -60,6 +60,7 @@ function isOldFormat(data: unknown): data is OldModelConfig[] {
 
 export const LLMSettings: React.FC = () => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const llmMessages = messages.settings.llm;
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -140,14 +141,11 @@ export const LLMSettings: React.FC = () => {
       } catch (error) {
         console.error('Failed to load settings:', error);
         const detail = error instanceof Error ? error.message : String(error);
-        const configYamlGuidance = /config\.yaml/i.test(detail)
-          ? ' config.yaml 형식을 확인하세요.'
-          : '';
-        setLoadError(`LLM 설정을 불러오지 못했습니다.${configYamlGuidance}${detail ? ` (${detail})` : ''}`);
+        setLoadError(llmMessages.loadFailed(detail, /config\.yaml/i.test(detail)));
       }
     };
     loadSettings();
-  }, []);
+  }, [llmMessages]);
 
   const pendingSaveRef = useRef<(() => void) | null>(null);
 
@@ -191,12 +189,8 @@ export const LLMSettings: React.FC = () => {
 
   const handleDeleteProvider = async (id: string) => {
     const associatedModels = models.filter(m => m.providerId === id);
-    const message = associatedModels.length > 0
-      ? `이 AI 서비스 제공자를 삭제하시겠습니까?\n\n연결된 모델 ${associatedModels.length}개도 함께 삭제됩니다.`
-      : '이 AI 서비스 제공자를 삭제하시겠습니까?';
-
-    const confirmed = await ask(message, {
-      title: 'AI 서비스 제공자 삭제',
+    const confirmed = await ask(llmMessages.providers.deleteConfirm(associatedModels.length), {
+      title: llmMessages.providers.deleteTitle,
       kind: 'warning',
     });
     if (!confirmed) return;
@@ -238,8 +232,8 @@ export const LLMSettings: React.FC = () => {
   };
 
   const handleDeleteModel = async (id: string) => {
-    const confirmed = await ask('이 모델을 삭제하시겠습니까?', {
-      title: '모델 삭제',
+    const confirmed = await ask(llmMessages.models.deleteConfirm, {
+      title: llmMessages.models.deleteTitle,
       kind: 'warning',
     });
     if (!confirmed) return;
@@ -258,9 +252,9 @@ export const LLMSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>LLM 설정</h2>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{llmMessages.title}</h2>
         <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          번역에 사용할 AI 서비스 제공자와 모델을 등록합니다.
+          {llmMessages.description}
         </p>
       </div>
 
@@ -270,14 +264,15 @@ export const LLMSettings: React.FC = () => {
             isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-amber-300 bg-amber-50 text-amber-900'
           }`}
         >
-          <p className="font-medium">config.yaml이 이 LLM 설정을 관리하고 있습니다.</p>
+          <p className="font-medium">{llmMessages.managed.title}</p>
           <p className="mt-1">
             {llmConfigPath ? (
               <>
-                현재 적용 중인 파일: <span className="font-mono">{llmConfigPath}</span>
+                {llmMessages.managed.currentFile(llmConfigPath).replace(llmConfigPath, '')}
+                <span className="font-mono">{llmConfigPath}</span>
               </>
             ) : (
-              '이 화면에서는 제공자, 모델, 스트리밍 설정을 수정할 수 없습니다.'
+              llmMessages.managed.lockedDescription
             )}
           </p>
         </div>
@@ -290,15 +285,15 @@ export const LLMSettings: React.FC = () => {
           }`}
         >
           <p className="font-medium">{loadError}</p>
-          <p className="mt-1">이 문제가 해결되기 전까지 LLM 설정은 잠긴 상태로 유지됩니다.</p>
+          <p className="mt-1">{llmMessages.lockedByError}</p>
         </div>
       )}
 
       <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>AI 서비스 제공자</h3>
+          <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{llmMessages.providers.title}</h3>
           <Button size="sm" onClick={handleAddProvider} disabled={isLocked}>
-            + 추가
+            {llmMessages.providers.add}
           </Button>
         </div>
 
@@ -312,9 +307,9 @@ export const LLMSettings: React.FC = () => {
 
       <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>모델</h3>
+          <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{llmMessages.models.title}</h3>
           <Button size="sm" onClick={handleAddModel} disabled={providers.length === 0 || isLocked}>
-            + 추가
+            {llmMessages.models.add}
           </Button>
         </div>
 
@@ -332,9 +327,9 @@ export const LLMSettings: React.FC = () => {
       <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between">
           <div>
-            <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>스트리밍 모드</h3>
+            <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{llmMessages.streaming.title}</h3>
             <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              번역 결과를 실시간으로 표시합니다.
+              {llmMessages.streaming.description}
             </p>
           </div>
           <button
