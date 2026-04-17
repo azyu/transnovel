@@ -23,7 +23,7 @@ describe('CharacterDictionaryModal', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    useUIStore.setState({ theme: 'dark' });
+    useUIStore.setState({ theme: 'dark', language: 'ko' });
     originalDictionaryModalMessages = (messages.translation as { dictionaryModal?: unknown }).dictionaryModal;
   });
 

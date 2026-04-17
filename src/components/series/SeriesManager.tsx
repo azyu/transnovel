@@ -7,22 +7,26 @@ import { useWatchlist } from '../../hooks/useWatchlist';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import type { WatchlistEpisode, WatchlistItem } from '../../types';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 import { formatWatchlistSiteLabel, getWatchlistItemKey } from '../../utils/watchlist';
 
-const formatCheckedAt = (value: string | null): string => {
+const formatCheckedAt = (value: string | null, notCheckedYet: string): string => {
   if (!value) {
-    return messages.series.notCheckedYet;
+    return notCheckedYet;
   }
 
   return value.replace('T', ' ').replace('Z', '');
 };
 
-const EpisodeStatusBadge: React.FC<{ episode: WatchlistEpisode }> = ({ episode }) => {
+const EpisodeStatusBadge: React.FC<{
+  episode: WatchlistEpisode;
+  viewedLabel: string;
+  newLabel: string;
+}> = ({ episode, viewedLabel, newLabel }) => {
   if (episode.isNew) {
     return (
       <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-semibold tracking-[0.08em] text-emerald-400">
-        {messages.series.status.new}
+        {newLabel}
       </span>
     );
   }
@@ -30,8 +34,8 @@ const EpisodeStatusBadge: React.FC<{ episode: WatchlistEpisode }> = ({ episode }
   if (episode.isViewed) {
     return (
       <span
-        aria-label={messages.series.status.viewed}
-        title={messages.series.status.viewed}
+        aria-label={viewedLabel}
+        title={viewedLabel}
         className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-500/10 text-slate-400"
       >
         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -50,6 +54,7 @@ const EpisodeStatusBadge: React.FC<{ episode: WatchlistEpisode }> = ({ episode }
 
 export const SeriesManager: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
+  const language = useUIStore((s) => s.language);
   const showError = useUIStore((s) => s.showError);
   const setTab = useUIStore((s) => s.setTab);
   const watchlistItems = useSeriesStore((s) => s.watchlistItems);
@@ -69,7 +74,9 @@ export const SeriesManager: React.FC = () => {
   const selectionRequestIdRef = useRef(0);
 
   const isDark = theme === 'dark';
-  const translationNavigationBlockedMessage = messages.series.translationNavigationBlocked;
+  const localeMessages = getMessages(language);
+  const seriesMessages = localeMessages.series;
+  const translationNavigationBlockedMessage = seriesMessages.translationNavigationBlocked;
   const selectedItem = useMemo(
     () =>
       watchlistItems.find((item) => getWatchlistItemKey(item) === selectedWatchlistNovelId) ??
@@ -171,14 +178,14 @@ export const SeriesManager: React.FC = () => {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {messages.series.title}
+              {seriesMessages.title}
             </h2>
             <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {messages.series.description}
+              {seriesMessages.description}
             </p>
           </div>
           <Button variant="secondary" onClick={handleRefresh} isLoading={isRefreshingWatchlist}>
-            {messages.common.actions.refresh}
+            {localeMessages.common.actions.refresh}
           </Button>
         </div>
 
@@ -187,13 +194,13 @@ export const SeriesManager: React.FC = () => {
             <Input
               value={registerUrl}
               onChange={(event) => setRegisterUrl(event.target.value)}
-              placeholder={messages.common.placeholders.url}
-              aria-label={messages.series.inputAriaLabel}
+              placeholder={localeMessages.common.placeholders.url}
+              aria-label={seriesMessages.inputAriaLabel}
               error={registerError ?? undefined}
             />
           </div>
           <Button type="submit" isLoading={registering} disabled={!registerUrl.trim()}>
-            {messages.series.add}
+            {seriesMessages.add}
           </Button>
         </form>
 
@@ -205,7 +212,7 @@ export const SeriesManager: React.FC = () => {
                 : 'border-red-200 bg-red-50 text-red-700'
             }`}
           >
-            {messages.series.loadErrorPrefix} {watchlistError}
+            {seriesMessages.loadErrorPrefix} {watchlistError}
           </div>
         )}
       </div>
@@ -216,7 +223,7 @@ export const SeriesManager: React.FC = () => {
             isDark ? 'border-slate-700 bg-slate-800 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
           }`}
         >
-          {messages.series.loading}
+          {seriesMessages.loading}
         </div>
       ) : watchlistItems.length === 0 ? (
         <div
@@ -225,10 +232,10 @@ export const SeriesManager: React.FC = () => {
           }`}
         >
           <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {messages.series.emptyTitle}
+            {seriesMessages.emptyTitle}
           </h3>
           <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {messages.series.emptyDescription}
+            {seriesMessages.emptyDescription}
           </p>
         </div>
       ) : (
@@ -270,13 +277,13 @@ export const SeriesManager: React.FC = () => {
                             isDark ? 'text-slate-400' : 'text-slate-500'
                           }`}
                         >
-                          {item.author ?? messages.series.authorUnknown}
+                          {item.author ?? seriesMessages.authorUnknown}
                         </p>
                       </div>
                       {item.lastCheckStatus === 'error' ? (
                         <span
-                          aria-label={messages.series.status.checkFailed}
-                          title={messages.series.status.checkFailed}
+                          aria-label={seriesMessages.status.checkFailed}
+                          title={seriesMessages.status.checkFailed}
                           className={`rounded-full px-2 py-1 text-xs font-bold ${
                             isDark ? 'bg-red-500/15 text-red-300' : 'bg-red-100 text-red-700'
                           }`}
@@ -301,7 +308,7 @@ export const SeriesManager: React.FC = () => {
                       }`}
                     >
                       <span>{formatWatchlistSiteLabel(item.site)}</span>
-                      <span>{formatCheckedAt(item.lastCheckedAt)}</span>
+                      <span>{formatCheckedAt(item.lastCheckedAt, seriesMessages.notCheckedYet)}</span>
                     </div>
                   </button>
                 );
@@ -337,10 +344,14 @@ export const SeriesManager: React.FC = () => {
                             isDark ? 'text-slate-100' : 'text-slate-800'
                           }`}
                         >
-                          {episode.title ?? messages.series.episodeFallbackTitle(episode.chapterNumber)}
+                          {episode.title ?? seriesMessages.episodeFallbackTitle(episode.chapterNumber)}
                         </p>
                       </div>
-                      <EpisodeStatusBadge episode={episode} />
+                      <EpisodeStatusBadge
+                        episode={episode}
+                        viewedLabel={seriesMessages.status.viewed}
+                        newLabel={seriesMessages.status.new}
+                      />
                     </button>
                   ))}
                 </div>

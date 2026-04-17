@@ -15,7 +15,7 @@ describe('BatchTranslationModal', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     originalSeriesMessages = messages.series;
-    useUIStore.setState({ theme: 'dark' });
+    useUIStore.setState({ theme: 'dark', language: 'ko' });
   });
 
   afterEach(() => {

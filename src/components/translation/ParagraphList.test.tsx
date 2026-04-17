@@ -21,7 +21,7 @@ describe('ParagraphList', () => {
     root = createRoot(container);
     originalParagraphListMessages = (messages.translation as { paragraphList?: unknown }).paragraphList;
 
-    useUIStore.setState({ theme: 'dark', viewConfigVersion: 0 });
+    useUIStore.setState({ theme: 'dark', language: 'ko', viewConfigVersion: 0 });
     useTranslationStore.setState({
       paragraphIds: ['p-1'],
       paragraphById: {

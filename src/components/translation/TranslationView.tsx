@@ -12,7 +12,7 @@ import { useWatchlist } from '../../hooks/useWatchlist';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 import { buildWatchlistWorkUrl, isWatchlistSupportedSite } from '../../utils/watchlist';
 import {
   mergeCharacterDictionaryEntries,
@@ -23,6 +23,7 @@ import type { CharacterDictionaryEntry } from '../../types';
 
 export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
+  const language = useUIStore((s) => s.language);
   const showError = useUIStore((s) => s.showError);
   const showToast = useUIStore((s) => s.showToast);
   const watchlistItems = useSeriesStore((s) => s.watchlistItems);
@@ -49,6 +50,7 @@ export const TranslationView: React.FC = () => {
   const [addingWatchlist, setAddingWatchlist] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const isDark = theme === 'dark';
+  const localeMessages = getMessages(language);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   const isTranslationComplete = 
@@ -98,7 +100,7 @@ export const TranslationView: React.FC = () => {
     try {
       await invoke('stop_translation');
     } catch (err) {
-      showError(messages.translation.translation.stopFailed, String(err));
+      showError(localeMessages.translation.translation.stopFailed, String(err));
     }
   };
 
@@ -142,14 +144,14 @@ export const TranslationView: React.FC = () => {
           include_original: includeOriginal,
         },
       });
-      await message(messages.translation.saveResult.successMessage(path), {
-        title: messages.translation.saveResult.successTitle,
+      await message(localeMessages.translation.saveResult.successMessage(path), {
+        title: localeMessages.translation.saveResult.successTitle,
       });
     } catch (err) {
       const errorMessage = String(err);
       if (!errorMessage.includes('취소')) {
-        await message(messages.translation.saveResult.failureMessage(String(err)), {
-          title: messages.translation.saveResult.failureTitle,
+        await message(localeMessages.translation.saveResult.failureMessage(String(err)), {
+          title: localeMessages.translation.saveResult.failureTitle,
           kind: 'error',
         });
       }
@@ -176,7 +178,7 @@ export const TranslationView: React.FC = () => {
       setDictionaryEntries(entries);
       setShowDictionaryModal(true);
     } catch (err) {
-      showError(messages.translation.dictionary.loadFailed, String(err));
+      showError(localeMessages.translation.dictionary.loadFailed, String(err));
     } finally {
       setDictionaryLoading(false);
     }
@@ -197,8 +199,8 @@ export const TranslationView: React.FC = () => {
     );
     if (!dictionaryTarget) {
       showError(
-        messages.translation.dictionary.saveFailed,
-        messages.translation.dictionary.missingTarget,
+        localeMessages.translation.dictionary.saveFailed,
+        localeMessages.translation.dictionary.missingTarget,
       );
       return;
     }
@@ -215,9 +217,9 @@ export const TranslationView: React.FC = () => {
       await saveCharacterDictionary(dictionaryTarget.site, dictionaryTarget.novelId, entriesToSave);
       setShowDictionaryModal(false);
       setPendingCharacterDictionaryReview(null);
-      showToast(messages.translation.dictionary.saveSuccess);
+      showToast(localeMessages.translation.dictionary.saveSuccess);
     } catch (err) {
-      showError(messages.translation.dictionary.saveFailed, String(err));
+      showError(localeMessages.translation.dictionary.saveFailed, String(err));
     } finally {
       setDictionarySaving(false);
     }
@@ -226,8 +228,8 @@ export const TranslationView: React.FC = () => {
   const handleAddToWatchlist = async () => {
     if (!chapter || !isWatchlistSupportedSite(chapter.site)) {
       showError(
-        messages.translation.watchlist.addFailed,
-        messages.translation.watchlist.unsupportedSite,
+        localeMessages.translation.watchlist.addFailed,
+        localeMessages.translation.watchlist.unsupportedSite,
       );
       return;
     }
@@ -235,8 +237,8 @@ export const TranslationView: React.FC = () => {
     const workUrl = buildWatchlistWorkUrl(chapter.site, chapter.novelId);
     if (!workUrl) {
       showError(
-        messages.translation.watchlist.addFailed,
-        messages.translation.watchlist.buildUrlFailed,
+        localeMessages.translation.watchlist.addFailed,
+        localeMessages.translation.watchlist.buildUrlFailed,
       );
       return;
     }
@@ -245,7 +247,7 @@ export const TranslationView: React.FC = () => {
     try {
       await addWatchlistItem(workUrl);
     } catch (err) {
-      showError(messages.translation.watchlist.addFailed, String(err));
+      showError(localeMessages.translation.watchlist.addFailed, String(err));
     } finally {
       setAddingWatchlist(false);
     }
@@ -259,9 +261,9 @@ export const TranslationView: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div>
-            <p className="text-yellow-500 font-medium">{messages.translation.llmConfig.requiredTitle}</p>
+            <p className="text-yellow-500 font-medium">{localeMessages.translation.llmConfig.requiredTitle}</p>
             <p className="text-yellow-500/80 text-sm mt-1">
-              {messages.translation.llmConfig.requiredDescription}
+              {localeMessages.translation.llmConfig.requiredDescription}
             </p>
           </div>
         </div>
@@ -306,7 +308,7 @@ export const TranslationView: React.FC = () => {
             <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            <p>{messages.translation.urlInput.emptyState}</p>
+            <p>{localeMessages.translation.urlInput.emptyState}</p>
           </div>
         )}
       </div>
@@ -326,18 +328,18 @@ export const TranslationView: React.FC = () => {
                 isAlreadyInWatchlist
               }
             >
-              {messages.translation.addToWatchlist}
+              {localeMessages.translation.addToWatchlist}
             </Button>
             <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying || !isTranslationComplete}>
-              {messages.common.actions.save}
+              {localeMessages.common.actions.save}
             </Button>
             <Button variant="secondary" onClick={handleOpenDictionary} disabled={isTranslating || retrying || dictionaryLoading}>
-              {dictionaryLoading ? messages.translation.dictionary.loading : messages.translation.dictionary.open}
+              {dictionaryLoading ? localeMessages.translation.dictionary.loading : localeMessages.translation.dictionary.open}
             </Button>
             {failedParagraphIndices.length > 0 && !isTranslating && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-red-500">
-                  {messages.translation.translation.failedItems(failedParagraphIndices.length)}
+                  {localeMessages.translation.translation.failedItems(failedParagraphIndices.length)}
                 </span>
                 <Button 
                   variant="secondary" 
@@ -348,7 +350,7 @@ export const TranslationView: React.FC = () => {
                   }}
                   disabled={retrying}
                 >
-                  {retrying ? messages.translation.translation.retrying : messages.translation.translation.retry}
+                  {retrying ? localeMessages.translation.translation.retrying : localeMessages.translation.translation.retry}
                 </Button>
               </div>
             )}
@@ -366,19 +368,19 @@ export const TranslationView: React.FC = () => {
                   </span>
                 </div>
                 <Button variant="danger" onClick={handleStop}>
-                  {messages.translation.translation.stop}
+                  {localeMessages.translation.translation.stop}
                 </Button>
               </>
             ) : translatedCount === paragraphIds.length && paragraphIds.length > 0 ? (
               <div className="flex items-center gap-2">
                 {chapter.prevUrl && (
                   <Button variant="secondary" onClick={handlePrevChapter}>
-                    {messages.translation.navigation.prevChapter}
+                    {localeMessages.translation.navigation.prevChapter}
                   </Button>
                 )}
                 {chapter.nextUrl && (
                   <Button onClick={handleNextChapter}>
-                    {messages.translation.navigation.nextChapter}
+                    {localeMessages.translation.navigation.nextChapter}
                   </Button>
                 )}
               </div>
@@ -400,15 +402,15 @@ export const TranslationView: React.FC = () => {
         key={`${dictionaryMode}:${chapter?.novelId ?? 'none'}:${JSON.stringify(dictionaryEntries)}`}
         isOpen={showDictionaryModal}
         title={dictionaryMode === 'review'
-          ? messages.translation.dictionary.reviewTitle
-          : messages.translation.dictionary.manualTitle}
+          ? localeMessages.translation.dictionary.reviewTitle
+          : localeMessages.translation.dictionary.manualTitle}
         description={dictionaryMode === 'review'
-          ? messages.translation.dictionary.reviewDescription
-          : messages.translation.dictionary.manualDescription}
+          ? localeMessages.translation.dictionary.reviewDescription
+          : localeMessages.translation.dictionary.manualDescription}
         entries={dictionaryEntries}
         saveLabel={dictionaryMode === 'review'
-          ? messages.translation.dictionary.reviewSaveLabel
-          : messages.translation.dictionary.manualSaveLabel}
+          ? localeMessages.translation.dictionary.reviewSaveLabel
+          : localeMessages.translation.dictionary.manualSaveLabel}
         isSaving={dictionarySaving}
         onClose={handleCloseDictionary}
         onSave={handleSaveDictionary}

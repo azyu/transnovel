@@ -5,11 +5,9 @@ import { Input } from '../common/Input';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 import { getUrlHistory, saveUrlHistory, type UrlHistoryItem } from '../../utils/urlHistory';
 import { FOCUS_TRANSLATION_URL_INPUT_EVENT } from '../../utils/tabShortcuts';
-
-const SUPPORTED_SITES = messages.translation.urlInput.supportedSiteLinks;
 
 interface UrlInputProps {
   historyKey?: string;
@@ -18,6 +16,7 @@ interface UrlInputProps {
 
 export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', parseOnly = false }) => {
   const theme = useUIStore((s) => s.theme);
+  const language = useUIStore((s) => s.language);
   const currentUrl = useTranslationStore((s) => s.currentUrl);
   const setUrl = useTranslationStore((s) => s.setUrl);
   const isTranslating = useTranslationStore((s) => s.isTranslating);
@@ -31,6 +30,8 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const isDark = theme === 'dark';
+  const localeMessages = getMessages(language);
+  const supportedSites = localeMessages.translation.urlInput.supportedSiteLinks;
 
   useEffect(() => {
     setHistory(getUrlHistory(historyKey));
@@ -101,11 +102,11 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
         <div className="flex-1 relative" ref={containerRef}>
           <div className="mb-1.5 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
             <label htmlFor={inputId} className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              {messages.translation.urlInput.label}
+              {localeMessages.translation.urlInput.label}
             </label>
             <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              <span>{messages.translation.urlInput.supportedSites}</span>
-              {SUPPORTED_SITES.map((site, idx) => (
+              <span>{localeMessages.translation.urlInput.supportedSites}</span>
+              {supportedSites.map((site, idx) => (
                 <span key={site.name} className="flex items-center gap-2">
                   {idx > 0 && <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>}
                   <button
@@ -125,7 +126,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             value={localUrl}
             onChange={(e) => setLocalUrl(e.target.value)}
             onFocus={() => history.length > 0 && setShowDropdown(true)}
-            placeholder={messages.common.placeholders.url}
+            placeholder={localeMessages.common.placeholders.url}
             disabled={loading || isTranslating}
           />
           {showDropdown && history.length > 0 && (
@@ -147,7 +148,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
                           {item.novelTitle}
                         </span>
                         <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                          {item.chapterNumber ? messages.translation.urlInput.historyChapterLabel(item.chapterNumber) : ''}
+                          {item.chapterNumber ? localeMessages.translation.urlInput.historyChapterLabel(item.chapterNumber) : ''}
                         </span>
                       </>
                     )}
@@ -158,7 +159,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
           )}
         </div>
         <Button type="submit" isLoading={loading} disabled={!localUrl || isTranslating}>
-          {messages.common.actions.load}
+          {localeMessages.common.actions.load}
         </Button>
       </form>
     </div>

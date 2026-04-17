@@ -41,6 +41,7 @@ describe('SeriesManager', () => {
     useUIStore.setState({
       currentTab: 'series',
       theme: 'dark',
+      language: 'ko',
       toast: null,
     });
 
@@ -125,6 +126,18 @@ describe('SeriesManager', () => {
 
     expect(container.textContent).toContain('완결 테스트 작품');
     expect(container.textContent).not.toContain('새 화 없음');
+  });
+
+  it('renders watchlist-surface copy in English when the UI language is English', async () => {
+    useUIStore.setState({ language: 'en' });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    expect(container.textContent).toContain('Watchlist');
+    expect(container.textContent).toContain('Refresh');
+    expect(container.textContent).toContain('Add to watchlist');
   });
 
   it('shows an error badge in the top slot without rendering a separate failure label', async () => {

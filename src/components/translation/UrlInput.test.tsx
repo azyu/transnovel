@@ -37,7 +37,7 @@ describe('UrlInput', () => {
     root = createRoot(container);
     originalUrlInputMessages = (messages.translation as { urlInput?: unknown }).urlInput;
 
-    useUIStore.setState({ theme: 'dark' });
+    useUIStore.setState({ theme: 'dark', language: 'ko' });
     useTranslationStore.setState({
       currentUrl: 'https://example.com/novel/1',
       isTranslating: false,
@@ -96,5 +96,17 @@ describe('UrlInput', () => {
     });
 
     expect(container.textContent).toContain('Chapter sentinel 3');
+  });
+
+  it('renders English translation-surface copy when the UI language is English', async () => {
+    useUIStore.setState({ language: 'en' });
+
+    await act(async () => {
+      root.render(<UrlInput historyKey="test_url_history" />);
+    });
+
+    expect(container.textContent).toContain('Novel URL');
+    expect(container.textContent).toContain('Supported sites');
+    expect(container.textContent).toContain('Load');
   });
 });
