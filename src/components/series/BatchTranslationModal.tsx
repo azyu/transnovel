@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { Button } from '../common/Button';
 import type { TranslationProgress } from '../../types';
@@ -20,21 +21,22 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
   onStop,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const batchMessages = messages.series.batchTranslation;
   const percentage = Math.min(
     100,
     Math.max(0, (progress.current_chapter / progress.total_chapters) * 100)
   );
 
-  const statusText = isPaused ? '일시정지됨' : 
-    progress.status === 'error' ? '오류 발생' : 
-    progress.status === 'completed' ? '완료' : '번역 중...';
+  const statusText = isPaused ? batchMessages.status.paused : 
+    progress.status === 'error' ? batchMessages.status.error : 
+    progress.status === 'completed' ? batchMessages.status.completed : batchMessages.status.translating;
 
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/60 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="일괄 번역 진행 상태"
+      aria-label={batchMessages.dialogLabel}
     >
       <div className={`relative w-full max-w-md rounded-xl shadow-2xl ${isDark ? 'bg-slate-800 ring-1 ring-white/10' : 'bg-white ring-1 ring-black/10'}`}>
         <div className={`p-6 space-y-6`}>
@@ -54,7 +56,7 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
               )}
             </div>
             <h3 className={`text-xl font-semibold mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              일괄 번역 {statusText}
+              {batchMessages.title(statusText)}
             </h3>
             <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {progress.chapter_title}
@@ -64,10 +66,10 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                진행률
+                {batchMessages.progressLabel}
               </span>
               <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {progress.current_chapter} / {progress.total_chapters} 화
+                {batchMessages.chapterProgress(progress.current_chapter, progress.total_chapters)}
               </span>
             </div>
             <div className={`w-full rounded-full h-3 overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
@@ -84,7 +86,7 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
               className={`text-center mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
               aria-live="polite"
             >
-              {Math.round(percentage)}% 완료
+              {batchMessages.percentComplete(Math.round(percentage))}
             </div>
           </div>
 
@@ -97,15 +99,15 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
           <div className="flex gap-3">
             {isPaused ? (
               <Button className="flex-1" onClick={onResume}>
-                재개
+                {batchMessages.resume}
               </Button>
             ) : (
               <Button className="flex-1" variant="secondary" onClick={onPause}>
-                일시정지
+                {batchMessages.pause}
               </Button>
             )}
             <Button className="flex-1" variant="danger" onClick={onStop}>
-              중지
+              {batchMessages.stop}
             </Button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { messages } from '../../i18n';
 import { useTranslationStore } from '../../stores/translationStore';
 import { useViewSettings, type ViewConfig } from '../../hooks/useViewSettings';
 
@@ -59,7 +60,7 @@ const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isS
                 className="text-sm italic opacity-30"
                 style={{ color: config.textColor }}
               >
-                번역 대기 중...
+                {messages.translation.paragraphList.pending}
               </div>
             )}
           </div>
@@ -105,7 +106,7 @@ const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isS
                 className="text-sm italic opacity-30"
                 style={{ color: config.textColor }}
               >
-                번역 대기 중...
+                {messages.translation.paragraphList.pending}
               </div>
             )}
           </div>

@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SeriesManager } from './SeriesManager';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
@@ -29,11 +30,13 @@ vi.mock('../../hooks/useWatchlist', () => ({
 describe('SeriesManager', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let originalSeriesMessages: unknown;
 
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    originalSeriesMessages = messages.series;
 
     useUIStore.setState({
       currentTab: 'series',
@@ -74,6 +77,7 @@ describe('SeriesManager', () => {
       root.unmount();
     });
     container.remove();
+    (messages as { series: unknown }).series = originalSeriesMessages;
     vi.clearAllMocks();
   });
 
@@ -478,5 +482,50 @@ describe('SeriesManager', () => {
     });
 
     expect(options.shouldApply()).toBe(false);
+  });
+
+  it('renders fallback episode titles from series i18n messages', async () => {
+    const originalSeries = originalSeriesMessages as typeof messages.series;
+    (messages as { series: unknown }).series = {
+      ...originalSeries,
+      episodeFallbackTitle: (chapterNumber: number) => `Episode sentinel ${chapterNumber}`,
+    };
+
+    const item = {
+      site: 'syosetu',
+      workUrl: 'https://ncode.syosetu.com/n1234ab/',
+      novelId: 'n1234ab',
+      title: '테스트 작품',
+      author: '테스트 작가',
+      lastKnownChapter: 12,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 0,
+    };
+
+    useSeriesStore.setState({
+      watchlistItems: [item],
+      selectedWatchlistNovelId: getWatchlistItemKey(item),
+      watchlistEpisodes: [
+        {
+          chapterNumber: 7,
+          chapterUrl: 'https://ncode.syosetu.com/n1234ab/7/',
+          title: null,
+          isNew: false,
+          isViewed: false,
+        },
+      ],
+      isRefreshingWatchlist: false,
+      watchlistLoaded: true,
+      watchlistError: null,
+      watchlistBadgeCount: 0,
+    });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    expect(container.textContent).toContain('Episode sentinel 7');
   });
 });

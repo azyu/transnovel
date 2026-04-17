@@ -7,6 +7,10 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
 
+let characterDictionaryModalProps:
+  | { title: string; description: string; saveLabel: string }
+  | null = null;
+
 const invokeMock = vi.fn(async (command: string) => {
   if (command === 'get_settings') {
     return [
@@ -36,7 +40,10 @@ vi.mock('./ParagraphList', () => ({
 }));
 
 vi.mock('./CharacterDictionaryModal', () => ({
-  CharacterDictionaryModal: () => null,
+  CharacterDictionaryModal: (props: { title: string; description: string; saveLabel: string }) => {
+    characterDictionaryModalProps = props;
+    return null;
+  },
 }));
 
 vi.mock('./SaveModal', () => ({
@@ -70,12 +77,15 @@ describe('TranslationView', () => {
   let container: HTMLDivElement;
   let root: Root;
   let originalNavigationMessages: unknown;
+  let originalDictionaryMessages: unknown;
 
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    characterDictionaryModalProps = null;
     originalNavigationMessages = (messages.translation as { navigation?: unknown }).navigation;
+    originalDictionaryMessages = (messages.translation as { dictionary?: unknown }).dictionary;
 
     useUIStore.setState({
       currentTab: 'translation',
@@ -142,6 +152,7 @@ describe('TranslationView', () => {
     });
     container.remove();
     (messages.translation as { navigation?: unknown }).navigation = originalNavigationMessages;
+    (messages.translation as { dictionary?: unknown }).dictionary = originalDictionaryMessages;
     vi.clearAllMocks();
   });
 
@@ -178,5 +189,27 @@ describe('TranslationView', () => {
         button.textContent?.includes('Next chapter sentinel'),
       ),
     ).toBe(true);
+  });
+
+  it('passes dictionary modal copy from i18n messages', async () => {
+    (messages.translation as { dictionary?: unknown }).dictionary = {
+      ...(originalDictionaryMessages as Record<string, unknown>),
+      reviewTitle: 'Dictionary review title sentinel',
+      reviewDescription: 'Dictionary review description sentinel',
+      manualTitle: 'Dictionary manual title sentinel',
+      manualDescription: 'Dictionary manual description sentinel',
+      reviewSaveLabel: 'Dictionary review save sentinel',
+      manualSaveLabel: 'Dictionary manual save sentinel',
+    };
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    expect(characterDictionaryModalProps).toMatchObject({
+      title: 'Dictionary manual title sentinel',
+      description: 'Dictionary manual description sentinel',
+      saveLabel: 'Dictionary manual save sentinel',
+    });
   });
 });

@@ -147,7 +147,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
                           {item.novelTitle}
                         </span>
                         <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                          {item.chapterNumber ? `${item.chapterNumber}화` : ''}
+                          {item.chapterNumber ? messages.translation.urlInput.historyChapterLabel(item.chapterNumber) : ''}
                         </span>
                       </>
                     )}

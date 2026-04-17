@@ -337,7 +337,7 @@ export const SeriesManager: React.FC = () => {
                             isDark ? 'text-slate-100' : 'text-slate-800'
                           }`}
                         >
-                          {episode.title ?? `제${episode.chapterNumber}화`}
+                          {episode.title ?? messages.series.episodeFallbackTitle(episode.chapterNumber)}
                         </p>
                       </div>
                       <EpisodeStatusBadge episode={episode} />

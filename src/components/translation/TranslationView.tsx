@@ -142,11 +142,16 @@ export const TranslationView: React.FC = () => {
           include_original: includeOriginal,
         },
       });
-      await message(`저장 완료: ${path}`, { title: '저장 완료' });
+      await message(messages.translation.saveResult.successMessage(path), {
+        title: messages.translation.saveResult.successTitle,
+      });
     } catch (err) {
       const errorMessage = String(err);
       if (!errorMessage.includes('취소')) {
-        await message(`저장 실패: ${err}`, { title: '오류', kind: 'error' });
+        await message(messages.translation.saveResult.failureMessage(String(err)), {
+          title: messages.translation.saveResult.failureTitle,
+          kind: 'error',
+        });
       }
     }
   };
@@ -394,12 +399,16 @@ export const TranslationView: React.FC = () => {
       <CharacterDictionaryModal
         key={`${dictionaryMode}:${chapter?.novelId ?? 'none'}:${JSON.stringify(dictionaryEntries)}`}
         isOpen={showDictionaryModal}
-        title={dictionaryMode === 'review' ? '고유명사 사전 후보 확인' : '사용자 정의 고유명사 사전'}
+        title={dictionaryMode === 'review'
+          ? messages.translation.dictionary.reviewTitle
+          : messages.translation.dictionary.manualTitle}
         description={dictionaryMode === 'review'
-          ? '이번 화 번역에서 새로 추출된 고유명사 후보입니다. 저장하면 현재 작품의 이후 번역에 자동으로 적용됩니다.'
-          : '현재 작품에 등록된 고유명사 사전을 수정합니다. 저장 시 기존 번역 캐시는 초기화됩니다.'}
+          ? messages.translation.dictionary.reviewDescription
+          : messages.translation.dictionary.manualDescription}
         entries={dictionaryEntries}
-        saveLabel={dictionaryMode === 'review' ? '후보 저장' : '사전 저장'}
+        saveLabel={dictionaryMode === 'review'
+          ? messages.translation.dictionary.reviewSaveLabel
+          : messages.translation.dictionary.manualSaveLabel}
         isSaving={dictionarySaving}
         onClose={handleCloseDictionary}
         onSave={handleSaveDictionary}
