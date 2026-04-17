@@ -5,6 +5,7 @@ import { ViewSettings } from './ViewSettings';
 import { AdvancedSettings } from './AdvancedSettings';
 import { ApiLogsSettings } from './ApiLogsSettings';
 import { AboutSettings } from './AboutSettings';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 
 type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced' | 'api-logs' | 'about';
@@ -14,12 +15,12 @@ export const SettingsPanel: React.FC = () => {
   const { theme } = useUIStore();
 
   const tabs: { id: SettingsTab; label: string }[] = [
-    { id: 'llm', label: 'LLM' },
-    { id: 'translation', label: '번역' },
-    { id: 'view', label: '보기' },
-    { id: 'advanced', label: '고급' },
-    { id: 'api-logs', label: 'API 로그' },
-    { id: 'about', label: '정보' },
+    { id: 'llm', label: messages.settings.tabs.llm },
+    { id: 'translation', label: messages.settings.tabs.translation },
+    { id: 'view', label: messages.settings.tabs.view },
+    { id: 'advanced', label: messages.settings.tabs.advanced },
+    { id: 'api-logs', label: messages.settings.tabs.apiLogs },
+    { id: 'about', label: messages.settings.tabs.about },
   ];
 
 
