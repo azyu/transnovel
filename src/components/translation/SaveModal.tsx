@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
+import { messages } from '../../i18n';
 
 type SaveFormat = 'txt' | 'html';
 
@@ -11,16 +12,23 @@ interface SaveModalProps {
   onSave: (format: SaveFormat, includeOriginal: boolean) => Promise<void>;
 }
 
-const FORMAT_OPTIONS: { value: SaveFormat; label: string; description: string }[] = [
-  { value: 'txt', label: 'Text (.txt)', description: '단순 텍스트 형식' },
-  { value: 'html', label: 'HTML (.html)', description: '웹 브라우저에서 열 수 있는 형식, 루비 텍스트 지원' },
-];
-
 export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave }) => {
   const [format, setFormat] = useState<SaveFormat>('txt');
   const [includeOriginal, setIncludeOriginal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const formatOptions: { value: SaveFormat; label: string; description: string }[] = [
+    {
+      value: 'txt',
+      label: messages.translation.saveModal.formats.txt.label,
+      description: messages.translation.saveModal.formats.txt.description,
+    },
+    {
+      value: 'html',
+      label: messages.translation.saveModal.formats.html.label,
+      description: messages.translation.saveModal.formats.html.description,
+    },
+  ];
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -38,14 +46,14 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="번역 저장"
+      title={messages.translation.saveModal.title}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-            취소
+            {messages.translation.saveModal.cancel}
           </Button>
           <Button onClick={handleSave} isLoading={isSaving}>
-            저장
+            {messages.translation.saveModal.save}
           </Button>
         </>
       }
@@ -53,10 +61,10 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
       <div className="space-y-6">
         <div>
           <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            저장 형식
+            {messages.translation.saveModal.formatLabel}
           </label>
           <div className="space-y-2">
-            {FORMAT_OPTIONS.map((option) => (
+            {formatOptions.map((option) => (
               <label
                 key={option.value}
                 className={`flex items-start p-3 rounded-lg cursor-pointer border transition-colors ${
@@ -96,10 +104,10 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
             />
             <div>
               <span className={`block text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                원문 포함
+                {messages.translation.saveModal.includeOriginal.label}
               </span>
               <span className={`block text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                번역문과 함께 일본어 원문을 저장합니다
+                {messages.translation.saveModal.includeOriginal.description}
               </span>
             </div>
           </label>

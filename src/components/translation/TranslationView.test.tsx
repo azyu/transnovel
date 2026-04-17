@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranslationView } from './TranslationView';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
@@ -68,11 +69,13 @@ vi.mock('../../hooks/useTranslation', () => ({
 describe('TranslationView', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let originalNavigationMessages: unknown;
 
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    originalNavigationMessages = (messages.translation as { navigation?: unknown }).navigation;
 
     useUIStore.setState({
       currentTab: 'translation',
@@ -138,6 +141,7 @@ describe('TranslationView', () => {
       root.unmount();
     });
     container.remove();
+    (messages.translation as { navigation?: unknown }).navigation = originalNavigationMessages;
     vi.clearAllMocks();
   });
 
@@ -152,5 +156,27 @@ describe('TranslationView', () => {
 
     expect(addButton).toBeTruthy();
     expect(addButton).toHaveProperty('disabled', true);
+  });
+
+  it('renders chapter navigation labels from i18n messages', async () => {
+    (messages.translation as { navigation?: unknown }).navigation = {
+      prevChapter: 'Prev chapter sentinel',
+      nextChapter: 'Next chapter sentinel',
+    };
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    expect(
+      Array.from(container.querySelectorAll('button')).some((button) =>
+        button.textContent?.includes('Prev chapter sentinel'),
+      ),
+    ).toBe(true);
+    expect(
+      Array.from(container.querySelectorAll('button')).some((button) =>
+        button.textContent?.includes('Next chapter sentinel'),
+      ),
+    ).toBe(true);
   });
 });

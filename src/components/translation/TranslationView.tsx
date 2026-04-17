@@ -368,12 +368,12 @@ export const TranslationView: React.FC = () => {
               <div className="flex items-center gap-2">
                 {chapter.prevUrl && (
                   <Button variant="secondary" onClick={handlePrevChapter}>
-                    이전 화
+                    {messages.translation.navigation.prevChapter}
                   </Button>
                 )}
                 {chapter.nextUrl && (
                   <Button onClick={handleNextChapter}>
-                    다음 화
+                    {messages.translation.navigation.nextChapter}
                   </Button>
                 )}
               </div>
