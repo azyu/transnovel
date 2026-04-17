@@ -25,6 +25,7 @@ interface ModelModalProps {
   onSave: (model: ModelConfig) => void;
   editingModel?: ModelConfig | null;
   providers: ProviderConfig[];
+  disabled?: boolean;
 }
 
 export const ModelModal: React.FC<ModelModalProps> = ({
@@ -33,8 +34,10 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   onSave,
   editingModel,
   providers,
+  disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const isLocked = disabled;
   
   const [providerId, setProviderId] = useState('');
   const [name, setName] = useState('');
@@ -72,6 +75,12 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   }, [providerId, isEditing]);
 
   const fetchModels = useCallback(async () => {
+    if (isLocked) {
+      setModels([]);
+      setLoadingModels(false);
+      return;
+    }
+
     if (!selectedProvider || !providerType) {
       setModels([]);
       return;
@@ -129,15 +138,16 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     } finally {
       setLoadingModels(false);
     }
-  }, [selectedProvider, providerType, preset?.apiKeyRequired, supportsModelDiscovery]);
+  }, [selectedProvider, providerType, preset?.apiKeyRequired, supportsModelDiscovery, isLocked]);
 
   useEffect(() => {
-    if (isOpen && providerId) {
+    if (isOpen && providerId && !isLocked) {
       fetchModels();
     }
-  }, [isOpen, providerId, fetchModels]);
+  }, [isOpen, providerId, fetchModels, isLocked]);
 
   const handleSave = async () => {
+    if (isLocked) return;
     setSaving(true);
     try {
       const selectedModel = models.find(m => m.id === modelId);
@@ -177,7 +187,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
           <Button variant="secondary" onClick={onClose}>
             취소
           </Button>
-          <Button onClick={handleSave} isLoading={saving} disabled={!canSave()}>
+          <Button onClick={handleSave} isLoading={saving} disabled={isLocked || !canSave()}>
             저장
           </Button>
         </>
@@ -197,12 +207,12 @@ export const ModelModal: React.FC<ModelModalProps> = ({
               id={providerIdInputId}
               value={providerId}
               onChange={(e) => setProviderId(e.target.value)}
-              disabled={isEditing}
+              disabled={isEditing || isLocked}
               className={`w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:border-blue-500 ${
                 isDark
                   ? 'bg-slate-900 border-slate-700 text-white'
                   : 'bg-white border-slate-300 text-slate-900'
-              } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${(isEditing || isLocked) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -218,21 +228,21 @@ export const ModelModal: React.FC<ModelModalProps> = ({
             모델 ID
           </label>
           <div className="flex gap-2 mb-2">
-            <Input
-              id={modelIdInputId}
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-              placeholder="예: gpt-4o, claude-sonnet-4, gemini-2.5-flash"
-              className="flex-1"
-              disabled={!providerId}
-            />
+              <Input
+                id={modelIdInputId}
+                value={modelId}
+                onChange={(e) => setModelId(e.target.value)}
+                placeholder="예: gpt-4o, claude-sonnet-4, gemini-2.5-flash"
+                className="flex-1"
+                disabled={isLocked || !providerId}
+              />
             <Button
               variant="secondary"
               size="sm"
               onClick={fetchModels}
               isLoading={loadingModels}
               className="shrink-0"
-              disabled={!providerId || !supportsModelDiscovery}
+              disabled={isLocked || !providerId || !supportsModelDiscovery}
             >
               ↻
             </Button>
@@ -249,7 +259,8 @@ export const ModelModal: React.FC<ModelModalProps> = ({
                   key={m.id}
                   type="button"
                   onClick={() => setModelId(m.id)}
-                  className={`w-full px-3 py-1.5 text-left text-sm flex justify-between items-center transition-colors ${
+                  disabled={isLocked}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex justify-between items-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     modelId === m.id
                       ? isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700'
                       : isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
@@ -276,7 +287,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={models.find(m => m.id === modelId)?.name || '자동 설정'}
-            disabled={!providerId}
+            disabled={isLocked || !providerId}
           />
         </div>
       </div>

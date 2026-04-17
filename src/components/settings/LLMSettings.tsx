@@ -67,12 +67,15 @@ export const LLMSettings: React.FC = () => {
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [useStreaming, setUseStreaming] = useState(true);
+  const [llmConfigManaged, setLlmConfigManaged] = useState(false);
+  const [llmConfigPath, setLlmConfigPath] = useState<string | null>(null);
 
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
 
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null);
+  const isLocked = !isLoaded || llmConfigManaged;
 
   const handleSaveAll = useCallback(async () => {
     try {
@@ -96,6 +99,11 @@ export const LLMSettings: React.FC = () => {
 
         const providersJson = settings.find(s => s.key === 'llm_providers')?.value;
         const modelsJson = settings.find(s => s.key === 'llm_models')?.value;
+        const managed = settings.find(s => s.key === 'llm_config_managed')?.value === 'true';
+        const configPath = settings.find(s => s.key === 'llm_config_path')?.value ?? null;
+
+        setLlmConfigManaged(managed);
+        setLlmConfigPath(configPath);
 
         if (providersJson) {
           try {
@@ -138,14 +146,17 @@ export const LLMSettings: React.FC = () => {
   const pendingSaveRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (isLocked) {
+      pendingSaveRef.current = null;
+      return;
+    }
     pendingSaveRef.current = handleSaveAll;
     const t = setTimeout(() => {
       handleSaveAll();
       pendingSaveRef.current = null;
     }, 300);
     return () => clearTimeout(t);
-  }, [providers, models, activeModelId, useStreaming, isLoaded, handleSaveAll]);
+  }, [providers, models, activeModelId, useStreaming, isLocked, handleSaveAll]);
   useEffect(() => {
     return () => { pendingSaveRef.current?.(); };
   }, []);
@@ -247,10 +258,29 @@ export const LLMSettings: React.FC = () => {
         </p>
       </div>
 
+      {llmConfigManaged && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-amber-300 bg-amber-50 text-amber-900'
+          }`}
+        >
+          <p className="font-medium">config.yaml이 이 LLM 설정을 관리하고 있습니다.</p>
+          <p className="mt-1">
+            {llmConfigPath ? (
+              <>
+                현재 적용 중인 파일: <span className="font-mono">{llmConfigPath}</span>
+              </>
+            ) : (
+              '이 화면에서는 제공자, 모델, 스트리밍 설정을 수정할 수 없습니다.'
+            )}
+          </p>
+        </div>
+      )}
+
       <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>AI 서비스 제공자</h3>
-          <Button size="sm" onClick={handleAddProvider}>
+          <Button size="sm" onClick={handleAddProvider} disabled={isLocked}>
             + 추가
           </Button>
         </div>
@@ -259,13 +289,14 @@ export const LLMSettings: React.FC = () => {
           providers={providers}
           onEdit={handleEditProvider}
           onDelete={handleDeleteProvider}
+          disabled={isLocked}
         />
       </div>
 
       <div className={`p-6 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>모델</h3>
-          <Button size="sm" onClick={handleAddModel} disabled={providers.length === 0}>
+          <Button size="sm" onClick={handleAddModel} disabled={providers.length === 0 || isLocked}>
             + 추가
           </Button>
         </div>
@@ -277,6 +308,7 @@ export const LLMSettings: React.FC = () => {
           onSelect={handleSelectModel}
           onEdit={handleEditModel}
           onDelete={handleDeleteModel}
+          disabled={isLocked}
         />
       </div>
 
@@ -292,9 +324,11 @@ export const LLMSettings: React.FC = () => {
             type="button"
             role="switch"
             aria-checked={useStreaming}
+            disabled={isLocked}
             onClick={() => setUseStreaming(!useStreaming)}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${useStreaming ? 'bg-blue-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
-              }`}
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+              useStreaming ? 'bg-blue-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
+            }`}
           >
             <span
               className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${useStreaming ? 'translate-x-5' : 'translate-x-0'
@@ -309,6 +343,7 @@ export const LLMSettings: React.FC = () => {
         onClose={() => setProviderModalOpen(false)}
         onSave={handleSaveProvider}
         editingProvider={editingProvider}
+        disabled={isLocked}
       />
 
       <ModelModal
@@ -317,8 +352,8 @@ export const LLMSettings: React.FC = () => {
         onSave={handleSaveModel}
         editingModel={editingModel}
         providers={providers}
+        disabled={isLocked}
       />
     </div>
   );
 };
-

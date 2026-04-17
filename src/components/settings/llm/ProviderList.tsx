@@ -8,6 +8,7 @@ interface ProviderListProps {
   providers: ProviderConfig[];
   onEdit: (provider: ProviderConfig) => void;
   onDelete: (id: string) => void;
+  disabled?: boolean;
 }
 
 const EditIcon = () => (
@@ -53,6 +54,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({
   providers,
   onEdit,
   onDelete,
+  disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
@@ -117,9 +119,10 @@ export const ProviderList: React.FC<ProviderListProps> = ({
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => onEdit(provider)}
                 aria-label={`${provider.name} 수정`}
-                className={`p-1.5 rounded-md transition-colors ${
+                className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-200' 
                     : 'hover:bg-slate-200 text-slate-500 hover:text-slate-700'
@@ -130,9 +133,10 @@ export const ProviderList: React.FC<ProviderListProps> = ({
               </button>
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => onDelete(provider.id)}
                 aria-label={`${provider.name} 삭제`}
-                className={`p-1.5 rounded-md transition-colors ${
+                className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-red-900/30 text-slate-400 hover:text-red-400' 
                     : 'hover:bg-red-100 text-slate-500 hover:text-red-600'

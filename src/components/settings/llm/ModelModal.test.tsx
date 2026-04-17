@@ -70,4 +70,51 @@ describe('ModelModal', () => {
     expect(container.textContent).toContain('모델 ID를 직접 입력');
     expect(refreshButton).toHaveProperty('disabled', true);
   });
+
+  it('disables edit and save controls when the managed lock is active', async () => {
+    const providers: ProviderConfig[] = [
+      {
+        id: 'provider-openrouter',
+        type: 'openrouter',
+        name: 'OpenRouter',
+        apiKey: 'sk-or-test',
+        baseUrl: 'https://openrouter.ai/api',
+      },
+    ];
+
+    await act(async () => {
+      root.render(
+        <ModelModal
+          isOpen
+          onClose={() => {}}
+          onSave={() => {}}
+          disabled
+          editingModel={{
+            id: 'model-1',
+            name: 'Model A',
+            providerId: 'provider-openrouter',
+            modelId: 'openai/gpt-4o',
+          }}
+          providers={providers}
+        />,
+      );
+    });
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('저장'),
+    );
+    expect(saveButton).toBeTruthy();
+    expect(saveButton).toBeDisabled();
+
+    const refreshButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('↻'),
+    );
+    expect(refreshButton).toBeTruthy();
+    expect(refreshButton).toBeDisabled();
+
+    const inputs = Array.from(container.querySelectorAll('input')) as HTMLInputElement[];
+    expect(inputs.length).toBeGreaterThanOrEqual(2);
+    expect(inputs[0]).toBeDisabled();
+    expect(inputs[1]).toBeDisabled();
+  });
 });

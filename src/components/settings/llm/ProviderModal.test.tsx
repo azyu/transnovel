@@ -83,4 +83,36 @@ describe('ProviderModal', () => {
     );
     expect(saveButton).toHaveProperty('disabled', false);
   });
+
+  it('disables editing and save controls when the managed lock is active', async () => {
+    await act(async () => {
+      root.render(
+        <ProviderModal
+          isOpen
+          onClose={() => {}}
+          onSave={() => {}}
+          disabled
+          editingProvider={{
+            id: 'provider-custom',
+            type: 'custom',
+            name: 'OpenAI-compatible',
+            apiKey: 'sk-test',
+            baseUrl: 'https://example.com/v1',
+          }}
+        />,
+      );
+    });
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('저장'),
+    );
+    expect(saveButton).toBeTruthy();
+    expect(saveButton).toBeDisabled();
+
+    const inputs = Array.from(container.querySelectorAll('input')) as HTMLInputElement[];
+    expect(inputs.length).toBeGreaterThanOrEqual(3);
+    expect(inputs[0]).toBeDisabled();
+    expect(inputs[1]).toBeDisabled();
+    expect(inputs[2]).toBeDisabled();
+  });
 });

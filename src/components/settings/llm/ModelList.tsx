@@ -8,6 +8,7 @@ interface ModelListProps {
   onSelect: (id: string) => void;
   onEdit: (model: ModelConfig) => void;
   onDelete: (id: string) => void;
+  disabled?: boolean;
 }
 
 const EditIcon = () => (
@@ -29,6 +30,7 @@ export const ModelList: React.FC<ModelListProps> = ({
   onSelect,
   onEdit,
   onDelete,
+  disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
@@ -77,8 +79,9 @@ export const ModelList: React.FC<ModelListProps> = ({
           >
             <button
               type="button"
+              disabled={disabled}
               onClick={() => onSelect(model.id)}
-              className="flex items-center gap-3 flex-1 text-left min-w-0"
+              className="flex items-center gap-3 flex-1 text-left min-w-0 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
                 isActive
@@ -108,9 +111,10 @@ export const ModelList: React.FC<ModelListProps> = ({
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => onEdit(model)}
                 aria-label={`${model.name} 수정`}
-                className={`p-1.5 rounded-md transition-colors ${
+                className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-200' 
                     : 'hover:bg-slate-200 text-slate-500 hover:text-slate-700'
@@ -121,9 +125,10 @@ export const ModelList: React.FC<ModelListProps> = ({
               </button>
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => onDelete(model.id)}
                 aria-label={`${model.name} 삭제`}
-                className={`p-1.5 rounded-md transition-colors ${
+                className={`p-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isDark 
                     ? 'hover:bg-red-900/30 text-slate-400 hover:text-red-400' 
                     : 'hover:bg-red-100 text-slate-500 hover:text-red-600'

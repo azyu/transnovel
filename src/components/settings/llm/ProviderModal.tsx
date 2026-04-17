@@ -12,6 +12,7 @@ interface ProviderModalProps {
   onClose: () => void;
   onSave: (provider: ProviderConfig) => void;
   editingProvider?: ProviderConfig | null;
+  disabled?: boolean;
 }
 
 export const ProviderModal: React.FC<ProviderModalProps> = ({
@@ -19,8 +20,10 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   onClose,
   onSave,
   editingProvider,
+  disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const isLocked = disabled;
   
   const [providerType, setProviderType] = useState<ProviderType>('gemini');
   const [name, setName] = useState('');
@@ -78,6 +81,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   }, [providerType, isEditing]);
 
   const handleSave = async () => {
+    if (isLocked) return;
     setSaving(true);
     try {
       const provider: ProviderConfig = {
@@ -160,6 +164,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   };
 
   const openUrl = (url: string) => {
+    if (isLocked) return;
     invoke('open_url', { url }).catch(console.error);
   };
 
@@ -180,7 +185,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
           <Button variant="secondary" onClick={onClose}>
             취소
           </Button>
-          <Button onClick={handleSave} isLoading={saving} disabled={!canSave()}>
+          <Button onClick={handleSave} isLoading={saving} disabled={isLocked || !canSave()}>
             저장
           </Button>
         </>
@@ -195,12 +200,12 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
             id={providerTypeId}
             value={providerType}
             onChange={(e) => setProviderType(e.target.value as ProviderType)}
-            disabled={isEditing}
+            disabled={isEditing || isLocked}
             className={`w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:border-blue-500 ${
               isDark
                 ? 'bg-slate-900 border-slate-700 text-white'
                 : 'bg-white border-slate-300 text-slate-900'
-            } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${(isEditing || isLocked) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {Object.values(PROVIDER_PRESETS).map((p) => (
               <option key={p.type} value={p.type}>{p.label}</option>
@@ -217,6 +222,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={preset.label}
+            disabled={isLocked}
           />
         </div>
 
@@ -230,12 +236,12 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
                 <span className={`text-sm font-medium ${isDark ? 'text-green-400' : 'text-green-600'}`}>
                   {oauthEmail ? `✓ ${oauthEmail}` : '인증됨'}
                 </span>
-                <Button variant="secondary" size="sm" onClick={handleOAuthLogin} isLoading={oauthLoading}>
+                <Button variant="secondary" size="sm" onClick={handleOAuthLogin} isLoading={oauthLoading} disabled={isLocked}>
                   재인증
                 </Button>
               </div>
             ) : (
-              <Button onClick={handleOAuthLogin} isLoading={oauthLoading} className="w-full">
+              <Button onClick={handleOAuthLogin} isLoading={oauthLoading} className="w-full" disabled={isLocked}>
                 ChatGPT로 로그인
               </Button>
             )}
@@ -253,7 +259,8 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
                 <button
                   type="button"
                   onClick={() => openUrl(preset.apiKeyHelpUrl!)}
-                  className="text-blue-400 hover:underline"
+                  disabled={isLocked}
+                  className="text-blue-400 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {preset.apiKeyHelpText}
                 </button>
@@ -265,6 +272,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={preset.apiKeyPlaceholder || 'API 키'}
+              disabled={isLocked}
             />
           </div>
         )}
@@ -279,6 +287,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder={preset.defaultBaseUrl || 'https://...'}
+              disabled={isLocked}
             />
           </div>
         )}
