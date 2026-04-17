@@ -70,6 +70,7 @@
 
 ## Done
 
+- [x] #14 translation/common 기존 i18n 상수 연결 1차 구현 — Codex
 - [x] GitHub issue 기반 task workflow와 문서 위치 규칙 반영 — Codex
 - [x] 번역 탭에서만 Cmd/Ctrl+L로 URL 입력 포커스 지원 — Codex
 - [x] 메인 탭 hover 단축키 툴팁이 표시되지 않는 문제 수정 — Codex

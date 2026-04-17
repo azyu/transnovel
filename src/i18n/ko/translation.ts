@@ -1,5 +1,9 @@
 export const translationMessages = {
   addToWatchlist: '관심작품에 추가',
+  navigation: {
+    prevChapter: '이전 화',
+    nextChapter: '다음 화',
+  },
   dictionary: {
     open: '사용자 정의 사전',
     loading: '사전 불러오는 중...',
@@ -41,5 +45,50 @@ export const translationMessages = {
   llmConfig: {
     requiredTitle: 'LLM 설정 필요',
     requiredDescription: 'API 서비스 제공자를 등록 후 모델을 선택해주세요.',
+  },
+  saveModal: {
+    title: '번역 저장',
+    cancel: '취소',
+    save: '저장',
+    formatLabel: '저장 형식',
+    includeOriginal: {
+      label: '원문 포함',
+      description: '번역문과 함께 일본어 원문을 저장합니다',
+    },
+    formats: {
+      txt: {
+        label: 'Text (.txt)',
+        description: '단순 텍스트 형식',
+      },
+      html: {
+        label: 'HTML (.html)',
+        description: '웹 브라우저에서 열 수 있는 형식, 루비 텍스트 지원',
+      },
+    },
+  },
+  dictionaryModal: {
+    actions: {
+      cancel: '취소',
+      remove: '삭제',
+      addEntry: '항목 추가',
+    },
+    fields: {
+      sourceText: {
+        label: '원문 표기',
+        placeholder: '鳳黎院学園',
+      },
+      reading: {
+        label: '읽기',
+        placeholder: 'ほうれいいん',
+      },
+      targetName: {
+        label: '번역 표기',
+        placeholder: '호레이인 학원',
+      },
+      note: {
+        label: '메모',
+        placeholder: '주인공',
+      },
+    },
   },
 } as const;

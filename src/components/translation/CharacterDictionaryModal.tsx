@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
+import { messages } from '../../i18n';
 import type { CharacterDictionaryEntry } from '../../types';
 
 interface CharacterDictionaryModalProps {
@@ -87,7 +88,7 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-            취소
+            {messages.translation.dictionaryModal.actions.cancel}
           </Button>
           <Button onClick={handleSave} isLoading={isSaving}>
             {saveLabel}
@@ -109,56 +110,56 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    원문 표기
+                    {messages.translation.dictionaryModal.fields.sourceText.label}
                   </span>
                   <input
                     value={entry.source_text}
                     onChange={(event) => updateEntry(index, 'source_text', event.target.value)}
                     className={inputClass}
-                    placeholder="鳳黎院学園"
+                    placeholder={messages.translation.dictionaryModal.fields.sourceText.placeholder}
                   />
                 </label>
 
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    읽기
+                    {messages.translation.dictionaryModal.fields.reading.label}
                   </span>
                   <input
                     value={entry.reading ?? ''}
                     onChange={(event) => updateEntry(index, 'reading', event.target.value)}
                     className={inputClass}
-                    placeholder="ほうれいいん"
+                    placeholder={messages.translation.dictionaryModal.fields.reading.placeholder}
                   />
                 </label>
 
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    번역 표기
+                    {messages.translation.dictionaryModal.fields.targetName.label}
                   </span>
                   <input
                     value={entry.target_name}
                     onChange={(event) => updateEntry(index, 'target_name', event.target.value)}
                     className={inputClass}
-                    placeholder="호레이인 학원"
+                    placeholder={messages.translation.dictionaryModal.fields.targetName.placeholder}
                   />
                 </label>
 
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    메모
+                    {messages.translation.dictionaryModal.fields.note.label}
                   </span>
                   <input
                     value={entry.note ?? ''}
                     onChange={(event) => updateEntry(index, 'note', event.target.value)}
                     className={inputClass}
-                    placeholder="주인공"
+                    placeholder={messages.translation.dictionaryModal.fields.note.placeholder}
                   />
                 </label>
               </div>
 
               <div className="mt-3 flex justify-end">
                 <Button variant="danger" size="sm" onClick={() => removeEntry(index)} disabled={isSaving}>
-                  삭제
+                  {messages.translation.dictionaryModal.actions.remove}
                 </Button>
               </div>
             </div>
@@ -167,7 +168,7 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
 
         <div className="flex justify-start">
           <Button variant="secondary" size="sm" onClick={() => setDraftEntries((current) => [...current, createEmptyEntry()])} disabled={isSaving}>
-            항목 추가
+            {messages.translation.dictionaryModal.actions.addEntry}
           </Button>
         </div>
       </div>
