@@ -6,6 +6,7 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
 
 - Verify current code before trusting generated summaries or old status notes.
 - If a document conflicts with the codebase, follow the code and update the document in the same change.
+- Use GitHub Issues as the source of truth for backlog and non-trivial task context. Keep issue bodies short but sufficient: background, goal, scope, exclusions, verification, and follow-up links when needed.
 - Use `src-tauri/src/AGENTS.md` for backend-specific rules.
 - Use `docs/references.md` when you need command lists, event payloads, or architecture detail.
 
@@ -82,9 +83,13 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
 ## Agent Coordination
 
 - Before mutating tracked files, read `.context/TASKS.md` and `.context/STEERING.md`.
+- For new work that should survive across sessions, create or update a GitHub Issue before implementation unless the task is truly trivial. Prefer one issue per independently shippable task.
+- Use `.context/TASKS.md` as a local execution snapshot for active work, not as the long-term backlog. Keep durable backlog and follow-up items in GitHub Issues.
+- For multi-step implementation, keep the lightweight plan in the issue body or an issue comment. Write a dedicated document only when the task is complex enough that the plan or investigation needs to outlive the issue discussion.
 - When starting mutating work, add or update an `[~]` item in `.context/TASKS.md` with your agent name.
 - When finishing mutating work, update that item to `[x]` if the task is complete.
 - For read-only review, planning, or investigation, read `.context/*` as needed and leave the tracker unchanged.
+- If a task needs a durable project document, write it under `docs/`. Do not create parallel `mydocs/`-style task folders.
 - If intent is still unclear after checking code and docs, state the ambiguity explicitly and ask one focused clarifying question.
 
 ## Verification
