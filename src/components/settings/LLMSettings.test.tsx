@@ -149,6 +149,68 @@ describe('LLMSettings', () => {
     expect(setSettingCallsAfterUnmount).toHaveLength(0);
   });
 
+  it('shows a configuration error and keeps the surface locked when get_settings fails', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') {
+        throw new Error('config.yaml 파싱 실패 (/Users/test/.config/transnovel/config.yaml)');
+      }
+
+      return undefined;
+    });
+
+    await act(async () => {
+      root.render(<LLMSettings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('LLM 설정을 불러오지 못했습니다.');
+    expect(container.textContent).toContain('config.yaml');
+
+    const providerAddButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('+ 추가'),
+    ) as HTMLButtonElement | undefined;
+    expect(providerAddButton).toBeTruthy();
+    expect(providerAddButton).toBeDisabled();
+
+    const modelAddButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button !== providerAddButton && button.textContent?.includes('+ 추가'),
+    ) as HTMLButtonElement | undefined;
+    expect(modelAddButton).toBeTruthy();
+    expect(modelAddButton).toBeDisabled();
+
+    const streamingToggle = container.querySelector('button[role="switch"]') as HTMLButtonElement | null;
+    expect(streamingToggle).toBeTruthy();
+    expect(streamingToggle).toBeDisabled();
+
+    expect(container.querySelector('button[aria-label$="수정"]')).toBeNull();
+    expect(container.querySelector('button[aria-label$="삭제"]')).toBeNull();
+  });
+
+  it('shows a generic load error when get_settings fails for a non-config reason', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') {
+        throw new Error('database connection failed');
+      }
+
+      return undefined;
+    });
+
+    await act(async () => {
+      root.render(<LLMSettings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('LLM 설정을 불러오지 못했습니다.');
+    expect(container.textContent).toContain('database connection failed');
+    expect(container.textContent).not.toContain('config.yaml');
+  });
+
   it('locks the full LLM settings surface when config.yaml manages the settings', async () => {
     invokeMock.mockImplementation(async (command: string) => {
       if (command === 'get_settings') {

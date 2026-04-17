@@ -15,6 +15,14 @@
 
 ## In Progress
 
+- [x] OAuth 상태 확인 config error surface follow-up — Codex
+- [x] LLM settings get_settings error surface follow-up — Codex
+- [x] YAML providers base_url synthesis follow-up — Codex
+- [x] LLM settings malformed config.yaml error surface follow-up — Codex
+- [x] YAML 기반 LLM 설정 override Task 4 modal lock follow-up — Codex
+- [x] YAML 기반 LLM 설정 override Task 3 translator refactor — Codex
+- [x] YAML 기반 LLM 설정 override Task 2 backend implementation — Codex
+- [x] YAML 기반 LLM 설정 override 구현 계획 작성 — Codex
 - [x] YAML 기반 LLM 설정 override 설계 문서화 — Codex
 - [x] GitHub Release 기반 앱 업데이트 확인 UI 구현 — Codex
 - [x] 앱 버전 0.1.1 반영 — Codex
@@ -42,6 +50,8 @@
 - [x] PR #4 merge conflict 해결 — Codex
 - [x] 소설 메타데이터 저장 및 설정 캐시 통계 표시 개선 — Codex
 - [~] Frontend UI accessibility and workspace refresh — Codex
+- [x] Fix macOS config path and YAML-owned streaming override — Codex
+- [x] YAML 기반 LLM 설정 override Task 4 frontend lock — Codex
 - [x] release 자산에서 macOS .app 내부 파일 제외 — Codex
 - [x] release draft 자동 publish 전환 및 sync-main-version 순서 점검 — Codex
 - [x] release 버전 sync 스크립트의 Windows CRLF 호환성 수정 — Codex

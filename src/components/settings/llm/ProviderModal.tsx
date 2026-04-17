@@ -33,6 +33,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthDone, setOauthDone] = useState(false);
   const [oauthEmail, setOauthEmail] = useState<string | null>(null);
+  const [oauthStatusError, setOauthStatusError] = useState<string | null>(null);
   const providerIdRef = useRef<string>(crypto.randomUUID());
   const providerTypeId = useId();
   const providerNameId = useId();
@@ -55,10 +56,17 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setOauthDone(editingProvider.type === 'openai-oauth' && !!editingProvider.apiKey);
       if (editingProvider.type === 'openai-oauth' && editingProvider.apiKey) {
         invoke<{ authenticated: boolean; email: string | null }>('check_openai_oauth_status', { providerId: editingProvider.id })
-          .then((r) => setOauthEmail(r.email ?? null))
-          .catch(() => setOauthEmail(null));
+          .then((r) => {
+            setOauthEmail(r.email ?? null);
+            setOauthStatusError(null);
+          })
+          .catch((error) => {
+            setOauthEmail(null);
+            setOauthStatusError(error instanceof Error ? error.message : String(error));
+          });
       } else {
         setOauthEmail(null);
+        setOauthStatusError(null);
       }
     } else {
       providerIdRef.current = crypto.randomUUID();
@@ -67,6 +75,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setBaseUrl(PROVIDER_PRESETS.gemini.defaultBaseUrl);
       setApiKey('');
       setOauthDone(false);
+      setOauthStatusError(null);
     }
   }, [editingProvider, isOpen]);
 
@@ -77,6 +86,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setName(newPreset.label);
       setOauthDone(false);
       setOauthEmail(null);
+      setOauthStatusError(null);
     }
   }, [providerType, isEditing]);
 
@@ -144,6 +154,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       if (!oauthResult.authenticated) {
         setOauthDone(false);
         setOauthEmail(null);
+        setOauthStatusError(null);
         return;
       }
 
@@ -153,11 +164,13 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setApiKey(accessToken);
       setOauthDone(accessToken.length > 0);
       setOauthEmail(oauthResult.email ?? null);
+      setOauthStatusError(null);
 
       setApiKey(accessToken);
       setOauthDone(accessToken.length > 0);
     } catch (error) {
       console.error('OAuth failed:', error);
+      setOauthStatusError(error instanceof Error ? error.message : String(error));
     } finally {
       setOauthLoading(false);
     }
@@ -232,13 +245,24 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               ChatGPT 인증
             </p>
             {oauthDone || (isEditing && apiKey) ? (
-              <div className="flex items-center gap-3">
-                <span className={`text-sm font-medium ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-                  {oauthEmail ? `✓ ${oauthEmail}` : '인증됨'}
-                </span>
-                <Button variant="secondary" size="sm" onClick={handleOAuthLogin} isLoading={oauthLoading} disabled={isLocked}>
-                  재인증
-                </Button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-sm font-medium ${
+                      oauthStatusError
+                        ? (isDark ? 'text-rose-400' : 'text-rose-600')
+                        : (isDark ? 'text-green-400' : 'text-green-600')
+                    }`}
+                  >
+                    {oauthStatusError ? '설정 오류' : (oauthEmail ? `✓ ${oauthEmail}` : '인증됨')}
+                  </span>
+                  <Button variant="secondary" size="sm" onClick={handleOAuthLogin} isLoading={oauthLoading} disabled={isLocked}>
+                    재인증
+                  </Button>
+                </div>
+                {oauthStatusError && (
+                  <p className={`text-xs ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>{oauthStatusError}</p>
+                )}
               </div>
             ) : (
               <Button onClick={handleOAuthLogin} isLoading={oauthLoading} className="w-full" disabled={isLocked}>

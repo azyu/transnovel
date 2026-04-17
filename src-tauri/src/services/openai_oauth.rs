@@ -408,11 +408,14 @@ pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
 }
 
 /// Get the stored email for a provider, fetching from userinfo if not cached.
-pub async fn get_or_fetch_email(provider_id: &str, access_token: &str) -> Option<String> {
+pub async fn get_or_fetch_email(
+    provider_id: &str,
+    access_token: &str,
+) -> Result<Option<String>, String> {
     // Try stored first (skip if it looks like an opaque ID)
-    if let Some(email) = get_stored_email(provider_id).await {
+    if let Some(email) = get_stored_email(provider_id).await? {
         if !email.contains('|') {
-            return Some(email);
+            return Ok(Some(email));
         }
         // Clear bad cached value
         let _ = set_setting(settings_key_email(provider_id), String::new()).await;
@@ -420,25 +423,25 @@ pub async fn get_or_fetch_email(provider_id: &str, access_token: &str) -> Option
     // Try decoding the access_token itself as JWT
     if let Some(identity) = extract_identity_from_jwt(access_token) {
         let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
-        return Some(identity);
+        return Ok(Some(identity));
     }
     // Fetch from userinfo endpoint and cache
     if let Some(identity) = fetch_userinfo_email(access_token).await {
         let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
-        return Some(identity);
+        return Ok(Some(identity));
     }
     eprintln!("[openai_oauth] identity fetch failed for provider {}", provider_id);
-    None
+    Ok(None)
 }
 
 /// Get the stored email for a provider from settings.
-pub async fn get_stored_email(provider_id: &str) -> Option<String> {
-    let settings = get_settings().await.unwrap_or_default();
-    settings
+pub async fn get_stored_email(provider_id: &str) -> Result<Option<String>, String> {
+    let settings = get_settings().await?;
+    Ok(settings
         .iter()
         .find(|s| s.key == settings_key_email(provider_id))
         .map(|s| s.value.clone())
-        .filter(|v| !v.is_empty())
+        .filter(|v| !v.is_empty()))
 }
 
 /// Store OAuth tokens in the settings table and update the provider's apiKey.
@@ -466,7 +469,7 @@ pub async fn store_tokens(provider_id: &str, tokens: &OAuthTokens) -> Result<(),
 /// Ensure the token for a provider is valid. Refreshes if expired.
 /// Returns a valid access_token.
 pub async fn ensure_valid_token(provider_id: &str) -> Result<String, String> {
-    let settings = get_settings().await.unwrap_or_default();
+    let settings = get_settings().await?;
     let get_val = |key: &str| -> Option<String> {
         settings
             .iter()
@@ -525,7 +528,7 @@ fn get_provider_api_key(
 
 /// Update a specific provider's apiKey in the llm_providers JSON setting.
 async fn update_provider_api_key(provider_id: &str, new_api_key: &str) -> Result<(), String> {
-    let settings = get_settings().await.unwrap_or_default();
+    let settings = get_settings().await?;
     let providers_json = settings
         .iter()
         .find(|s| s.key == "llm_providers")

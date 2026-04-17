@@ -62,6 +62,7 @@ export const LLMSettings: React.FC = () => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
 
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [models, setModels] = useState<ModelConfig[]>([]);
@@ -96,6 +97,7 @@ export const LLMSettings: React.FC = () => {
     const loadSettings = async () => {
       try {
         const settings = await invoke<{ key: string; value: string }[]>('get_settings');
+        setLoadError(null);
 
         const providersJson = settings.find(s => s.key === 'llm_providers')?.value;
         const modelsJson = settings.find(s => s.key === 'llm_models')?.value;
@@ -137,7 +139,11 @@ export const LLMSettings: React.FC = () => {
         setIsLoaded(true);
       } catch (error) {
         console.error('Failed to load settings:', error);
-
+        const detail = error instanceof Error ? error.message : String(error);
+        const configYamlGuidance = /config\.yaml/i.test(detail)
+          ? ' config.yaml 형식을 확인하세요.'
+          : '';
+        setLoadError(`LLM 설정을 불러오지 못했습니다.${configYamlGuidance}${detail ? ` (${detail})` : ''}`);
       }
     };
     loadSettings();
@@ -274,6 +280,17 @@ export const LLMSettings: React.FC = () => {
               '이 화면에서는 제공자, 모델, 스트리밍 설정을 수정할 수 없습니다.'
             )}
           </p>
+        </div>
+      )}
+
+      {loadError && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            isDark ? 'border-rose-500/30 bg-rose-500/10 text-rose-200' : 'border-rose-300 bg-rose-50 text-rose-900'
+          }`}
+        >
+          <p className="font-medium">{loadError}</p>
+          <p className="mt-1">이 문제가 해결되기 전까지 LLM 설정은 잠긴 상태로 유지됩니다.</p>
         </div>
       )}
 

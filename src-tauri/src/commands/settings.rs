@@ -134,10 +134,12 @@ pub async fn start_openai_oauth(provider_id: String) -> Result<OpenAIOAuthStatus
 
 #[tauri::command]
 pub async fn check_openai_oauth_status(provider_id: String) -> Result<OpenAIOAuthStatus, String> {
+    get_settings().await?;
+
     // Try to get a valid token (auto-refreshes if expired)
     match openai_oauth::ensure_valid_token(&provider_id).await {
         Ok(access_token) => {
-            let email = openai_oauth::get_or_fetch_email(&provider_id, &access_token).await;
+            let email = openai_oauth::get_or_fetch_email(&provider_id, &access_token).await?;
             Ok(OpenAIOAuthStatus {
                 authenticated: true,
                 email,

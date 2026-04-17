@@ -1,5 +1,6 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { invoke } from '@tauri-apps/api/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProviderModal } from './ProviderModal';
 import { useUIStore } from '../../../stores/uiStore';
@@ -16,6 +17,8 @@ vi.mock('../../common/Modal', () => ({
     </div>
   ),
 }));
+
+const invokeMock = vi.mocked(invoke);
 
 describe('ProviderModal', () => {
   let container: HTMLDivElement;
@@ -34,6 +37,34 @@ describe('ProviderModal', () => {
     });
     container.remove();
     vi.clearAllMocks();
+  });
+
+  it('shows an oauth configuration error when status lookup fails', async () => {
+    invokeMock.mockRejectedValueOnce(new Error('config.yaml 파싱 실패'));
+
+    await act(async () => {
+      root.render(
+        <ProviderModal
+          isOpen
+          onClose={() => {}}
+          onSave={() => {}}
+          editingProvider={{
+            id: 'provider-oauth',
+            type: 'openai-oauth',
+            name: 'ChatGPT',
+            apiKey: 'oauth-token',
+            baseUrl: '',
+          }}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('설정 오류');
+    expect(container.textContent).toContain('config.yaml 파싱 실패');
   });
 
   it('requires both api key and base url for custom providers', async () => {

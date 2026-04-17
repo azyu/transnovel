@@ -25,16 +25,21 @@ const DeleteIcon = () => (
 
 const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
-  const [status, setStatus] = useState<'checking' | 'authenticated' | 'expired'>('checking');
+  const [status, setStatus] = useState<'checking' | 'authenticated' | 'expired' | 'error'>('checking');
   const [email, setEmail] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<{ authenticated: boolean; email: string | null }>('check_openai_oauth_status', { providerId })
       .then((r) => {
         setStatus(r.authenticated ? 'authenticated' : 'expired');
         setEmail(r.email ?? null);
+        setErrorMessage(null);
       })
-      .catch(() => setStatus('expired'));
+      .catch((error) => {
+        setStatus('error');
+        setErrorMessage(error instanceof Error ? error.message : String(error));
+      });
   }, [providerId]);
 
   if (status === 'checking') return <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>...</span>;
@@ -43,6 +48,17 @@ const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
     return (
       <span className={`text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>
         {email ? `✓ ${email}` : '인증됨'}
+      </span>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <span
+        className={`text-xs ${isDark ? 'text-rose-400' : 'text-rose-600'}`}
+        title={errorMessage ?? undefined}
+      >
+        설정 오류
       </span>
     );
   }
