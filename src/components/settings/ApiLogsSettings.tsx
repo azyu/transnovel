@@ -1,17 +1,12 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useApiLogStore, type ApiLogFilter } from '../../stores/apiLogStore';
 import { ApiLogDetailModal } from './ApiLogDetailModal';
 import { Button } from '../common/Button';
 import type { ApiLogEntry, ApiLogSummary } from '../../types';
-
-const FILTERS: { label: string; value: ApiLogFilter }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Error', value: 'error' },
-  { label: 'Success', value: 'success' },
-];
 
 export const ApiLogsSettings: React.FC = () => {
   const isDark = useUIStore((s) => s.theme) === 'dark';
@@ -21,6 +16,11 @@ export const ApiLogsSettings: React.FC = () => {
   const [selectedLog, setSelectedLog] = useState<ApiLogEntry | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const filters: { label: string; value: ApiLogFilter }[] = [
+    { label: messages.settings.apiLogs.filters.all, value: 'all' },
+    { label: messages.settings.apiLogs.filters.error, value: 'error' },
+    { label: messages.settings.apiLogs.filters.success, value: 'success' },
+  ];
 
   useEffect(() => {
     fetchLogs();
@@ -39,8 +39,8 @@ export const ApiLogsSettings: React.FC = () => {
   };
 
   const handleClearLogs = async () => {
-    const confirmed = await ask('모든 API 로그를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.', {
-      title: 'API 로그 삭제',
+    const confirmed = await ask(messages.settings.apiLogs.confirmClear, {
+      title: messages.settings.apiLogs.confirmClearTitle,
       kind: 'warning',
     });
     if (!confirmed) return;
@@ -93,9 +93,9 @@ export const ApiLogsSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>API 로그</h2>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{messages.settings.apiLogs.title}</h2>
         <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          번역 API 요청 기록을 확인합니다
+          {messages.settings.apiLogs.description}
         </p>
       </div>
 
@@ -104,7 +104,7 @@ export const ApiLogsSettings: React.FC = () => {
       >
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-2">
-            {FILTERS.map((f) => (
+            {filters.map((f) => (
               <button
                 key={f.value}
                 type="button"
@@ -125,10 +125,10 @@ export const ApiLogsSettings: React.FC = () => {
 
           <div className="flex items-center gap-4">
             <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              총 {totalCount.toLocaleString()}개
+              {messages.settings.apiLogs.totalCount(totalCount)}
             </span>
             <Button variant="danger" size="sm" onClick={handleClearLogs} isLoading={isClearing} disabled={totalCount === 0}>
-              로그 삭제
+              {messages.settings.apiLogs.clearAction}
             </Button>
           </div>
         </div>
@@ -139,22 +139,22 @@ export const ApiLogsSettings: React.FC = () => {
               <thead>
                 <tr className={isDark ? 'bg-slate-900/50' : 'bg-slate-50'}>
                   <th className={`px-3 py-2 text-left font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Status
+                    {messages.settings.apiLogs.columns.status}
                   </th>
                   <th className={`px-3 py-2 text-left font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Provider
+                    {messages.settings.apiLogs.columns.provider}
                   </th>
                   <th className={`px-3 py-2 text-left font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Model
+                    {messages.settings.apiLogs.columns.model}
                   </th>
                   <th className={`px-3 py-2 text-left font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Tokens
+                    {messages.settings.apiLogs.columns.tokens}
                   </th>
                   <th className={`px-3 py-2 text-left font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Duration
+                    {messages.settings.apiLogs.columns.duration}
                   </th>
                   <th className={`px-3 py-2 text-left font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Time
+                    {messages.settings.apiLogs.columns.time}
                   </th>
                 </tr>
               </thead>
@@ -171,7 +171,7 @@ export const ApiLogsSettings: React.FC = () => {
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                           />
                         </svg>
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Loading...</span>
+                        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>{messages.settings.apiLogs.loading}</span>
                       </div>
                     </td>
                   </tr>
@@ -181,7 +181,7 @@ export const ApiLogsSettings: React.FC = () => {
                       colSpan={6}
                       className={`px-3 py-8 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
                     >
-                      로그가 없습니다
+                      {messages.settings.apiLogs.empty}
                     </td>
                   </tr>
                 ) : (
@@ -199,10 +199,14 @@ export const ApiLogsSettings: React.FC = () => {
                           type="button"
                           onClick={() => handleLogClick(log)}
                           disabled={loadingDetail}
-                          aria-label={`API 로그 상세 보기: ${log.provider} ${log.model || ''} ${log.status || 'N/A'}`}
+                          aria-label={messages.settings.apiLogs.detailButtonAriaLabel(
+                            log.provider,
+                            log.model || '',
+                            String(log.status || messages.settings.apiLogs.notAvailable),
+                          )}
                           className={`px-1.5 py-0.5 rounded text-xs font-bold text-white disabled:opacity-50 ${getStatusColor(log.status)}`}
                         >
-                          {log.status || 'N/A'}
+                          {log.status || messages.settings.apiLogs.notAvailable}
                         </button>
                       </td>
                       <td className="px-3 py-2">
@@ -218,9 +222,9 @@ export const ApiLogsSettings: React.FC = () => {
                       <td className={`px-3 py-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {log.inputTokens !== undefined && log.outputTokens !== undefined ? (
                           <span>
-                            <span className="text-blue-400">I: {(log.inputTokens / 1000).toFixed(1)}k</span>
+                            <span className="text-blue-400">{messages.settings.apiLogs.tokenInputPrefix} {(log.inputTokens / 1000).toFixed(1)}k</span>
                             {' / '}
-                            <span className="text-green-400">O: {(log.outputTokens / 1000).toFixed(1)}k</span>
+                            <span className="text-green-400">{messages.settings.apiLogs.tokenOutputPrefix} {(log.outputTokens / 1000).toFixed(1)}k</span>
                           </span>
                         ) : (
                           '-'
@@ -243,7 +247,7 @@ export const ApiLogsSettings: React.FC = () => {
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
             <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              페이지 {currentPage} / {totalPages}
+              {messages.settings.apiLogs.page(currentPage, totalPages)}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -254,7 +258,7 @@ export const ApiLogsSettings: React.FC = () => {
                   isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                이전
+                {messages.settings.apiLogs.prev}
               </button>
               <button
                 type="button"
@@ -264,7 +268,7 @@ export const ApiLogsSettings: React.FC = () => {
                   isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                다음
+                {messages.settings.apiLogs.next}
               </button>
             </div>
           </div>

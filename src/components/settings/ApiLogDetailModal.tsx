@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import type { ApiLogEntry } from '../../types';
 
@@ -72,7 +73,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="API 로그 상세"
+      aria-label={messages.settings.apiLogs.detail.dialogLabel}
     >
       <div
         className={`relative w-full max-w-4xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col ${
@@ -102,7 +103,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            aria-label="닫기"
+            aria-label={messages.settings.apiLogs.detail.closeAriaLabel}
             className={`p-1 rounded-lg transition-colors ${
               isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
             }`}
@@ -117,7 +118,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
           <div className={`p-4 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
             <div className="flex items-center gap-2 mb-4">
               <p className={`text-xs uppercase font-medium shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                UID
+                {messages.settings.apiLogs.detail.uidLabel}
               </p>
               <button
                 type="button"
@@ -129,9 +130,9 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                       ? 'bg-slate-700 hover:bg-slate-600 text-amber-400'
                       : 'bg-slate-100 hover:bg-slate-200 text-amber-600'
                 }`}
-                title="클릭하여 UID 복사"
+                title={messages.settings.apiLogs.detail.uidTitle}
               >
-                {copiedField === 'uid' ? 'Copied!' : log.id}
+                {copiedField === 'uid' ? messages.settings.apiLogs.detail.copied : log.id}
                 {copiedField !== 'uid' && (
                   <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -142,7 +143,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Time
+                  {messages.settings.apiLogs.detail.timeLabel}
                 </p>
                 <p className={`text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {formatTimestamp(log.timestamp)}
@@ -150,7 +151,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
               </div>
               <div>
                 <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Duration
+                  {messages.settings.apiLogs.detail.durationLabel}
                 </p>
                 <p className={`text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {formatDuration(log.durationMs)}
@@ -158,7 +159,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
               </div>
               <div>
                 <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Tokens (I/O)
+                  {messages.settings.apiLogs.detail.tokensLabel}
                 </p>
                 <p className={`text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {log.inputTokens != null && log.outputTokens != null
@@ -168,7 +169,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
               </div>
               <div>
                 <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Provider / Model
+                  {messages.settings.apiLogs.detail.providerModelLabel}
                 </p>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${getProviderColor(log.provider)}`}>
@@ -184,7 +185,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
             </div>
             {log.error && (
               <div className="mt-3">
-                <p className={`text-xs uppercase font-medium mb-1 text-red-500`}>Error</p>
+                <p className={`text-xs uppercase font-medium mb-1 text-red-500`}>{messages.settings.apiLogs.detail.errorLabel}</p>
                 <p className="text-sm text-red-400">{log.error}</p>
               </div>
             )}
@@ -194,7 +195,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className={`text-xs uppercase font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Request Payload
+                  {messages.settings.apiLogs.detail.requestPayloadLabel}
                 </p>
                 <button
                   type="button"
@@ -208,7 +209,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                         : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                   }`}
                 >
-                  {copiedField === 'request' ? 'Copied!' : 'Copy'}
+                  {copiedField === 'request' ? messages.settings.apiLogs.detail.copied : messages.settings.apiLogs.detail.copy}
                 </button>
               </div>
               <pre
@@ -216,14 +217,14 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                   isDark ? 'bg-slate-900 text-slate-300' : 'bg-slate-50 text-slate-700'
                 }`}
               >
-                {formatJson(log.requestBody) || '(empty)'}
+                {formatJson(log.requestBody) || messages.settings.apiLogs.detail.emptyPayload}
               </pre>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className={`text-xs uppercase font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Response Payload
+                  {messages.settings.apiLogs.detail.responsePayloadLabel}
                 </p>
                 <button
                   type="button"
@@ -237,7 +238,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                         : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                   }`}
                 >
-                  {copiedField === 'response' ? 'Copied!' : 'Copy'}
+                  {copiedField === 'response' ? messages.settings.apiLogs.detail.copied : messages.settings.apiLogs.detail.copy}
                 </button>
               </div>
               <pre
@@ -245,7 +246,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                   isDark ? 'bg-slate-900 text-slate-300' : 'bg-slate-50 text-slate-700'
                 }`}
               >
-                {formatJson(log.responseBody) || '(empty)'}
+                {formatJson(log.responseBody) || messages.settings.apiLogs.detail.emptyPayload}
               </pre>
             </div>
           </div>
