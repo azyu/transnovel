@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { AboutSettings } from './AboutSettings';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 
 vi.mock('@tauri-apps/api/app', () => ({
@@ -20,6 +21,7 @@ describe('AboutSettings', () => {
   let container: HTMLDivElement;
   let root: Root;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let originalSettingsMessages: unknown;
 
   beforeEach(() => {
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -30,6 +32,7 @@ describe('AboutSettings', () => {
 
     useUIStore.setState({ theme: 'dark' });
     getVersionMock.mockResolvedValue('0.1.1');
+    originalSettingsMessages = messages.settings;
   });
 
   afterEach(() => {
@@ -38,6 +41,7 @@ describe('AboutSettings', () => {
     });
     container.remove();
     consoleErrorSpy.mockRestore();
+    (messages as { settings: unknown }).settings = originalSettingsMessages;
     vi.clearAllMocks();
   });
 
@@ -136,5 +140,52 @@ describe('AboutSettings', () => {
     expect(invokeMock).toHaveBeenLastCalledWith('open_url', {
       url: 'https://github.com/azyu/transnovel/releases/tag/v0.1.2',
     });
+  });
+
+  it('renders update labels from settings i18n messages', async () => {
+    const originalSettings = originalSettingsMessages as typeof messages.settings;
+    (messages as { settings: unknown }).settings = {
+      ...originalSettings,
+      about: {
+        ...originalSettings.about,
+        title: 'About sentinel',
+        description: 'About description sentinel',
+        versionPrefix: 'Version sentinel',
+        checkUpdates: 'Check updates sentinel',
+        updateAvailable: (tagName: string) => `Available sentinel ${tagName}`,
+        openRelease: 'Open release sentinel',
+        upToDate: 'Up to date sentinel',
+        updateCheckFailed: (detail: string) => `Check failed sentinel: ${detail}`,
+      },
+    };
+    invokeMock.mockResolvedValue({
+      version: '0.1.2',
+      tagName: 'v0.1.2',
+      name: 'v0.1.2',
+      htmlUrl: 'https://github.com/azyu/transnovel/releases/tag/v0.1.2',
+    });
+
+    await act(async () => {
+      root.render(<AboutSettings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const checkButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Check updates sentinel'),
+    );
+    expect(checkButton).toBeTruthy();
+
+    await act(async () => {
+      checkButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('About sentinel');
+    expect(container.textContent).toContain('About description sentinel');
+    expect(container.textContent).toContain('Version sentinel');
+    expect(container.textContent).toContain('Available sentinel v0.1.2');
+    expect(container.textContent).toContain('Open release sentinel');
   });
 });
