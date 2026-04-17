@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { messages } from '../../i18n';
 import type { Chapter } from '../../types';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -17,6 +18,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
   const [end, setEnd] = useState<number>(1);
   const [prevChapters, setPrevChapters] = useState(chapters);
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const chapterListMessages = messages.series.chapterList;
 
   if (chapters !== prevChapters) {
     setPrevChapters(chapters);
@@ -37,7 +39,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
           <div className="w-24">
             <Input
               type="number"
-              label="시작 화"
+              label={chapterListMessages.startLabel}
               value={start}
               onChange={(e) => setStart(Number(e.target.value))}
               min={1}
@@ -47,7 +49,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
           <div className="w-24">
             <Input
               type="number"
-              label="종료 화"
+              label={chapterListMessages.endLabel}
               value={end}
               onChange={(e) => setEnd(Number(e.target.value))}
               min={start}
@@ -57,10 +59,10 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
         
         <div className="flex items-center gap-4 w-full md:w-auto justify-end">
           <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            총 <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapters.length}</span> 화
+            {chapterListMessages.totalChapters(chapters.length)}
           </div>
           <Button onClick={handleStart} isLoading={isLoading} disabled={disabled}>
-            일괄 번역 시작
+            {chapterListMessages.startBatch}
           </Button>
         </div>
       </div>
@@ -70,8 +72,8 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
           <thead className={isDark ? 'bg-slate-900/50 text-slate-400' : 'bg-slate-100 text-slate-500'}>
             <tr>
               <th className="px-4 py-3 font-medium rounded-l-lg w-12"></th>
-              <th className="px-4 py-3 font-medium">번호</th>
-              <th className="px-4 py-3 font-medium rounded-r-lg">제목</th>
+              <th className="px-4 py-3 font-medium">{chapterListMessages.columns.number}</th>
+              <th className="px-4 py-3 font-medium rounded-r-lg">{chapterListMessages.columns.title}</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${isDark ? 'divide-slate-700/50' : 'divide-slate-200'}`}>
@@ -101,7 +103,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
                         onChapterDoubleClick(chapter);
                       }
                     }}
-                    aria-label={`${chapter.number}화: ${chapter.title} 열기`}
+                    aria-label={chapterListMessages.openChapterAriaLabel(chapter.number, chapter.title)}
                     className={`w-full text-left bg-transparent border-0 p-0 ${isDark ? 'text-slate-200' : 'text-slate-700'} ${
                       onChapterDoubleClick ? 'cursor-pointer' : 'cursor-default'
                     }`}
@@ -114,7 +116,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
             {chapters.length === 0 && (
               <tr>
                 <td colSpan={3} className={`px-4 py-8 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  챕터 목록이 없습니다.
+                  {chapterListMessages.empty}
                 </td>
               </tr>
             )}

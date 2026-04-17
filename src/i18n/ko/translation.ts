@@ -11,6 +11,14 @@ export const translationMessages = {
     saveFailed: '사전 저장 실패',
     saveSuccess: '사용자 정의 고유명사 사전을 저장했습니다.',
     missingTarget: '저장할 작품 정보를 확인할 수 없습니다.',
+    reviewTitle: '고유명사 사전 후보 확인',
+    reviewDescription:
+      '이번 화 번역에서 새로 추출된 고유명사 후보입니다. 저장하면 현재 작품의 이후 번역에 자동으로 적용됩니다.',
+    manualTitle: '사용자 정의 고유명사 사전',
+    manualDescription:
+      '현재 작품에 등록된 고유명사 사전을 수정합니다. 저장 시 기존 번역 캐시는 초기화됩니다.',
+    reviewSaveLabel: '후보 저장',
+    manualSaveLabel: '사전 저장',
   },
   watchlist: {
     addFailed: '관심작품 추가 실패',
@@ -41,6 +49,10 @@ export const translationMessages = {
       { name: 'kakuyomu.jp', url: 'https://kakuyomu.jp' },
     ],
     emptyState: '번역할 소설의 URL을 입력하고 불러오세요',
+    historyChapterLabel: (chapterNumber: number) => `${chapterNumber}화`,
+  },
+  paragraphList: {
+    pending: '번역 대기 중...',
   },
   llmConfig: {
     requiredTitle: 'LLM 설정 필요',
@@ -65,6 +77,12 @@ export const translationMessages = {
         description: '웹 브라우저에서 열 수 있는 형식, 루비 텍스트 지원',
       },
     },
+  },
+  saveResult: {
+    successTitle: '저장 완료',
+    successMessage: (path: string) => `저장 완료: ${path}`,
+    failureTitle: '오류',
+    failureMessage: (detail: string) => `저장 실패: ${detail}`,
   },
   dictionaryModal: {
     actions: {

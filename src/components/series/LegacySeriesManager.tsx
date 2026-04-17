@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { message } from '@tauri-apps/plugin-dialog';
+import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
@@ -35,11 +36,15 @@ export const LegacySeriesManager: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const isDark = theme === 'dark';
+  const legacyMessages = messages.series.legacy;
 
   const handleStart = async (start: number, end: number) => {
     const content = useTranslationStore.getState().getChapterContent();
     if (!content) {
-      await message('먼저 소설을 불러와주세요.', { title: '알림', kind: 'warning' });
+      await message(legacyMessages.noNovelLoaded, {
+        title: legacyMessages.alertTitle,
+        kind: 'warning',
+      });
       return;
     }
 
@@ -100,9 +105,15 @@ export const LegacySeriesManager: React.FC = () => {
         },
       });
       setShowExportModal(false);
-      await message('내보내기가 완료되었습니다.', { title: '완료', kind: 'info' });
+      await message(legacyMessages.exportCompleted, {
+        title: legacyMessages.completedTitle,
+        kind: 'info',
+      });
     } catch (error) {
-      await message(`내보내기 실패: ${error}`, { title: '오류', kind: 'error' });
+      await message(legacyMessages.exportFailed(String(error)), {
+        title: legacyMessages.errorTitle,
+        kind: 'error',
+      });
     } finally {
       setExporting(false);
     }
@@ -139,7 +150,7 @@ export const LegacySeriesManager: React.FC = () => {
               onClick={() => setShowExportModal(true)}
               disabled={batchProgress?.status === 'translating'}
             >
-              내보내기
+              {legacyMessages.exportButton}
             </Button>
           </div>
         </>
@@ -148,14 +159,14 @@ export const LegacySeriesManager: React.FC = () => {
       <Modal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
-        title="소설 내보내기"
+        title={legacyMessages.modalTitle}
         footer={
           <>
             <Button variant="ghost" onClick={() => setShowExportModal(false)}>
-              취소
+              {legacyMessages.cancel}
             </Button>
             <Button onClick={handleExport} isLoading={exporting}>
-              내보내기
+              {legacyMessages.export}
             </Button>
           </>
         }
@@ -167,7 +178,7 @@ export const LegacySeriesManager: React.FC = () => {
                 isDark ? 'text-slate-300' : 'text-slate-600'
               }`}
             >
-              파일 형식
+              {legacyMessages.formatLabel}
             </label>
             <div className="grid grid-cols-3 gap-3">
               {(['TxtSingle', 'TxtChapters', 'Epub'] as const).map((format) => (
@@ -184,15 +195,15 @@ export const LegacySeriesManager: React.FC = () => {
                         : 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {format === 'TxtSingle' && 'TXT (통합)'}
-                  {format === 'TxtChapters' && 'TXT (분할)'}
-                  {format === 'Epub' && 'EPUB'}
+                  {format === 'TxtSingle' && legacyMessages.formats.txtSingle}
+                  {format === 'TxtChapters' && legacyMessages.formats.txtChapters}
+                  {format === 'Epub' && legacyMessages.formats.epub}
                 </button>
               ))}
             </div>
           </div>
           <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            * '다운로드' 폴더에 저장됩니다.
+            {legacyMessages.downloadsNote}
           </p>
         </div>
       </Modal>
