@@ -24,6 +24,21 @@ describe('loadUILanguageFlow', () => {
 
     expect(setLanguage).not.toHaveBeenCalled();
   });
+
+  it('ignores a stale persisted language after the user already changed the UI language', async () => {
+    const invokeMock = vi.fn(async () => [
+      { key: 'ui_language', value: 'ko' },
+    ]);
+    const setLanguage = vi.fn();
+
+    await loadUILanguageFlow(
+      invokeMock as never,
+      setLanguage,
+      () => false,
+    );
+
+    expect(setLanguage).not.toHaveBeenCalled();
+  });
 });
 
 describe('saveUILanguageFlow', () => {
