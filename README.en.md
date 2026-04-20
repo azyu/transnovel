@@ -61,6 +61,36 @@ The easiest way to use TransNovel is to download a release build for your platfo
 > [!TIP]
 > Start with a short chapter first to check that the model, prompt, and substitution rules match the reading style you want.
 
+## Advanced: Manage LLM Settings With External YAML
+
+Advanced users can pin the provider, model, and streaming behavior through an external `config.yaml` instead of editing LLM settings in the app UI.
+
+- macOS: `~/.config/transnovel/config.yaml`
+- Windows: `%APPDATA%\transnovel\config.yaml`
+- Linux: `~/.config/transnovel/config.yaml`
+
+The easiest starting point is to copy [config.example.yaml](./config.example.yaml) and edit the values you need.
+
+```yaml
+active_model: google/gemma-4-31b-it
+use_streaming: true
+
+providers:
+  nvidia:
+    type: openai-compatible
+    api_key: your-api-key
+    base_url: https://integrate.api.nvidia.com/v1
+
+models:
+  google/gemma-4-31b-it:
+    provider: nvidia
+    model_id: google/gemma-4-31b-it
+```
+
+- If the file exists, the `LLM Settings` UI becomes read-only.
+- YAML-managed config supports API-key-based providers only. `OpenAI (Codex)` OAuth sign-in is not available in this mode.
+- Invalid YAML surfaces a configuration error instead of silently falling back to DB-backed settings.
+
 ## Supported Sites
 
 | Site | Domain | Current Status |
