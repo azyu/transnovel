@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '../../stores/uiStore';
-import { messages } from '../../i18n';
 import type { LatestReleaseInfo } from '../../types';
 import appIcon from '../../assets/app-icon.png';
 import { Button } from '../common/Button';
 import { isReleaseNewer } from '../../utils/release';
+import { useSettingsMessages } from './useSettingsMessages';
 
 type UpdateStatus =
   | { kind: 'idle' }
@@ -19,6 +19,7 @@ export const AboutSettings: React.FC = () => {
   const [version, setVersion] = useState<string>('');
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ kind: 'idle' });
   const theme = useUIStore((state) => state.theme);
+  const settingsMessages = useSettingsMessages();
   const isDark = theme === 'dark';
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export const AboutSettings: React.FC = () => {
     } catch (error) {
       setUpdateStatus({
         kind: 'error',
-        message: messages.settings.about.updateCheckFailed(String(error)),
+        message: settingsMessages.about.updateCheckFailed(String(error)),
       });
     }
   };
@@ -55,9 +56,9 @@ export const AboutSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="border-b pb-4" style={{ borderColor: isDark ? '#334155' : '#e2e8f0' }}>
-        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{messages.settings.about.title}</h2>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{settingsMessages.about.title}</h2>
         <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          {messages.settings.about.description}
+          {settingsMessages.about.description}
         </p>
       </div>
 
@@ -81,7 +82,7 @@ export const AboutSettings: React.FC = () => {
             TransNovel
           </h3>
           <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {messages.settings.about.versionPrefix} {version || messages.settings.about.versionUnknown}
+            {settingsMessages.about.versionPrefix} {version || settingsMessages.about.versionUnknown}
           </p>
           <div className="pt-4 space-y-3">
             <div className="flex justify-center">
@@ -92,14 +93,14 @@ export const AboutSettings: React.FC = () => {
                 isLoading={updateStatus.kind === 'checking'}
                 disabled={!version}
               >
-                {messages.settings.about.checkUpdates}
+                {settingsMessages.about.checkUpdates}
               </Button>
             </div>
 
             {updateStatus.kind === 'available' ? (
               <div className="space-y-3">
                 <p className={`text-sm ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                  {messages.settings.about.updateAvailable(updateStatus.release.tagName)}
+                  {settingsMessages.about.updateAvailable(updateStatus.release.tagName)}
                 </p>
                 <div className="flex justify-center">
                   <Button
@@ -107,7 +108,7 @@ export const AboutSettings: React.FC = () => {
                     size="sm"
                     onClick={() => handleOpenRelease(updateStatus.release.htmlUrl)}
                   >
-                    {messages.settings.about.openRelease}
+                    {settingsMessages.about.openRelease}
                   </Button>
                 </div>
               </div>
@@ -115,7 +116,7 @@ export const AboutSettings: React.FC = () => {
 
             {updateStatus.kind === 'up-to-date' ? (
               <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                {messages.settings.about.upToDate}
+                {settingsMessages.about.upToDate}
               </p>
             ) : null}
 

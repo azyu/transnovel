@@ -188,4 +188,21 @@ describe('AboutSettings', () => {
     expect(container.textContent).toContain('Available sentinel v0.1.2');
     expect(container.textContent).toContain('Open release sentinel');
   });
+
+  it('renders about labels in English when the UI language is English', async () => {
+    useUIStore.setState({ theme: 'dark', language: 'en' });
+
+    await act(async () => {
+      root.render(<AboutSettings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('About');
+    expect(container.textContent).toContain('Application information');
+    expect(container.textContent).toContain('Version');
+    expect(container.textContent).toContain('Check for updates');
+  });
 });

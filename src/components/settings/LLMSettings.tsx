@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
-import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { ModelModal } from './llm/ModelModal';
 import { ModelList } from './llm/ModelList';
 import { ProviderModal } from './llm/ProviderModal';
 import { ProviderList } from './llm/ProviderList';
 import type { ModelConfig, ProviderConfig, ProviderType } from './llm/types';
+import { useSettingsMessages } from './useSettingsMessages';
 
 interface OldModelConfig {
   id: string;
@@ -19,7 +19,10 @@ interface OldModelConfig {
   modelId: string;
 }
 
-function migrateOldData(oldModels: OldModelConfig[]): { providers: ProviderConfig[]; models: ModelConfig[] } {
+function migrateOldData(
+  oldModels: OldModelConfig[],
+  providerTypeMessages: ReturnType<typeof useSettingsMessages>['llm']['providerTypes'],
+): { providers: ProviderConfig[]; models: ModelConfig[] } {
   const providerMap = new Map<string, ProviderConfig>();
   const newModels: ModelConfig[] = [];
 
@@ -27,11 +30,11 @@ function migrateOldData(oldModels: OldModelConfig[]): { providers: ProviderConfi
     const providerKey = `${oldModel.providerType}-${oldModel.apiKey}-${oldModel.baseUrl}`;
 
     if (!providerMap.has(providerKey)) {
-      const providerTypeMessages = messages.settings.llm.providerTypes[oldModel.providerType];
+      const providerTypeMessage = providerTypeMessages[oldModel.providerType];
       providerMap.set(providerKey, {
         id: crypto.randomUUID(),
         type: oldModel.providerType,
-        name: providerTypeMessages?.label || oldModel.providerType,
+        name: providerTypeMessage?.label || oldModel.providerType,
         apiKey: oldModel.apiKey,
         baseUrl: oldModel.baseUrl,
       });
@@ -60,7 +63,8 @@ function isOldFormat(data: unknown): data is OldModelConfig[] {
 
 export const LLMSettings: React.FC = () => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
-  const llmMessages = messages.settings.llm;
+  const settingsMessages = useSettingsMessages();
+  const llmMessages = settingsMessages.llm;
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -120,7 +124,7 @@ export const LLMSettings: React.FC = () => {
           try {
             const parsedModels = JSON.parse(modelsJson);
             if (isOldFormat(parsedModels)) {
-              const migrated = migrateOldData(parsedModels);
+              const migrated = migrateOldData(parsedModels, llmMessages.providerTypes);
               setProviders(migrated.providers);
               setModels(migrated.models);
             } else {

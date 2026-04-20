@@ -3,10 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
 import { Modal } from '../../common/Modal';
-import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ModelConfig, ProviderConfig, ModelOption } from './types';
 import { PROVIDER_PRESETS, FALLBACK_MODELS } from './types';
+import { useSettingsMessages } from '../useSettingsMessages';
 
 interface GeminiModel {
   name: string;
@@ -39,7 +39,8 @@ export const ModelModal: React.FC<ModelModalProps> = ({
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   const isLocked = disabled;
-  const llmMessages = messages.settings.llm;
+  const settingsMessages = useSettingsMessages();
+  const llmMessages = settingsMessages.llm;
   const modelModalMessages = llmMessages.modelModal;
   
   const [providerId, setProviderId] = useState('');

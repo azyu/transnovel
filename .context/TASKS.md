@@ -15,6 +15,7 @@
 
 ## In Progress
 
+- [x] #25 설정 화면 KO/EN 전환 누락 정리 — Codex
 - [x] OAuth 상태 확인 config error surface follow-up — Codex
 - [x] LLM settings get_settings error surface follow-up — Codex
 - [x] YAML providers base_url synthesis follow-up — Codex

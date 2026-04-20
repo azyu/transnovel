@@ -3,10 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
 import { Modal } from '../../common/Modal';
-import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ProviderConfig, ProviderType } from './types';
 import { PROVIDER_PRESETS } from './types';
+import { useSettingsMessages } from '../useSettingsMessages';
 
 interface ProviderModalProps {
   isOpen: boolean;
@@ -25,7 +25,8 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
   const isLocked = disabled;
-  const llmMessages = messages.settings.llm;
+  const settingsMessages = useSettingsMessages();
+  const llmMessages = settingsMessages.llm;
   const providerModalMessages = llmMessages.providerModal;
   
   const [providerType, setProviderType] = useState<ProviderType>('gemini');
@@ -79,6 +80,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setBaseUrl(PROVIDER_PRESETS.gemini.defaultBaseUrl);
       setApiKey('');
       setOauthDone(false);
+      setOauthEmail(null);
       setOauthStatusError(null);
     }
   }, [editingProvider, isOpen]);

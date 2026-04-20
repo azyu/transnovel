@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ProviderConfig } from './types';
+import { useSettingsMessages } from '../useSettingsMessages';
 
 interface ProviderListProps {
   providers: ProviderConfig[];
@@ -25,7 +25,8 @@ const DeleteIcon = () => (
 
 const OAuthStatusBadge: React.FC<{ providerId: string }> = ({ providerId }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
-  const oauthMessages = messages.settings.llm.providerList.oauth;
+  const settingsMessages = useSettingsMessages();
+  const oauthMessages = settingsMessages.llm.providerList.oauth;
   const [status, setStatus] = useState<'checking' | 'authenticated' | 'expired' | 'error'>('checking');
   const [email, setEmail] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -76,7 +77,8 @@ export const ProviderList: React.FC<ProviderListProps> = ({
   disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
-  const llmMessages = messages.settings.llm;
+  const settingsMessages = useSettingsMessages();
+  const llmMessages = settingsMessages.llm;
   const providerListMessages = llmMessages.providerList;
 
   const getProviderColor = (type: string): string => {

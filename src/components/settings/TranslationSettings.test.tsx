@@ -69,4 +69,21 @@ describe('TranslationSettings', () => {
     expect(container.textContent).toContain('Reset prompt sentinel');
     expect(container.textContent).toContain('Proper noun toggle sentinel');
   });
+
+  it('renders the substitutions format hint in English when the UI language is English', async () => {
+    useUIStore.setState({ theme: 'dark', language: 'en' });
+
+    await act(async () => {
+      root.render(<TranslationSettings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain(
+      'Use one source/replacement pair per line. Regex is supported. source/replacement',
+    );
+    expect(container.textContent).not.toContain('원본/치환');
+  });
 });

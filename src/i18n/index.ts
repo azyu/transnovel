@@ -3,6 +3,7 @@ import { settingsMessages } from './ko/settings';
 import { seriesMessages } from './ko/series';
 import { translationMessages } from './ko/translation';
 import { commonMessages as enCommonMessages } from './en/common';
+import { settingsMessages as enSettingsMessages } from './en/settings';
 import { seriesMessages as enSeriesMessages } from './en/series';
 import { translationMessages as enTranslationMessages } from './en/translation';
 
@@ -17,7 +18,7 @@ const localeMessages = {
   ko: messages,
   en: {
     common: enCommonMessages,
-    settings: settingsMessages,
+    settings: enSettingsMessages,
     series: enSeriesMessages,
     translation: enTranslationMessages,
   },
