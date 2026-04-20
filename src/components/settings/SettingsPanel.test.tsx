@@ -75,4 +75,25 @@ describe('SettingsPanel', () => {
     expect(container.textContent).toContain('API logs sentinel');
     expect(container.textContent).toContain('About sentinel');
   });
+
+  it('renders settings sub-tab labels in English when the UI language is English', async () => {
+    useUIStore.setState({ theme: 'dark', language: 'en' });
+
+    await act(async () => {
+      root.render(<SettingsPanel />);
+    });
+
+    const buttonLabels = Array.from(container.querySelectorAll('nav button')).map((button) =>
+      button.textContent?.trim(),
+    );
+
+    expect(buttonLabels).toEqual([
+      'LLM',
+      'Translation',
+      'View',
+      'Advanced',
+      'API Logs',
+      'About',
+    ]);
+  });
 });

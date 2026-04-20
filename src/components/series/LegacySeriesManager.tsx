@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { message } from '@tauri-apps/plugin-dialog';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
@@ -14,6 +14,7 @@ import type { Chapter } from '../../types';
 
 export const LegacySeriesManager: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
+  const language = useUIStore((s) => s.language);
   const setTab = useUIStore((s) => s.setTab);
   const chapterList = useSeriesStore((s) => s.chapterList);
   const batchProgress = useSeriesStore((s) => s.batchProgress);
@@ -36,7 +37,7 @@ export const LegacySeriesManager: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const isDark = theme === 'dark';
-  const legacyMessages = messages.series.legacy;
+  const legacyMessages = getMessages(language).series.legacy;
 
   const handleStart = async (start: number, end: number) => {
     const content = useTranslationStore.getState().getChapterContent();

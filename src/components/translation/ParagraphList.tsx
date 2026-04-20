@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
+import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
 import { useViewSettings, type ViewConfig } from '../../hooks/useViewSettings';
 
@@ -12,6 +13,8 @@ interface ParagraphRowProps {
 
 const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isStacked }) => {
   const paragraph = useTranslationStore((s) => s.paragraphById[paragraphId]);
+  const language = useUIStore((s) => s.language);
+  const translationMessages = getMessages(language).translation;
   
   if (!paragraph) return null;
 
@@ -60,7 +63,7 @@ const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isS
                 className="text-sm italic opacity-30"
                 style={{ color: config.textColor }}
               >
-                {messages.translation.paragraphList.pending}
+                {translationMessages.paragraphList.pending}
               </div>
             )}
           </div>
@@ -106,7 +109,7 @@ const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isS
                 className="text-sm italic opacity-30"
                 style={{ color: config.textColor }}
               >
-                {messages.translation.paragraphList.pending}
+                {translationMessages.paragraphList.pending}
               </div>
             )}
           </div>

@@ -3,8 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { Toggle } from '../common/Toggle';
-import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
+import { useSettingsMessages } from './useSettingsMessages';
 
 export const TranslationSettings: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -16,7 +16,8 @@ export const TranslationSettings: React.FC = () => {
   const translationNoteId = useId();
   const substitutionsId = useId();
   const isDark = useUIStore((state) => state.theme) === 'dark';
-  const translationMessages = messages.settings.translation;
+  const settingsMessages = useSettingsMessages();
+  const translationMessages = settingsMessages.translation;
 
 
   useEffect(() => {
@@ -168,7 +169,7 @@ export const TranslationSettings: React.FC = () => {
           />
           <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             {translationMessages.substitutionsDescription}{' '}
-            <code className="text-blue-400">원본/치환</code>
+            <code className="text-blue-400">{translationMessages.substitutionsFormat}</code>
           </p>
         </div>
       </div>

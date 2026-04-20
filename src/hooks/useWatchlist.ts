@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import type { WatchlistEpisode, WatchlistItem } from '../types';
-import { messages } from '../i18n';
+import { getMessages } from '../i18n';
 import { getWatchlistItemKey } from '../utils/watchlist';
 
 type ApplyGuardOptions = {
@@ -85,7 +85,7 @@ export const refreshWatchlistFlow = async (
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setWatchlistError(message);
-    showError(messages.series.refreshFailed, message);
+    showError(getMessages(useUIStore.getState().language).series.refreshFailed, message);
     throw error;
   } finally {
     setIsRefreshingWatchlist(false);
@@ -99,6 +99,7 @@ export const useWatchlist = () => {
   const setIsRefreshingWatchlist = useSeriesStore((s) => s.setIsRefreshingWatchlist);
   const setWatchlistLoaded = useSeriesStore((s) => s.setWatchlistLoaded);
   const setWatchlistError = useSeriesStore((s) => s.setWatchlistError);
+  const language = useUIStore((s) => s.language);
   const showToast = useUIStore((s) => s.showToast);
   const showError = useUIStore((s) => s.showError);
 
@@ -139,9 +140,9 @@ export const useWatchlist = () => {
     const items = await invoke<WatchlistItem[]>('list_watchlist_items');
     setWatchlistItems(items);
     setSelectedWatchlistNovelId(getWatchlistItemKey(item));
-    showToast(messages.series.addSuccess);
+    showToast(getMessages(language).series.addSuccess);
     return item;
-  }, [setSelectedWatchlistNovelId, setWatchlistItems, showToast]);
+  }, [language, setSelectedWatchlistNovelId, setWatchlistItems, showToast]);
 
   const loadWatchlistEpisodes = useCallback(async (
     site: string,

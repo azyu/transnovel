@@ -5,7 +5,7 @@ import { ViewSettings } from './ViewSettings';
 import { AdvancedSettings } from './AdvancedSettings';
 import { ApiLogsSettings } from './ApiLogsSettings';
 import { AboutSettings } from './AboutSettings';
-import { messages } from '../../i18n';
+import { useSettingsMessages } from './useSettingsMessages';
 import { useUIStore } from '../../stores/uiStore';
 
 type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced' | 'api-logs' | 'about';
@@ -13,14 +13,15 @@ type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced' | 'api-logs' | 'a
 export const SettingsPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('llm');
   const { theme } = useUIStore();
+  const settingsMessages = useSettingsMessages();
 
   const tabs: { id: SettingsTab; label: string }[] = [
-    { id: 'llm', label: messages.settings.tabs.llm },
-    { id: 'translation', label: messages.settings.tabs.translation },
-    { id: 'view', label: messages.settings.tabs.view },
-    { id: 'advanced', label: messages.settings.tabs.advanced },
-    { id: 'api-logs', label: messages.settings.tabs.apiLogs },
-    { id: 'about', label: messages.settings.tabs.about },
+    { id: 'llm', label: settingsMessages.tabs.llm },
+    { id: 'translation', label: settingsMessages.tabs.translation },
+    { id: 'view', label: settingsMessages.tabs.view },
+    { id: 'advanced', label: settingsMessages.tabs.advanced },
+    { id: 'api-logs', label: settingsMessages.tabs.apiLogs },
+    { id: 'about', label: settingsMessages.tabs.about },
   ];
 
 

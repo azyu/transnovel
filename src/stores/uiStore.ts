@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { UILanguage } from '../i18n';
 import type { TabType } from '../types';
 
 interface ToastData {
@@ -14,6 +15,9 @@ interface UIState {
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
+
+  language: UILanguage;
+  setLanguage: (language: UILanguage) => void;
 
   toast: ToastData | null;
   showToast: (message: string) => void;
@@ -31,6 +35,9 @@ export const useUIStore = create<UIState>((set) => ({
   theme: 'dark',
   setTheme: (theme) => set({ theme }),
   toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+
+  language: 'ko',
+  setLanguage: (language) => set({ language }),
 
   toast: null,
   showToast: (message) => set({ toast: { message, type: 'success' } }),

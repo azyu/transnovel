@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 
 type SaveFormat = 'txt' | 'html';
 
@@ -16,17 +16,20 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
   const [format, setFormat] = useState<SaveFormat>('txt');
   const [includeOriginal, setIncludeOriginal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const isDark = useUIStore((state) => state.theme) === 'dark';
+  const theme = useUIStore((state) => state.theme);
+  const language = useUIStore((state) => state.language);
+  const isDark = theme === 'dark';
+  const translationMessages = getMessages(language).translation;
   const formatOptions: { value: SaveFormat; label: string; description: string }[] = [
     {
       value: 'txt',
-      label: messages.translation.saveModal.formats.txt.label,
-      description: messages.translation.saveModal.formats.txt.description,
+      label: translationMessages.saveModal.formats.txt.label,
+      description: translationMessages.saveModal.formats.txt.description,
     },
     {
       value: 'html',
-      label: messages.translation.saveModal.formats.html.label,
-      description: messages.translation.saveModal.formats.html.description,
+      label: translationMessages.saveModal.formats.html.label,
+      description: translationMessages.saveModal.formats.html.description,
     },
   ];
 
@@ -46,14 +49,14 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={messages.translation.saveModal.title}
+      title={translationMessages.saveModal.title}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-            {messages.translation.saveModal.cancel}
+            {translationMessages.saveModal.cancel}
           </Button>
           <Button onClick={handleSave} isLoading={isSaving}>
-            {messages.translation.saveModal.save}
+            {translationMessages.saveModal.save}
           </Button>
         </>
       }
@@ -61,7 +64,7 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
       <div className="space-y-6">
         <div>
           <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            {messages.translation.saveModal.formatLabel}
+            {translationMessages.saveModal.formatLabel}
           </label>
           <div className="space-y-2">
             {formatOptions.map((option) => (
@@ -104,10 +107,10 @@ export const SaveModal: React.FC<SaveModalProps> = ({ isOpen, onClose, onSave })
             />
             <div>
               <span className={`block text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {messages.translation.saveModal.includeOriginal.label}
+                {translationMessages.saveModal.includeOriginal.label}
               </span>
               <span className={`block text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {messages.translation.saveModal.includeOriginal.description}
+                {translationMessages.saveModal.includeOriginal.description}
               </span>
             </div>
           </label>

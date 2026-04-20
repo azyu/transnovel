@@ -4,9 +4,9 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useDebugStore } from '../../stores/debugStore';
 import { useTranslationStore } from '../../stores/translationStore';
-import { messages } from '../../i18n';
 import appIcon from '../../assets/app-icon.png';
 import type { TabType } from '../../types';
+import { useUILanguage } from '../../hooks/useUILanguage';
 import { getMainTabShortcutLabel } from '../../utils/tabShortcuts';
 
 export const Header: React.FC = () => {
@@ -18,6 +18,7 @@ export const Header: React.FC = () => {
       toggleTheme: s.toggleTheme,
     }))
   );
+  const { language, messages, setLanguage } = useUILanguage();
 
   const batchProgress = useSeriesStore((s) => s.batchProgress);
   const watchlistBadgeCount = useSeriesStore((s) => s.watchlistBadgeCount);
@@ -116,6 +117,28 @@ export const Header: React.FC = () => {
             </span>
           </div>
         )}
+        <div
+          className={`inline-flex items-center rounded-lg p-1 ${
+            isDark ? 'bg-slate-900/50' : 'bg-slate-100'
+          }`}
+        >
+          {(['ko', 'en'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => void setLanguage(value)}
+              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                language === value
+                  ? 'bg-blue-600 text-white'
+                  : isDark
+                    ? 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
+                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-900'
+              }`}
+            >
+              {value.toUpperCase()}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={toggleTheme}

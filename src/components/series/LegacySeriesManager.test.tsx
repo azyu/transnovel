@@ -58,6 +58,7 @@ describe('LegacySeriesManager', () => {
 
     useUIStore.setState({
       theme: 'dark',
+      language: 'ko',
       setTab: vi.fn(),
     } as never);
     useSeriesStore.setState({

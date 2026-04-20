@@ -92,6 +92,7 @@ export const settingsMessages = {
 克莱恩/克莱恩(클레인)
 (철수)([은는이가을를])/영희$2`,
     substitutionsDescription: '줄 단위로 원본/치환 형식. 정규식 사용 가능.',
+    substitutionsFormat: '원본/치환',
   },
   advanced: {
     unknownNovelTitle: '알 수 없는 작품',

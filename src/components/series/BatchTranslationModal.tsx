@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { Button } from '../common/Button';
 import type { TranslationProgress } from '../../types';
@@ -20,8 +20,10 @@ export const BatchTranslationModal: React.FC<BatchTranslationModalProps> = ({
   onResume,
   onStop,
 }) => {
-  const isDark = useUIStore((state) => state.theme) === 'dark';
-  const batchMessages = messages.series.batchTranslation;
+  const theme = useUIStore((state) => state.theme);
+  const language = useUIStore((state) => state.language);
+  const isDark = theme === 'dark';
+  const batchMessages = getMessages(language).series.batchTranslation;
   const percentage = Math.min(
     100,
     Math.max(0, (progress.current_chapter / progress.total_chapters) * 100)

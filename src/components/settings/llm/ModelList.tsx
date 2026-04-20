@@ -1,6 +1,6 @@
-import { messages } from '../../../i18n';
 import { useUIStore } from '../../../stores/uiStore';
 import type { ModelConfig, ProviderConfig } from './types';
+import { useSettingsMessages } from '../useSettingsMessages';
 
 interface ModelListProps {
   models: ModelConfig[];
@@ -34,7 +34,8 @@ export const ModelList: React.FC<ModelListProps> = ({
   disabled = false,
 }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
-  const llmMessages = messages.settings.llm;
+  const settingsMessages = useSettingsMessages();
+  const llmMessages = settingsMessages.llm;
   const modelListMessages = llmMessages.modelList;
 
   const getProviderColor = (type: string): string => {

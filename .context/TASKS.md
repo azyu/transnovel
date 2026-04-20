@@ -15,6 +15,7 @@
 
 ## In Progress
 
+- [x] #25 설정 화면 KO/EN 전환 누락 정리 — Codex
 - [x] OAuth 상태 확인 config error surface follow-up — Codex
 - [x] LLM settings get_settings error surface follow-up — Codex
 - [x] YAML providers base_url synthesis follow-up — Codex
@@ -70,6 +71,8 @@
 
 ## Done
 
+- [x] #13 UI 다국어 지원 1차 구현 — Codex
+- [x] PR review comments follow-up — Codex
 - [x] #19 Series/Translation 잔여 하드코딩 문자열 및 legacy 모달 i18n 정리 — Codex
 - [x] #18 LLM 설정 및 제공자/모델 모달 i18n 정리 — Codex
 - [x] #17 번역 설정·고급 설정·API 로그 화면 i18n 정리 — Codex

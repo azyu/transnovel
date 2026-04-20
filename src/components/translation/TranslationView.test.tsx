@@ -90,6 +90,7 @@ describe('TranslationView', () => {
     useUIStore.setState({
       currentTab: 'translation',
       theme: 'dark',
+      language: 'ko',
       toast: null,
     });
 

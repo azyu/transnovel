@@ -5,8 +5,8 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { NumberStepper } from '../common/NumberStepper';
 import { Toggle } from '../common/Toggle';
-import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
+import { useSettingsMessages } from './useSettingsMessages';
 
 type DisplayLayout = 'sideBySide' | 'stacked';
 
@@ -49,24 +49,25 @@ export const ViewSettings: React.FC = () => {
   const hasUserEditedRef = useRef(false);
   const bumpViewConfigVersion = useUIStore((state) => state.bumpViewConfigVersion);
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const settingsMessages = useSettingsMessages();
   const layoutOptions: { value: DisplayLayout; label: string; description: string }[] = [
     {
       value: 'sideBySide',
-      label: messages.settings.view.layout.sideBySide.label,
-      description: messages.settings.view.layout.sideBySide.description,
+      label: settingsMessages.view.layout.sideBySide.label,
+      description: settingsMessages.view.layout.sideBySide.description,
     },
     {
       value: 'stacked',
-      label: messages.settings.view.layout.stacked.label,
-      description: messages.settings.view.layout.stacked.description,
+      label: settingsMessages.view.layout.stacked.label,
+      description: settingsMessages.view.layout.stacked.description,
     },
   ];
   const colorPresets = [
-    { name: messages.settings.view.presets.dark, text: '#ffffff', bg: '#0f172a' },
-    { name: messages.settings.view.presets.sepia, text: '#5c4b37', bg: '#f4ecd8' },
-    { name: messages.settings.view.presets.light, text: '#1f2937', bg: '#f9fafb' },
-    { name: messages.settings.view.presets.darkGreen, text: '#e2e8f0', bg: '#1a2e1a' },
-    { name: messages.settings.view.presets.amoled, text: '#e5e5e5', bg: '#000000' },
+    { name: settingsMessages.view.presets.dark, text: '#ffffff', bg: '#0f172a' },
+    { name: settingsMessages.view.presets.sepia, text: '#5c4b37', bg: '#f4ecd8' },
+    { name: settingsMessages.view.presets.light, text: '#1f2937', bg: '#f9fafb' },
+    { name: settingsMessages.view.presets.darkGreen, text: '#e2e8f0', bg: '#1a2e1a' },
+    { name: settingsMessages.view.presets.amoled, text: '#e5e5e5', bg: '#000000' },
   ];
 
 
@@ -115,8 +116,8 @@ export const ViewSettings: React.FC = () => {
   }, []);
 
   const handleReset = async () => {
-    const confirmed = await ask(messages.settings.view.confirmReset, {
-      title: messages.settings.view.confirmResetTitle,
+    const confirmed = await ask(settingsMessages.view.confirmReset, {
+      title: settingsMessages.view.confirmResetTitle,
       kind: 'warning',
     });
     if (confirmed) {
@@ -142,13 +143,13 @@ export const ViewSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className={`border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{messages.settings.view.title}</h2>
-        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{messages.settings.view.description}</p>
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{settingsMessages.view.title}</h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{settingsMessages.view.description}</p>
       </div>
 
       <div className={`p-6 rounded-xl border space-y-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div>
-          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{messages.settings.view.previewTitle}</h3>
+          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{settingsMessages.view.previewTitle}</h3>
           <div
             className={`p-4 rounded-lg border min-h-[120px] ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
             style={{
@@ -169,10 +170,10 @@ export const ViewSettings: React.FC = () => {
                     textIndent: `${config.textIndent}em`,
                   }}
                 >
-                  {messages.settings.view.previewOriginalText}
+                  {settingsMessages.view.previewOriginalText}
                 </p>
                 <p style={{ textIndent: `${config.textIndent}em` }}>
-                  {messages.settings.view.previewTranslatedText}
+                  {settingsMessages.view.previewTranslatedText}
                 </p>
               </div>
             ) : (
@@ -185,11 +186,11 @@ export const ViewSettings: React.FC = () => {
                       textIndent: `${config.textIndent}em`,
                     }}
                   >
-                    {messages.settings.view.previewOriginalText}
+                    {settingsMessages.view.previewOriginalText}
                   </p>
                 )}
                 <p style={{ textIndent: `${config.textIndent}em` }}>
-                  {messages.settings.view.previewTranslatedText}
+                  {settingsMessages.view.previewTranslatedText}
                 </p>
               </>
             )}
@@ -198,19 +199,19 @@ export const ViewSettings: React.FC = () => {
 
         <div className="space-y-3">
           <Toggle
-            label={messages.settings.view.toggles.showOriginal}
+            label={settingsMessages.view.toggles.showOriginal}
             checked={config.showOriginal}
             onChange={(checked) => updateConfig('showOriginal', checked)}
           />
           <Toggle
-            label={messages.settings.view.toggles.forceDialogueBreak}
+            label={settingsMessages.view.toggles.forceDialogueBreak}
             checked={config.forceDialogueBreak}
             onChange={(checked) => updateConfig('forceDialogueBreak', checked)}
           />
         </div>
 
         <div className={config.showOriginal ? '' : 'opacity-50 pointer-events-none'}>
-          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{messages.settings.view.layout.title}</h3>
+          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{settingsMessages.view.layout.title}</h3>
           <div className="flex gap-2">
             {layoutOptions.map((option) => (
               <button
@@ -230,7 +231,7 @@ export const ViewSettings: React.FC = () => {
         </div>
 
         <div>
-          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{messages.settings.view.presets.title}</h3>
+          <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{settingsMessages.view.presets.title}</h3>
           <div className="flex flex-wrap gap-2">
             {colorPresets.map((preset) => (
               <button
@@ -249,15 +250,15 @@ export const ViewSettings: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Input
-              label={messages.settings.view.fields.fontFamily}
+              label={settingsMessages.view.fields.fontFamily}
               value={config.fontFamily}
               onChange={(e) => updateConfig('fontFamily', e.target.value)}
-              placeholder={messages.settings.view.fields.fontFamilyPlaceholder}
+              placeholder={settingsMessages.view.fields.fontFamilyPlaceholder}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <NumberStepper
-              label={messages.settings.view.fields.fontSize}
+              label={settingsMessages.view.fields.fontSize}
               value={parseInt(config.fontSize, 10) || 16}
               onChange={(value) => updateConfig('fontSize', String(value))}
               min={8}
@@ -266,7 +267,7 @@ export const ViewSettings: React.FC = () => {
               unit="px"
             />
             <NumberStepper
-              label={messages.settings.view.fields.fontWeight}
+              label={settingsMessages.view.fields.fontWeight}
               value={parseInt(config.fontWeight, 10) || 400}
               onChange={(value) => updateConfig('fontWeight', String(value))}
               min={100}
@@ -278,7 +279,7 @@ export const ViewSettings: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{messages.settings.view.fields.textColor}</label>
+            <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{settingsMessages.view.fields.textColor}</label>
             <div className="flex items-center gap-2">
               <div
                 className={`w-10 h-10 rounded-lg border cursor-pointer relative overflow-hidden ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
@@ -299,7 +300,7 @@ export const ViewSettings: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{messages.settings.view.fields.backgroundColor}</label>
+            <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{settingsMessages.view.fields.backgroundColor}</label>
             <div className="flex items-center gap-2">
               <div
                 className={`w-10 h-10 rounded-lg border cursor-pointer relative overflow-hidden ${isDark ? 'border-slate-600' : 'border-slate-300'}`}
@@ -323,7 +324,7 @@ export const ViewSettings: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <NumberStepper
-            label={messages.settings.view.fields.lineHeight}
+            label={settingsMessages.view.fields.lineHeight}
             value={parseFloat(config.lineHeight) || 1.8}
             onChange={(value) => updateConfig('lineHeight', String(value))}
             min={1}
@@ -331,7 +332,7 @@ export const ViewSettings: React.FC = () => {
             step={0.1}
           />
           <NumberStepper
-            label={messages.settings.view.fields.paragraphSpacing}
+            label={settingsMessages.view.fields.paragraphSpacing}
             value={Number.isNaN(parseInt(config.paragraphSpacing, 10)) ? 8 : parseInt(config.paragraphSpacing, 10)}
             onChange={(value) => updateConfig('paragraphSpacing', String(value))}
             min={0}
@@ -340,7 +341,7 @@ export const ViewSettings: React.FC = () => {
             unit="px"
           />
           <NumberStepper
-            label={messages.settings.view.fields.textIndent}
+            label={settingsMessages.view.fields.textIndent}
             value={parseFloat(config.textIndent) || 0}
             onChange={(value) => updateConfig('textIndent', String(value))}
             min={0}
@@ -352,7 +353,7 @@ export const ViewSettings: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NumberStepper
-            label={messages.settings.view.fields.horizontalPadding}
+            label={settingsMessages.view.fields.horizontalPadding}
             value={Number.isNaN(parseInt(config.horizontalPadding, 10)) ? 24 : parseInt(config.horizontalPadding, 10)}
             onChange={(value) => updateConfig('horizontalPadding', String(value))}
             min={0}
@@ -362,7 +363,7 @@ export const ViewSettings: React.FC = () => {
           />
           <div>
             <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              {messages.settings.view.fields.originalOpacity(config.originalOpacity)}
+              {settingsMessages.view.fields.originalOpacity(config.originalOpacity)}
             </label>
             <input
               type="range"
@@ -373,16 +374,16 @@ export const ViewSettings: React.FC = () => {
               className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-500 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}
             />
             <div className={`flex justify-between text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              <span>{messages.settings.view.fields.originalOpacityHidden}</span>
-              <span>{messages.settings.view.fields.originalOpacityTranslucent}</span>
-              <span>{messages.settings.view.fields.originalOpacityVisible}</span>
+              <span>{settingsMessages.view.fields.originalOpacityHidden}</span>
+              <span>{settingsMessages.view.fields.originalOpacityTranslucent}</span>
+              <span>{settingsMessages.view.fields.originalOpacityVisible}</span>
             </div>
           </div>
         </div>
 
         <div className="flex justify-end pt-2">
           <Button variant="secondary" onClick={handleReset}>
-            {messages.settings.view.reset}
+            {settingsMessages.view.reset}
           </Button>
         </div>
       </div>

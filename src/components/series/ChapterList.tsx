@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 import type { Chapter } from '../../types';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -17,8 +17,10 @@ export const ChapterList: React.FC<ChapterListProps> = ({ chapters, onStartTrans
   const [start, setStart] = useState<number>(1);
   const [end, setEnd] = useState<number>(1);
   const [prevChapters, setPrevChapters] = useState(chapters);
-  const isDark = useUIStore((state) => state.theme) === 'dark';
-  const chapterListMessages = messages.series.chapterList;
+  const theme = useUIStore((state) => state.theme);
+  const language = useUIStore((state) => state.language);
+  const isDark = theme === 'dark';
+  const chapterListMessages = getMessages(language).series.chapterList;
 
   if (chapters !== prevChapters) {
     setPrevChapters(chapters);

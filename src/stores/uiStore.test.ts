@@ -6,6 +6,7 @@ describe('useUIStore', () => {
     useUIStore.setState({
       currentTab: 'translation',
       theme: 'dark',
+      language: 'ko',
       toast: null,
       viewConfigVersion: 0,
     });

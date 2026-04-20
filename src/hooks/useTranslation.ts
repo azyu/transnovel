@@ -5,7 +5,7 @@ import { useTranslationStore } from '../stores/translationStore';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import { useDebugStore } from '../stores/debugStore';
-import { messages } from '../i18n';
+import { getMessages } from '../i18n';
 import type {
   Chapter,
   ChapterContent,
@@ -215,6 +215,7 @@ export const useTranslation = () => {
   const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
   const markWatchlistEpisodeViewed = useSeriesStore((s) => s.markWatchlistEpisodeViewed);
   
+  const language = useUIStore((s) => s.language);
   const showError = useUIStore((s) => s.showError);
   const showToast = useUIStore((s) => s.showToast);
   
@@ -222,6 +223,8 @@ export const useTranslation = () => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const localeMessages = getMessages(language);
+  const translationStatusMessages = localeMessages.translation.translation;
 
   const getCharacterDictionary = useCallback(async (site: string, novelId: string) => {
     return invoke<CharacterDictionaryEntry[]>('get_novel_character_dictionary', {
@@ -431,7 +434,7 @@ export const useTranslation = () => {
         if (failedIndices.length > 0) {
           showError(
             '일부 번역 실패',
-            messages.translation.translation.partialFailure(failedIndices.length)
+            translationStatusMessages.partialFailure(failedIndices.length)
           );
         }
       });
@@ -461,13 +464,13 @@ export const useTranslation = () => {
         
         if (success && (input_tokens > 0 || output_tokens > 0)) {
           showToast(
-            messages.translation.translation.completeWithTokens(
+            translationStatusMessages.completeWithTokens(
               formatTokenCount(input_tokens),
               formatTokenCount(output_tokens),
             ),
           );
         } else if (success) {
-          showToast(messages.translation.translation.completeFromCache);
+          showToast(translationStatusMessages.completeFromCache);
         }
         
         if (content.chapter_number > 0 && success) {
@@ -562,7 +565,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview]);
+  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview, translationStatusMessages]);
 
   const translateText = useCallback(async (site: string, novelId: string, text: string, note?: string) => {
     try {
@@ -635,9 +638,9 @@ await invoke('start_batch_translation', {
           setIsTranslating(false);
           const errMsg = String(err);
           setError(errMsg);
-          showError(messages.translation.translation.batchFailed, errMsg);
+          showError(translationStatusMessages.batchFailed, errMsg);
       }
-  }, [setIsTranslating, showError]);
+  }, [setIsTranslating, showError, translationStatusMessages]);
 
   const stopBatchTranslation = useCallback(async () => {
       try {
@@ -647,9 +650,9 @@ await invoke('start_batch_translation', {
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
-          showError(messages.translation.translation.stopFailed, errMsg);
+          showError(translationStatusMessages.stopFailed, errMsg);
       }
-  }, [setIsTranslating, showError, setBatchProgress]);
+  }, [setIsTranslating, showError, setBatchProgress, translationStatusMessages]);
 
   const pauseBatchTranslation = useCallback(async () => {
       try {
@@ -657,9 +660,9 @@ await invoke('start_batch_translation', {
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
-          showError(messages.translation.translation.pauseFailed, errMsg);
+          showError(translationStatusMessages.pauseFailed, errMsg);
       }
-  }, [showError]);
+  }, [showError, translationStatusMessages]);
 
   const resumeBatchTranslation = useCallback(async () => {
       try {

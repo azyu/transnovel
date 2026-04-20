@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
-import { messages } from '../../i18n';
+import { getMessages } from '../../i18n';
 import type { CharacterDictionaryEntry } from '../../types';
 
 interface CharacterDictionaryModalProps {
@@ -38,7 +38,10 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
   onClose,
   onSave,
 }) => {
-  const isDark = useUIStore((state) => state.theme) === 'dark';
+  const theme = useUIStore((state) => state.theme);
+  const language = useUIStore((state) => state.language);
+  const isDark = theme === 'dark';
+  const translationMessages = getMessages(language).translation;
   const [draftEntries, setDraftEntries] = useState<CharacterDictionaryEntry[]>(
     createDraftEntries(entries),
   );
@@ -88,7 +91,7 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-            {messages.translation.dictionaryModal.actions.cancel}
+            {translationMessages.dictionaryModal.actions.cancel}
           </Button>
           <Button onClick={handleSave} isLoading={isSaving}>
             {saveLabel}
@@ -110,56 +113,56 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {messages.translation.dictionaryModal.fields.sourceText.label}
+                    {translationMessages.dictionaryModal.fields.sourceText.label}
                   </span>
                   <input
                     value={entry.source_text}
                     onChange={(event) => updateEntry(index, 'source_text', event.target.value)}
                     className={inputClass}
-                    placeholder={messages.translation.dictionaryModal.fields.sourceText.placeholder}
+                    placeholder={translationMessages.dictionaryModal.fields.sourceText.placeholder}
                   />
                 </label>
 
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {messages.translation.dictionaryModal.fields.reading.label}
+                    {translationMessages.dictionaryModal.fields.reading.label}
                   </span>
                   <input
                     value={entry.reading ?? ''}
                     onChange={(event) => updateEntry(index, 'reading', event.target.value)}
                     className={inputClass}
-                    placeholder={messages.translation.dictionaryModal.fields.reading.placeholder}
+                    placeholder={translationMessages.dictionaryModal.fields.reading.placeholder}
                   />
                 </label>
 
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {messages.translation.dictionaryModal.fields.targetName.label}
+                    {translationMessages.dictionaryModal.fields.targetName.label}
                   </span>
                   <input
                     value={entry.target_name}
                     onChange={(event) => updateEntry(index, 'target_name', event.target.value)}
                     className={inputClass}
-                    placeholder={messages.translation.dictionaryModal.fields.targetName.placeholder}
+                    placeholder={translationMessages.dictionaryModal.fields.targetName.placeholder}
                   />
                 </label>
 
                 <label className="space-y-1">
                   <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {messages.translation.dictionaryModal.fields.note.label}
+                    {translationMessages.dictionaryModal.fields.note.label}
                   </span>
                   <input
                     value={entry.note ?? ''}
                     onChange={(event) => updateEntry(index, 'note', event.target.value)}
                     className={inputClass}
-                    placeholder={messages.translation.dictionaryModal.fields.note.placeholder}
+                    placeholder={translationMessages.dictionaryModal.fields.note.placeholder}
                   />
                 </label>
               </div>
 
               <div className="mt-3 flex justify-end">
                 <Button variant="danger" size="sm" onClick={() => removeEntry(index)} disabled={isSaving}>
-                  {messages.translation.dictionaryModal.actions.remove}
+                  {translationMessages.dictionaryModal.actions.remove}
                 </Button>
               </div>
             </div>
@@ -168,7 +171,7 @@ export const CharacterDictionaryModal: React.FC<CharacterDictionaryModalProps> =
 
         <div className="flex justify-start">
           <Button variant="secondary" size="sm" onClick={() => setDraftEntries((current) => [...current, createEmptyEntry()])} disabled={isSaving}>
-            {messages.translation.dictionaryModal.actions.addEntry}
+            {translationMessages.dictionaryModal.actions.addEntry}
           </Button>
         </div>
       </div>
