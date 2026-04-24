@@ -163,10 +163,35 @@ fn extract_paragraphs(html: &str) -> Vec<String> {
     let document = Html::parse_fragment(html);
     let p_selector = Selector::parse("p").unwrap();
 
-    document
+    let lines: Vec<String> = document
         .select(&p_selector)
         .map(|el| el.text().collect::<Vec<_>>().join("").trim().to_string())
-        .collect()
+        .collect();
+
+    if !lines.iter().any(|line| line.is_empty()) {
+        return lines;
+    }
+
+    let mut paragraphs = Vec::new();
+    let mut current = Vec::new();
+
+    for line in lines {
+        if line.is_empty() {
+            if !current.is_empty() {
+                paragraphs.push(current.join("\n"));
+                current.clear();
+            }
+            continue;
+        }
+
+        current.push(line);
+    }
+
+    if !current.is_empty() {
+        paragraphs.push(current.join("\n"));
+    }
+
+    paragraphs
 }
 
 fn has_explicit_chapter_url(parsed: &ParsedUrl, url: &str) -> bool {
@@ -268,20 +293,37 @@ mod tests {
     }
 
     #[test]
-    fn extract_paragraphs_preserves_empty_source_paragraphs() {
+    fn extract_paragraphs_groups_lines_separated_by_empty_source_paragraphs() {
         let paragraphs = extract_paragraphs(
             r#"<p>一段落目。</p>
+<p>一段落目の続き。</p>
 <p><br></p>
-<p>二段落目。</p>"#,
+<p>二段落目。</p>
+<p></p>
+<p>三段落目。</p>
+<p>三段落目の続き。</p>"#,
         );
 
         assert_eq!(
             paragraphs,
             vec![
-                "一段落目。".to_string(),
-                String::new(),
+                "一段落目。\n一段落目の続き。".to_string(),
                 "二段落目。".to_string(),
+                "三段落目。\n三段落目の続き。".to_string(),
             ]
+        );
+    }
+
+    #[test]
+    fn extract_paragraphs_keeps_each_p_when_there_are_no_empty_separators() {
+        let paragraphs = extract_paragraphs(
+            r#"<p>一段落目。</p>
+<p>二段落目。</p>"#,
+        );
+
+        assert_eq!(
+            paragraphs,
+            vec!["一段落目。".to_string(), "二段落目。".to_string()]
         );
     }
 }

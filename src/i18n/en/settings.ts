@@ -306,8 +306,7 @@ Example:
       modelIdLabel: 'Model ID',
       modelIdPlaceholder: 'e.g. gpt-4o, claude-sonnet-4, gemini-2.5-flash',
       refreshModels: 'Refresh model list',
-      manualEntryHint:
-        'Enter the model ID manually. OpenAI-compatible endpoints do not automatically support model discovery.',
+      availableModels: 'Available models',
       displayNameLabel: 'Display name',
       optional: 'Optional',
       displayNameAutoPlaceholder: 'Auto',

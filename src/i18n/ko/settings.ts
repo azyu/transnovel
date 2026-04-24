@@ -306,8 +306,7 @@ export const settingsMessages = {
       modelIdLabel: '모델 ID',
       modelIdPlaceholder: '예: gpt-4o, claude-sonnet-4, gemini-2.5-flash',
       refreshModels: '모델 목록 새로고침',
-      manualEntryHint:
-        '모델 ID를 직접 입력하세요. OpenAI-compatible 엔드포인트는 모델 목록 조회를 자동으로 지원하지 않습니다.',
+      availableModels: '사용 가능한 모델',
       displayNameLabel: '표시 이름',
       optional: '선택',
       displayNameAutoPlaceholder: '자동 설정',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useId } from 'react';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
@@ -50,6 +50,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   
   const [models, setModels] = useState<ModelOption[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const providerIdRef = useRef(providerId);
   const providerIdInputId = useId();
   const modelIdInputId = useId();
   const modelNameInputId = useId();
@@ -77,6 +78,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   }, [editingModel, isOpen, providers]);
 
   useEffect(() => {
+    providerIdRef.current = providerId;
     if (!isEditing && providerId) {
       setModelId('');
     }
@@ -91,18 +93,22 @@ export const ModelModal: React.FC<ModelModalProps> = ({
 
     if (!selectedProvider || !providerType) {
       setModels([]);
+      setLoadingModels(false);
       return;
     }
 
     if (!supportsModelDiscovery) {
       setModels(FALLBACK_MODELS[providerType] || []);
+      setLoadingModels(false);
       return;
     }
 
     const apiKey = selectedProvider.apiKey;
+    const requestedProviderId = selectedProvider.id;
 
     if (!apiKey && preset?.apiKeyRequired) {
       setModels(FALLBACK_MODELS[providerType] || []);
+      setLoadingModels(false);
       return;
     }
     
@@ -136,7 +142,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
         }));
       } else if (providerType === 'openai-oauth') {
         const result = await invoke<OpenRouterModel[]>('fetch_openai_oauth_models', {
-          providerId: selectedProvider.id,
+          providerId: requestedProviderId,
         });
         fetchedModels = result.map(m => ({
           id: m.id,
@@ -145,6 +151,10 @@ export const ModelModal: React.FC<ModelModalProps> = ({
         }));
       }
       
+      if (requestedProviderId !== providerIdRef.current) {
+        return;
+      }
+
       if (fetchedModels.length > 0) {
         setModels(fetchedModels);
       } else {
@@ -152,14 +162,20 @@ export const ModelModal: React.FC<ModelModalProps> = ({
       }
     } catch (error) {
       console.error('Failed to fetch models:', error);
+      if (requestedProviderId !== providerIdRef.current) {
+        return;
+      }
       setModels(FALLBACK_MODELS[providerType] || []);
     } finally {
-      setLoadingModels(false);
+      if (requestedProviderId === providerIdRef.current) {
+        setLoadingModels(false);
+      }
     }
   }, [selectedProvider, providerType, preset?.apiKeyRequired, preset?.defaultBaseUrl, supportsModelDiscovery, isLocked]);
 
   useEffect(() => {
     if (isOpen && providerId && !isLocked) {
+      setModels([]);
       fetchModels();
     }
   }, [isOpen, providerId, fetchModels, isLocked]);
@@ -245,15 +261,15 @@ export const ModelModal: React.FC<ModelModalProps> = ({
           <label htmlFor={modelIdInputId} className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             {modelModalMessages.modelIdLabel}
           </label>
-          <div className="flex gap-2 mb-2">
-              <Input
-                id={modelIdInputId}
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                placeholder={modelModalMessages.modelIdPlaceholder}
-                className="flex-1"
-                disabled={isLocked || !providerId}
-              />
+          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 mb-2">
+            <Input
+              id={modelIdInputId}
+              value={modelId}
+              onChange={(e) => setModelId(e.target.value)}
+              placeholder={modelModalMessages.modelIdPlaceholder}
+              className="min-w-0 w-full"
+              disabled={isLocked || !providerId}
+            />
             <Button
               variant="secondary"
               size="sm"
@@ -267,8 +283,11 @@ export const ModelModal: React.FC<ModelModalProps> = ({
               ↻
             </Button>
           </div>
-          {models.length > 0 && (
-            <div className={`max-h-32 overflow-y-auto rounded-lg border ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
+          <div className="space-y-2">
+            <p className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              {modelModalMessages.availableModels}
+            </p>
+            <div className={`min-h-20 max-h-32 overflow-y-auto rounded-lg border ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
               {models.map(m => (
                 <button
                   key={m.id}
@@ -282,7 +301,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
                   }`}
                 >
                   <span className="truncate">{m.name}</span>
-                  {m.contextLength && (
+                  {typeof m.contextLength === 'number' && m.contextLength > 0 && (
                     <span className={`ml-2 text-xs shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                       {formatContextLength(m.contextLength)}
                     </span>
@@ -290,7 +309,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
                 </button>
               ))}
             </div>
-          )}
+          </div>
         </div>
 
         <div>

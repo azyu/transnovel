@@ -74,7 +74,6 @@ describe('ModelModal', () => {
       button.textContent?.includes('↻'),
     );
 
-    expect(container.textContent).not.toContain('모델 ID를 직접 입력');
     expect(refreshButton).toHaveProperty('disabled', false);
     expect(invoke).toHaveBeenCalledWith('fetch_openai_compatible_models', {
       apiKey: 'sk-test',
@@ -152,7 +151,7 @@ describe('ModelModal', () => {
           modelIdLabel: 'Model ID sentinel',
           modelIdPlaceholder: 'Model ID placeholder sentinel',
           refreshModels: 'Refresh models sentinel',
-          manualEntryHint: 'Manual entry sentinel',
+          availableModels: 'Available models sentinel',
           displayNameLabel: 'Display name sentinel',
           optional: 'Optional model sentinel',
           displayNameAutoPlaceholder: 'Auto display sentinel',
@@ -205,7 +204,7 @@ describe('ModelModal', () => {
     expect(container.textContent).toContain('Add model sentinel');
     expect(container.textContent).toContain('Provider label sentinel');
     expect(container.textContent).toContain('Model ID sentinel');
-    expect(container.textContent).not.toContain('Manual entry sentinel');
+    expect(container.textContent).toContain('Available models sentinel');
     expect(container.textContent).toContain('Display name sentinel');
     expect(container.textContent).toContain('Cancel model sentinel');
     expect(container.textContent).toContain('Save model sentinel');
@@ -213,5 +212,109 @@ describe('ModelModal', () => {
     const inputs = Array.from(container.querySelectorAll('input')) as HTMLInputElement[];
     expect(inputs.some((input) => input.placeholder === 'Model ID placeholder sentinel')).toBe(true);
     expect(inputs.some((input) => input.placeholder === 'Auto display sentinel')).toBe(true);
+  });
+
+  it('keeps the available model list visible and hides unknown context length', async () => {
+    vi.mocked(invoke).mockResolvedValue([
+      {
+        id: 'zero-context-model',
+        name: 'Zero Context Model',
+        context_length: 0,
+      },
+    ]);
+
+    const providers: ProviderConfig[] = [
+      {
+        id: 'provider-custom',
+        type: 'custom',
+        name: 'OpenAI-compatible',
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+      },
+    ];
+
+    await act(async () => {
+      root.render(
+        <ModelModal
+          isOpen
+          onClose={() => {}}
+          onSave={() => {}}
+          providers={providers}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('사용 가능한 모델');
+    expect(container.textContent).toContain('Zero Context Model');
+    expect(container.textContent).not.toContain('0');
+  });
+
+  it('clears stale models immediately when switching providers', async () => {
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === 'fetch_openai_compatible_models') {
+        return Promise.resolve([
+          {
+            id: 'custom-model',
+            name: 'Custom Model',
+            context_length: 128000,
+          },
+        ]);
+      }
+
+      if (command === 'fetch_openai_oauth_models') {
+        return new Promise(() => {});
+      }
+
+      return Promise.resolve([]);
+    });
+
+    const providers: ProviderConfig[] = [
+      {
+        id: 'provider-custom',
+        type: 'custom',
+        name: 'OpenAI-compatible',
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+      },
+      {
+        id: 'provider-codex',
+        type: 'openai-oauth',
+        name: 'OpenAI Codex',
+        apiKey: 'oauth-token',
+        baseUrl: 'https://chatgpt.com',
+      },
+    ];
+
+    await act(async () => {
+      root.render(
+        <ModelModal
+          isOpen
+          onClose={() => {}}
+          onSave={() => {}}
+          providers={providers}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Custom Model');
+
+    const providerSelect = container.querySelector('select') as HTMLSelectElement;
+    await act(async () => {
+      providerSelect.value = 'provider-codex';
+      providerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(container.textContent).not.toContain('Custom Model');
+    expect(invoke).toHaveBeenCalledWith('fetch_openai_oauth_models', {
+      providerId: 'provider-codex',
+    });
   });
 });

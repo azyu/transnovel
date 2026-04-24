@@ -341,6 +341,10 @@ fn friendly_label_from_sub(sub: &str) -> Option<String> {
     Some(format!("{} 계정", label))
 }
 
+fn is_friendly_provider_label(value: &str) -> bool {
+    matches!(value, "Microsoft 계정" | "Google 계정" | "Apple 계정" | "GitHub 계정" | "Auth0 계정")
+}
+
 /// Extract email or name from a JWT token by decoding its payload (no signature verification needed).
 fn extract_identity_from_jwt(token: &str) -> Option<String> {
     let parts: Vec<&str> = token.split('.').collect();
@@ -368,12 +372,29 @@ fn extract_identity_from_jwt(token: &str) -> Option<String> {
         .and_then(|v| v.as_str())
         .filter(|s| !s.contains('|'))
         .map(|s| s.to_string())
-        // Fall back to friendly label from sub
-        .or_else(|| {
-            json.get("sub")
-                .and_then(|v| v.as_str())
-                .and_then(friendly_label_from_sub)
+}
+
+fn extract_friendly_label_from_jwt(token: &str) -> Option<String> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let payload = parts[1];
+    let decoded = URL_SAFE_NO_PAD
+        .decode(payload)
+        .or_else(|_| {
+            let padded = match payload.len() % 4 {
+                2 => format!("{}==", payload),
+                3 => format!("{}=", payload),
+                _ => payload.to_string(),
+            };
+            URL_SAFE_NO_PAD.decode(&padded)
         })
+        .ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    json.get("sub")
+        .and_then(|v| v.as_str())
+        .and_then(friendly_label_from_sub)
 }
 
 /// Fetch user identity from OpenAI OIDC userinfo endpoint.
@@ -400,11 +421,6 @@ pub async fn fetch_userinfo_email(access_token: &str) -> Option<String> {
         .and_then(|v| v.as_str())
         .filter(|s| !s.contains('|'))
         .map(|s| s.to_string())
-        .or_else(|| {
-            json.get("sub")
-                .and_then(|v| v.as_str())
-                .and_then(friendly_label_from_sub)
-        })
 }
 
 /// Get the stored email for a provider, fetching from userinfo if not cached.
@@ -412,21 +428,26 @@ pub async fn get_or_fetch_email(
     provider_id: &str,
     access_token: &str,
 ) -> Result<Option<String>, String> {
-    // Try stored first (skip if it looks like an opaque ID)
+    // Try stored first (skip if it looks like an opaque ID or a provider-only fallback label)
     if let Some(email) = get_stored_email(provider_id).await? {
-        if !email.contains('|') {
+        if !email.contains('|') && !is_friendly_provider_label(&email) {
             return Ok(Some(email));
         }
         // Clear bad cached value
         let _ = set_setting(settings_key_email(provider_id), String::new()).await;
     }
-    // Try decoding the access_token itself as JWT
+    // Try decoding the access_token itself as JWT for concrete user identity
     if let Some(identity) = extract_identity_from_jwt(access_token) {
         let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
         return Ok(Some(identity));
     }
     // Fetch from userinfo endpoint and cache
     if let Some(identity) = fetch_userinfo_email(access_token).await {
+        let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
+        return Ok(Some(identity));
+    }
+    // Last resort: show the login provider instead of an opaque subject id.
+    if let Some(identity) = extract_friendly_label_from_jwt(access_token) {
         let _ = set_setting(settings_key_email(provider_id), identity.clone()).await;
         return Ok(Some(identity));
     }
@@ -610,5 +631,24 @@ mod tests {
             settings_key_expires("abc-123"),
             "openai_oauth_abc-123_expires_at"
         );
+    }
+
+    #[test]
+    fn jwt_identity_does_not_fall_back_to_provider_label() {
+        let header = URL_SAFE_NO_PAD.encode(r#"{"alg":"RS256"}"#);
+        let payload = URL_SAFE_NO_PAD.encode(r#"{"sub":"windowslive|user123"}"#);
+        let token = format!("{}.{}.sig", header, payload);
+
+        assert_eq!(extract_identity_from_jwt(&token), None);
+        assert_eq!(
+            extract_friendly_label_from_jwt(&token),
+            Some("Microsoft 계정".to_string())
+        );
+    }
+
+    #[test]
+    fn detects_friendly_provider_labels_as_non_concrete_identity() {
+        assert!(is_friendly_provider_label("Microsoft 계정"));
+        assert!(!is_friendly_provider_label("user@example.com"));
     }
 }

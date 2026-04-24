@@ -17,6 +17,8 @@ use super::translator::TokenUsage;
 use crate::models::api_log::ApiLogEntry;
 
 const CODEX_API_URL: &str = "https://chatgpt.com/backend-api/codex/responses";
+const CODEX_MODELS_URL: &str = "https://chatgpt.com/backend-api/codex/models";
+pub const CODEX_MODELS_CLIENT_VERSION: &str = "0.120.0";
 
 // -- Request types --
 
@@ -48,6 +50,36 @@ struct CodexInputContent {
 struct CodexUsageInfo {
     input_tokens: Option<u32>,
     output_tokens: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct CodexModelInfo {
+    pub slug: String,
+    pub display_name: String,
+    #[serde(default)]
+    pub context_window: Option<i64>,
+    #[serde(default)]
+    pub max_context_window: Option<i64>,
+    #[serde(default)]
+    visibility: Option<String>,
+    #[serde(default)]
+    priority: Option<i32>,
+}
+
+impl CodexModelInfo {
+    pub fn resolved_context_window(&self) -> Option<i64> {
+        self.context_window.or(self.max_context_window)
+    }
+
+    fn is_visible_in_picker(&self) -> bool {
+        self.visibility.as_deref().unwrap_or("list") == "list"
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CodexModelsResponse {
+    #[serde(default)]
+    models: Vec<CodexModelInfo>,
 }
 
 pub struct CodexClient {
@@ -97,6 +129,19 @@ impl CodexClient {
         }
     }
 
+    fn apply_auth_headers(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        let mut builder = builder
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("originator", "codex_cli_rs")
+            .header("version", CODEX_MODELS_CLIENT_VERSION);
+
+        if let Some(ref account_id) = self.account_id {
+            builder = builder.header("chatgpt-account-id", account_id);
+        }
+
+        builder
+    }
+
     fn build_request(&self, system_prompt: &str, user_text: &str) -> CodexRequest {
         CodexRequest {
             model: self.model.clone(),
@@ -114,20 +159,33 @@ impl CodexClient {
     }
 
     fn build_http_request(&self, request: &CodexRequest) -> reqwest::RequestBuilder {
-        let mut builder = self
-            .client
-            .post(CODEX_API_URL)
-            .header("Authorization", format!("Bearer {}", self.access_token))
+        self.apply_auth_headers(self.client.post(CODEX_API_URL))
             .header("Content-Type", "application/json")
             .header("Accept", "text/event-stream")
-            .header("originator", "codex_cli_rs")
-            .json(request);
+            .json(request)
+    }
 
-        if let Some(ref account_id) = self.account_id {
-            builder = builder.header("chatgpt-account-id", account_id);
+    pub async fn list_models(&self, client_version: &str) -> Result<Vec<CodexModelInfo>, String> {
+        let url = format!("{CODEX_MODELS_URL}?client_version={client_version}");
+        let response = self
+            .apply_auth_headers(self.client.get(&url))
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|e| format!("Codex 모델 목록 요청 실패: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(format!("Codex 모델 목록 API 오류 ({}): {}", status, error_text));
         }
 
-        builder
+        let body = response
+            .bytes()
+            .await
+            .map_err(|e| format!("Codex 모델 목록 응답 읽기 실패: {}", e))?;
+
+        parse_codex_models_response(&body)
     }
 
     pub async fn generate_text(&self, prompt: &str) -> Result<String, String> {
@@ -646,6 +704,20 @@ impl CodexClient {
     }
 }
 
+fn parse_codex_models_response(body: &[u8]) -> Result<Vec<CodexModelInfo>, String> {
+    let models_response: CodexModelsResponse = serde_json::from_slice(body)
+        .map_err(|e| format!("Codex 모델 목록 응답 파싱 실패: {}", e))?;
+
+    let mut models: Vec<CodexModelInfo> = models_response
+        .models
+        .into_iter()
+        .filter(CodexModelInfo::is_visible_in_picker)
+        .collect();
+
+    models.sort_by_key(|model| model.priority.unwrap_or(i32::MAX));
+    Ok(models)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -697,5 +769,42 @@ mod tests {
             "delta": "hello"
         });
         assert_eq!(CodexClient::extract_error(&event), None);
+    }
+
+    #[test]
+    fn parses_visible_codex_models_by_priority() {
+        let body = br#"{
+            "models": [
+                {
+                    "slug": "hidden-model",
+                    "display_name": "Hidden Model",
+                    "visibility": "hide",
+                    "priority": 1,
+                    "context_window": 400000
+                },
+                {
+                    "slug": "gpt-5.5-codex",
+                    "display_name": "GPT-5.5 Codex",
+                    "visibility": "list",
+                    "priority": 0,
+                    "context_window": 1000000
+                },
+                {
+                    "slug": "gpt-5.3-codex",
+                    "display_name": "GPT-5.3 Codex",
+                    "visibility": "list",
+                    "priority": 2,
+                    "max_context_window": 400000
+                }
+            ]
+        }"#;
+
+        let models = parse_codex_models_response(body).expect("parse codex models");
+
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0].slug, "gpt-5.5-codex");
+        assert_eq!(models[0].resolved_context_window(), Some(1_000_000));
+        assert_eq!(models[1].slug, "gpt-5.3-codex");
+        assert_eq!(models[1].resolved_context_window(), Some(400_000));
     }
 }

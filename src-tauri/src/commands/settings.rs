@@ -3,6 +3,7 @@ use sqlx::{Pool, Row, Sqlite};
 use std::time::Duration;
 
 use crate::db::get_pool;
+use crate::services::codex::{CodexClient, CODEX_MODELS_CLIENT_VERSION};
 use crate::services::llm_config;
 use crate::services::openai_oauth;
 
@@ -162,40 +163,25 @@ pub async fn refresh_openai_token(provider_id: String) -> Result<(), String> {
 pub async fn fetch_openai_oauth_models(
     provider_id: String,
 ) -> Result<Vec<OpenRouterModel>, String> {
-    // Validate the token is still valid
-    let _access_token = openai_oauth::ensure_valid_token(&provider_id).await?;
+    let access_token = openai_oauth::ensure_valid_token(&provider_id).await?;
+    let client = CodexClient::new(access_token, None);
+    let models = client.list_models(CODEX_MODELS_CLIENT_VERSION).await?;
 
-    // Codex Backend API doesn't expose a /models endpoint.
-    // Return hardcoded list of known Codex models.
-    let models = vec![
-        OpenRouterModel {
-            id: "gpt-5.2-codex".to_string(),
-            name: "GPT-5.2 Codex".to_string(),
-            context_length: 400000,
-        },
-        OpenRouterModel {
-            id: "gpt-5.1-codex".to_string(),
-            name: "GPT-5.1 Codex".to_string(),
-            context_length: 400000,
-        },
-        OpenRouterModel {
-            id: "gpt-5-codex".to_string(),
-            name: "GPT-5 Codex".to_string(),
-            context_length: 400000,
-        },
-        OpenRouterModel {
-            id: "gpt-5.1-codex-mini".to_string(),
-            name: "GPT-5.1 Codex Mini".to_string(),
-            context_length: 400000,
-        },
-        OpenRouterModel {
-            id: "codex-mini-latest".to_string(),
-            name: "Codex Mini Latest".to_string(),
-            context_length: 400000,
-        },
-    ];
+    Ok(models
+        .into_iter()
+        .map(|model| {
+            let context_length = model
+                .resolved_context_window()
+                .and_then(|length| u32::try_from(length).ok())
+                .unwrap_or(0);
 
-    Ok(models)
+            OpenRouterModel {
+                id: model.slug,
+                name: model.display_name,
+                context_length,
+            }
+        })
+        .collect())
 }
 
 #[tauri::command]
