@@ -216,6 +216,7 @@ export const settingsMessages = {
       add: '+ 추가',
       deleteConfirm: '이 모델을 삭제하시겠습니까?',
       deleteTitle: '모델 삭제',
+      changeBlockedWhileTranslating: '현재 번역 중이라 모델을 변경할 수 없습니다.',
     },
     streaming: {
       title: '스트리밍 모드',

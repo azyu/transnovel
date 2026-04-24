@@ -9,6 +9,7 @@ import { SaveModal } from './SaveModal';
 import { Button } from '../common/Button';
 import { DebugPanel } from '../common/DebugPanel';
 import { useWatchlist } from '../../hooks/useWatchlist';
+import { useViewSettings } from '../../hooks/useViewSettings';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
@@ -40,6 +41,7 @@ export const TranslationView: React.FC = () => {
 
   const { parseAndTranslate, retryFailedParagraphs, getCharacterDictionary, saveCharacterDictionary } = useTranslation();
   const { addWatchlistItem } = useWatchlist();
+  const { config: viewConfig } = useViewSettings();
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showDictionaryModal, setShowDictionaryModal] = useState(false);
@@ -60,6 +62,13 @@ export const TranslationView: React.FC = () => {
   const isAlreadyInWatchlist = chapter
     ? watchlistItems.some((item) => item.site === chapter.site && item.novelId === chapter.novelId)
     : false;
+  const titleLayoutClass = viewConfig.displayLayout === 'sideBySide'
+    ? 'grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8'
+    : 'space-y-3';
+  const originalTitleVisible = viewConfig.showOriginal || !translatedTitle;
+  const translatedTitleVisible = Boolean(translatedTitle);
+  const originalTitleColor = isDark ? 'text-slate-400' : 'text-slate-500';
+  const originalSubtitleColor = isDark ? 'text-slate-500' : 'text-slate-400';
 
   const checkApiConfig = useCallback(async () => {
     try {
@@ -277,28 +286,44 @@ export const TranslationView: React.FC = () => {
         {chapter ? (
           <div className="space-y-8 pb-20">
             <header className={`border-b pb-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-              <div className="mb-2">
-                {translatedTitle ? (
-                  <>
-                    <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapter.title}</p>
-                    <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{translatedTitle}</h1>
-                  </>
-                ) : (
-                  <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{chapter.title}</h1>
+              <div data-testid="chapter-title-layout" className={titleLayoutClass}>
+                {originalTitleVisible && (
+                  <div>
+                    <h1
+                      data-testid="chapter-original-title"
+                      className={`text-2xl font-bold break-words ${translatedTitleVisible ? originalTitleColor : isDark ? 'text-white' : 'text-slate-900'}`}
+                    >
+                      {chapter.title}
+                    </h1>
+                    {chapter.subtitle && (
+                      <h2
+                        data-testid="chapter-original-subtitle"
+                        className={`text-xl mt-2 break-words ${translatedSubtitle ? originalSubtitleColor : isDark ? 'text-slate-300' : 'text-slate-600'}`}
+                      >
+                        {chapter.subtitle}
+                      </h2>
+                    )}
+                  </div>
+                )}
+                {translatedTitleVisible && (
+                  <div>
+                    <h1
+                      data-testid="chapter-translated-title"
+                      className={`text-2xl font-bold break-words ${isDark ? 'text-white' : 'text-slate-900'}`}
+                    >
+                      {translatedTitle}
+                    </h1>
+                    {translatedSubtitle && (
+                      <h2
+                        data-testid="chapter-translated-subtitle"
+                        className={`text-xl mt-2 break-words ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
+                      >
+                        {translatedSubtitle}
+                      </h2>
+                    )}
+                  </div>
                 )}
               </div>
-              {chapter.subtitle && (
-                <div>
-                  {translatedSubtitle ? (
-                    <>
-                      <p className={`text-sm mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{chapter.subtitle}</p>
-                      <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{translatedSubtitle}</h2>
-                    </>
-                  ) : (
-                    <h2 className={`text-xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{chapter.subtitle}</h2>
-                  )}
-                </div>
-              )}
             </header>
 
             <ParagraphList />

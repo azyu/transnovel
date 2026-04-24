@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
+import { useTranslationStore } from '../../stores/translationStore';
 import { ModelModal } from './llm/ModelModal';
 import { ModelList } from './llm/ModelList';
 import { ProviderModal } from './llm/ProviderModal';
@@ -63,6 +64,8 @@ function isOldFormat(data: unknown): data is OldModelConfig[] {
 
 export const LLMSettings: React.FC = () => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const showError = useUIStore((state) => state.showError);
+  const isTranslating = useTranslationStore((state) => state.isTranslating);
   const settingsMessages = useSettingsMessages();
   const llmMessages = settingsMessages.llm;
 
@@ -250,6 +253,11 @@ export const LLMSettings: React.FC = () => {
   };
 
   const handleSelectModel = (id: string) => {
+    if (id !== activeModelId && isTranslating) {
+      showError(llmMessages.models.changeBlockedWhileTranslating);
+      return;
+    }
+
     setActiveModelId(id);
   };
 

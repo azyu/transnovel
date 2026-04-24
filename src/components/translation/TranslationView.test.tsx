@@ -7,17 +7,20 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useTranslationStore } from '../../stores/translationStore';
 
+const baseSettings = [
+  { key: 'active_model_id', value: 'model-1' },
+  { key: 'llm_models', value: JSON.stringify([{ id: 'model-1', providerId: 'provider-1' }]) },
+  { key: 'llm_providers', value: JSON.stringify([{ id: 'provider-1' }]) },
+];
+
+let getSettingsResponse: { key: string; value: string }[] = baseSettings;
 let characterDictionaryModalProps:
   | { title: string; description: string; saveLabel: string }
   | null = null;
 
 const invokeMock = vi.fn(async (command: string) => {
   if (command === 'get_settings') {
-    return [
-      { key: 'active_model_id', value: 'model-1' },
-      { key: 'llm_models', value: JSON.stringify([{ id: 'model-1', providerId: 'provider-1' }]) },
-      { key: 'llm_providers', value: JSON.stringify([{ id: 'provider-1' }]) },
-    ];
+    return getSettingsResponse;
   }
 
   return null;
@@ -84,6 +87,7 @@ describe('TranslationView', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     characterDictionaryModalProps = null;
+    getSettingsResponse = baseSettings;
     originalNavigationMessages = (messages.translation as { navigation?: unknown }).navigation;
     originalDictionaryMessages = (messages.translation as { dictionary?: unknown }).dictionary;
 
@@ -212,5 +216,73 @@ describe('TranslationView', () => {
       description: 'Dictionary manual description sentinel',
       saveLabel: 'Dictionary manual save sentinel',
     });
+  });
+
+  it('renders original and translated titles with matching sizes in side-by-side layout', async () => {
+    getSettingsResponse = [
+      ...baseSettings,
+      { key: 'view_config', value: JSON.stringify({ displayLayout: 'sideBySide', showOriginal: true }) },
+    ];
+    useTranslationStore.setState({
+      chapter: {
+        site: 'nocturne',
+        novelId: 'n0112ma',
+        novelTitle: '등록된 작품',
+        chapterNumber: 2,
+        title: '原文タイトル',
+        subtitle: '原文サブタイトル',
+        prevUrl: null,
+        nextUrl: null,
+        sourceUrl: 'https://novel18.syosetu.com/n0112ma/2/',
+      },
+      translatedTitle: '번역 제목',
+      translatedSubtitle: '번역 부제목',
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const layout = container.querySelector('[data-testid="chapter-title-layout"]');
+    const originalTitle = container.querySelector('[data-testid="chapter-original-title"]');
+    const translatedTitle = container.querySelector('[data-testid="chapter-translated-title"]');
+    const originalSubtitle = container.querySelector('[data-testid="chapter-original-subtitle"]');
+    const translatedSubtitle = container.querySelector('[data-testid="chapter-translated-subtitle"]');
+
+    expect(layout?.className).toContain('md:grid-cols-2');
+    expect(originalTitle?.className).toContain('text-2xl');
+    expect(translatedTitle?.className).toContain('text-2xl');
+    expect(originalSubtitle?.className).toContain('text-xl');
+    expect(translatedSubtitle?.className).toContain('text-xl');
+  });
+
+  it('renders original and translated titles in stacked layout', async () => {
+    getSettingsResponse = [
+      ...baseSettings,
+      { key: 'view_config', value: JSON.stringify({ displayLayout: 'stacked', showOriginal: true }) },
+    ];
+    useTranslationStore.setState({
+      translatedTitle: '번역 제목',
+      translatedSubtitle: '번역 부제목',
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const layout = container.querySelector('[data-testid="chapter-title-layout"]');
+
+    expect(layout?.className).toContain('space-y-3');
+    expect(layout?.className).not.toContain('md:grid-cols-2');
+    expect(container.textContent).toContain('2화');
+    expect(container.textContent).toContain('번역 제목');
   });
 });

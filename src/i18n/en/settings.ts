@@ -216,6 +216,7 @@ Example:
       add: '+ Add',
       deleteConfirm: 'Delete this model?',
       deleteTitle: 'Delete model',
+      changeBlockedWhileTranslating: 'Cannot change models while translation is in progress.',
     },
     streaming: {
       title: 'Streaming mode',

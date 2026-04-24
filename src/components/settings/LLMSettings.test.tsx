@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { LLMSettings } from './LLMSettings';
 import { messages } from '../../i18n';
+import { useTranslationStore } from '../../stores/translationStore';
 import { useUIStore } from '../../stores/uiStore';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -77,7 +78,8 @@ describe('LLMSettings', () => {
     document.body.appendChild(container);
     root = createRoot(container);
 
-    useUIStore.setState({ theme: 'dark' });
+    useUIStore.setState({ theme: 'dark', toast: null });
+    useTranslationStore.setState({ isTranslating: false });
     originalSettingsMessages = messages.settings;
   });
 
@@ -353,6 +355,7 @@ describe('LLMSettings', () => {
           add: 'Add model sentinel',
           deleteConfirm: 'Delete model sentinel',
           deleteTitle: 'Delete model title sentinel',
+          changeBlockedWhileTranslating: 'Model change blocked sentinel',
         },
         streaming: {
           title: 'Streaming title sentinel',
@@ -387,5 +390,69 @@ describe('LLMSettings', () => {
     expect(container.textContent).toContain('Add model sentinel');
     expect(container.textContent).toContain('Streaming title sentinel');
     expect(container.textContent).toContain('Streaming description sentinel');
+  });
+
+  it('shows an error and keeps the active model when selecting another model during translation', async () => {
+    const settingsWithTwoModels = unlockedSettings.map((setting) =>
+      setting.key === 'llm_models'
+        ? {
+            ...setting,
+            value: JSON.stringify([
+              {
+                id: 'model-1',
+                name: 'Model A',
+                providerId: 'provider-1',
+                modelId: 'gemma-4',
+              },
+              {
+                id: 'model-2',
+                name: 'Model B',
+                providerId: 'provider-1',
+                modelId: 'gemma-5',
+              },
+            ]),
+          }
+        : setting,
+    );
+
+    useTranslationStore.setState({ isTranslating: true });
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') {
+        return settingsWithTwoModels;
+      }
+
+      return undefined;
+    });
+
+    await act(async () => {
+      root.render(<LLMSettings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const modelBButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Model B'),
+    ) as HTMLButtonElement | undefined;
+    expect(modelBButton).toBeTruthy();
+
+    await act(async () => {
+      modelBButton?.click();
+    });
+
+    expect(useUIStore.getState().toast).toEqual({
+      message: '현재 번역 중이라 모델을 변경할 수 없습니다.',
+      type: 'error',
+      detail: undefined,
+    });
+
+    const activeModelSaveCalls = invokeMock.mock.calls.filter(
+      ([command, payload]) =>
+        command === 'set_setting'
+        && (payload as { key?: string; value?: string } | undefined)?.key === 'active_model_id'
+        && (payload as { key?: string; value?: string } | undefined)?.value === 'model-2',
+    );
+    expect(activeModelSaveCalls).toHaveLength(0);
   });
 });

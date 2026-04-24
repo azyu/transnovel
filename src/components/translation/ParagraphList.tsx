@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { getMessages } from '../../i18n';
+import { useDebugStore } from '../../stores/debugStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
 import { useViewSettings, type ViewConfig } from '../../hooks/useViewSettings';
@@ -13,6 +14,7 @@ interface ParagraphRowProps {
 
 const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isStacked }) => {
   const paragraph = useTranslationStore((s) => s.paragraphById[paragraphId]);
+  const debugMode = useDebugStore((s) => s.debugMode);
   const language = useUIStore((s) => s.language);
   const translationMessages = getMessages(language).translation;
   
@@ -36,12 +38,15 @@ const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isS
         <div className="space-y-2">
           {config.showOriginal && (
             <div className="relative">
-              <div 
-                className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
-                style={{ color: config.textColor }}
-              >
-                {paragraph.id}
-              </div>
+              {debugMode && (
+                <div 
+                  aria-hidden="true"
+                  className="absolute -left-7 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
+                  style={{ color: config.textColor }}
+                >
+                  {paragraph.id}
+                </div>
+              )}
               <div 
                 className="leading-relaxed break-words whitespace-pre-wrap font-jp"
                 style={{
@@ -81,12 +86,15 @@ const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isS
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
           {config.showOriginal && (
             <div className="relative">
-              <div 
-                className="absolute -left-3 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
-                style={{ color: config.textColor }}
-              >
-                {paragraph.id}
-              </div>
+              {debugMode && (
+                <div 
+                  aria-hidden="true"
+                  className="absolute -left-7 top-0 text-[10px] font-mono opacity-0 group-hover:opacity-50 transition-opacity"
+                  style={{ color: config.textColor }}
+                >
+                  {paragraph.id}
+                </div>
+              )}
               <div 
                 className="leading-relaxed break-words whitespace-pre-wrap font-jp"
                 style={{

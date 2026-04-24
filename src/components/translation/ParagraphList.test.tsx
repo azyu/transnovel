@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ParagraphList } from './ParagraphList';
 import { messages } from '../../i18n';
+import { useDebugStore } from '../../stores/debugStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
 
@@ -22,6 +23,7 @@ describe('ParagraphList', () => {
     originalParagraphListMessages = (messages.translation as { paragraphList?: unknown }).paragraphList;
 
     useUIStore.setState({ theme: 'dark', language: 'ko', viewConfigVersion: 0 });
+    useDebugStore.setState({ debugMode: false });
     useTranslationStore.setState({
       paragraphIds: ['p-1'],
       paragraphById: {
@@ -84,5 +86,19 @@ describe('ParagraphList', () => {
     });
 
     expect(container.textContent).not.toContain('Paragraph pending sentinel');
+  });
+
+  it('shows paragraph ids only in debug mode', async () => {
+    await act(async () => {
+      root.render(<ParagraphList />);
+    });
+
+    expect(container.textContent).not.toContain('p-1');
+
+    await act(async () => {
+      useDebugStore.setState({ debugMode: true });
+    });
+
+    expect(container.textContent).toContain('p-1');
   });
 });
