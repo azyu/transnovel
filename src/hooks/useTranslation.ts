@@ -300,6 +300,7 @@ export const useTranslation = () => {
         paragraphs: content.paragraphs.map((p, index) => ({
           id: `p-${index + 1}`,
           original: p,
+          isSpacer: p.trim() === '',
         })),
         prev_url: content.prev_url,
         next_url: content.next_url,
@@ -357,6 +358,7 @@ export const useTranslation = () => {
       const paragraphs = content.paragraphs.map((p, index) => ({
         id: `p-${index + 1}`,
         original: p,
+        isSpacer: p.trim() === '',
       }));
       
       setChapterContent({

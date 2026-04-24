@@ -4,6 +4,9 @@ import type {
   Paragraph,
 } from '../types';
 
+const isParagraphComplete = (paragraph?: Paragraph): boolean =>
+  Boolean(paragraph?.isSpacer || paragraph?.translated);
+
 interface ChapterMeta {
   site: string;
   novelId: string;
@@ -115,7 +118,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
     for (const p of content.paragraphs) {
       ids.push(p.id);
       byId[p.id] = p;
-      if (p.translated) count++;
+      if (isParagraphComplete(p)) count++;
     }
 
     set({
@@ -150,13 +153,14 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
       const prev = s.paragraphById[id];
       if (!prev) return {};
 
-      const wasTranslated = Boolean(prev.translated);
-      const isNowTranslated = text.trim() !== '';
+      const wasTranslated = isParagraphComplete(prev);
+      const next = { ...prev, translated: text };
+      const isNowTranslated = isParagraphComplete(next);
 
       return {
         paragraphById: {
           ...s.paragraphById,
-          [id]: { ...prev, translated: text },
+          [id]: next,
         },
         translatedCount: wasTranslated === isNowTranslated
           ? s.translatedCount
@@ -175,7 +179,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
         const translated = translations[i] || newById[id]?.translated;
         if (newById[id]) {
           newById[id] = { ...newById[id], translated };
-          if (translated) count++;
+          if (isParagraphComplete(newById[id])) count++;
         }
       }
 

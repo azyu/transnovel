@@ -166,7 +166,6 @@ fn extract_paragraphs(html: &str) -> Vec<String> {
     document
         .select(&p_selector)
         .map(|el| el.text().collect::<Vec<_>>().join("").trim().to_string())
-        .filter(|s| !s.is_empty())
         .collect()
 }
 
@@ -265,6 +264,24 @@ mod tests {
                 Some(&series_info),
             ),
             3
+        );
+    }
+
+    #[test]
+    fn extract_paragraphs_preserves_empty_source_paragraphs() {
+        let paragraphs = extract_paragraphs(
+            r#"<p>一段落目。</p>
+<p><br></p>
+<p>二段落目。</p>"#,
+        );
+
+        assert_eq!(
+            paragraphs,
+            vec![
+                "一段落目。".to_string(),
+                String::new(),
+                "二段落目。".to_string(),
+            ]
         );
     }
 }

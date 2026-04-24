@@ -63,6 +63,29 @@ describe('useTranslationStore', () => {
       expect(state.paragraphIds).toEqual([]);
       expect(state.translatedCount).toBe(0);
     });
+
+    it('should count spacer paragraphs as complete', () => {
+      const { setChapterContent } = useTranslationStore.getState();
+
+      setChapterContent({
+        site: 'syosetu',
+        novel_id: 'n123',
+        title: 'タイトル',
+        subtitle: '',
+        paragraphs: [
+          { id: 'p-1', original: 'テスト1' },
+          { id: 'p-2', original: '', isSpacer: true },
+          { id: 'p-3', original: 'テスト2' },
+        ],
+        prev_url: null,
+        next_url: null,
+        source_url: 'https://example.com/1',
+      });
+
+      const state = useTranslationStore.getState();
+      expect(state.translatedCount).toBe(1);
+      expect(state.paragraphById['p-2'].isSpacer).toBe(true);
+    });
   });
 
   describe('updateParagraphTranslation', () => {

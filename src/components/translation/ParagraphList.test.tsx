@@ -58,4 +58,31 @@ describe('ParagraphList', () => {
 
     expect(container.textContent).toContain('Paragraph pending sentinel');
   });
+
+  it('renders spacer paragraphs without pending text', async () => {
+    (messages.translation as { paragraphList?: unknown }).paragraphList = {
+      pending: 'Paragraph pending sentinel',
+    };
+    useTranslationStore.setState({
+      paragraphIds: ['p-1'],
+      paragraphById: {
+        'p-1': {
+          id: 'p-1',
+          original: '',
+          translated: '',
+          isSpacer: true,
+        },
+      },
+    });
+
+    await act(async () => {
+      root.render(<ParagraphList />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain('Paragraph pending sentinel');
+  });
 });

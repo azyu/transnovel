@@ -18,6 +18,15 @@ const ParagraphRow = memo<ParagraphRowProps>(({ paragraphId, config, styles, isS
   
   if (!paragraph) return null;
 
+  if (paragraph.isSpacer) {
+    return (
+      <div
+        aria-hidden="true"
+        style={{ marginBottom: styles.paragraph.marginBottom, minHeight: '1em' }}
+      />
+    );
+  }
+
   return (
     <div 
       className="group p-4 rounded-lg transition-colors"

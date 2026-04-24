@@ -48,6 +48,7 @@ export interface Paragraph {
   id: string;
   original: string;
   translated?: string;
+  isSpacer?: boolean;
 }
 
 export interface CharacterDictionaryEntry {
