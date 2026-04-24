@@ -88,4 +88,19 @@ describe('ApiLogDetailModal', () => {
     expect(document.body.querySelector('[aria-label="Close sentinel"]')).toBeTruthy();
     expect(document.body.querySelector('[title="Copy UID sentinel"]')).toBeTruthy();
   });
+
+  it('renders provider and model on a separate full-width row', async () => {
+    await act(async () => {
+      root.render(<ApiLogDetailModal log={log} onClose={() => {}} />);
+    });
+
+    const providerModelLabel = Array.from(document.body.querySelectorAll('p')).find((element) =>
+      element.textContent?.includes(messages.settings.apiLogs.detail.providerModelLabel),
+    );
+    const providerModelRow = providerModelLabel?.parentElement;
+
+    expect(providerModelRow?.className).toContain('mt-4');
+    expect(providerModelRow?.textContent).toContain('OpenAI');
+    expect(providerModelRow?.textContent).toContain('gpt-4o');
+  });
 });

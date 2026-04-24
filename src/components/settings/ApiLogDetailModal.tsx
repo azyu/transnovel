@@ -141,7 +141,7 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                 )}
               </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                   {settingsMessages.apiLogs.detail.timeLabel}
@@ -168,20 +168,20 @@ export const ApiLogDetailModal: React.FC<Props> = ({ log, onClose }) => {
                     : '-'}
                 </p>
               </div>
-              <div>
-                <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  {settingsMessages.apiLogs.detail.providerModelLabel}
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${getProviderColor(log.provider)}`}>
-                    {log.provider}
+            </div>
+            <div className="mt-4">
+              <p className={`text-xs uppercase font-medium mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                {settingsMessages.apiLogs.detail.providerModelLabel}
+              </p>
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${getProviderColor(log.provider)}`}>
+                  {log.provider}
+                </span>
+                {log.model && (
+                  <span className={`text-sm font-mono break-all ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                    {log.model}
                   </span>
-                  {log.model && (
-                    <span className={`text-sm font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                      {log.model}
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
             </div>
             {log.error && (

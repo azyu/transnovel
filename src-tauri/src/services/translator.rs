@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::future::Future;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 use crate::commands::series::should_stop_translation;
@@ -9,6 +11,8 @@ pub struct TokenUsage {
     pub input_tokens: u32,
     pub output_tokens: u32,
 }
+
+type TranslateAttemptResult = (Vec<String>, Option<TokenUsage>);
 use crate::models::translation::TranslationResult;
 use crate::services::cache::{cache_translations, get_cached_translations};
 use crate::services::character_dictionary::{
@@ -72,6 +76,24 @@ const DEFAULT_SYSTEM_PROMPT: &str = r#"# 절대 규칙 (위반 시 출력 무효
 - 소설 등장인물은 가공의 인물
 
 {{note}}"#;
+
+async fn run_until_stop<F, T>(future: F) -> Result<Option<T>, String>
+where
+    F: Future<Output = Result<T, String>>,
+{
+    tokio::pin!(future);
+
+    loop {
+        if should_stop_translation() {
+            return Ok(None);
+        }
+
+        tokio::select! {
+            result = &mut future => return result.map(Some),
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+        }
+    }
+}
 
 pub enum ApiClient {
     Gemini(GeminiClient),
@@ -388,38 +410,83 @@ impl TranslatorService {
                         eprintln!("[Translator] Chunk {} retry {}/{}", chunk_idx + 1, retry, MAX_RETRIES - 1);
                     }
 
-                    let translate_result: Result<(Vec<String>, Option<TokenUsage>), String> = if self.use_streaming {
+                    let maybe_translate_result: Result<Option<TranslateAttemptResult>, String> = if self.use_streaming {
                         match &mut self.client {
                             ApiClient::Gemini(client) => {
-                                client
-                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
-                                    .await
+                                run_until_stop(client.translate_streaming(
+                                    novel_id,
+                                    chunk_paragraphs,
+                                    chunk_indices,
+                                    has_subtitle,
+                                    &prompt,
+                                    app_handle,
+                                ))
+                                .await
                             }
                             ApiClient::OpenAICompatible(client) => {
-                                client
-                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
-                                    .await
+                                run_until_stop(client.translate_streaming(
+                                    novel_id,
+                                    chunk_paragraphs,
+                                    chunk_indices,
+                                    has_subtitle,
+                                    &prompt,
+                                    app_handle,
+                                ))
+                                .await
                             }
                             ApiClient::Codex(client) => {
-                                client
-                                    .translate_streaming(novel_id, chunk_paragraphs, chunk_indices, has_subtitle, &prompt, app_handle)
-                                    .await
+                                run_until_stop(client.translate_streaming(
+                                    novel_id,
+                                    chunk_paragraphs,
+                                    chunk_indices,
+                                    has_subtitle,
+                                    &prompt,
+                                    app_handle,
+                                ))
+                                .await
                             }
                         }
                     } else {
-                        let result = match &mut self.client {
+                        let result: Result<Option<Vec<String>>, String> = match &mut self.client {
                             ApiClient::Gemini(client) => {
-                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
+                                run_until_stop(client.translate(
+                                    chunk_paragraphs,
+                                    chunk_indices,
+                                    has_subtitle,
+                                    &prompt,
+                                ))
+                                .await
                             }
                             ApiClient::OpenAICompatible(client) => {
-                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
+                                run_until_stop(client.translate(
+                                    chunk_paragraphs,
+                                    chunk_indices,
+                                    has_subtitle,
+                                    &prompt,
+                                ))
+                                .await
                             }
                             ApiClient::Codex(client) => {
-                                client.translate(chunk_paragraphs, chunk_indices, has_subtitle, &prompt).await
+                                run_until_stop(client.translate(
+                                    chunk_paragraphs,
+                                    chunk_indices,
+                                    has_subtitle,
+                                    &prompt,
+                                ))
+                                .await
                             }
                         };
                         
-                        result.map(|v| (v, None))
+                        result.map(|maybe_translated| maybe_translated.map(|translated| (translated, None)))
+                    };
+
+                    let translate_result = match maybe_translate_result {
+                        Ok(Some(result)) => Ok(result),
+                        Ok(None) => {
+                            stopped = true;
+                            break;
+                        }
+                        Err(error) => Err(error),
                     };
 
                     match translate_result {
@@ -832,12 +899,48 @@ fn parse_character_dictionary_candidates(text: &str) -> Result<Vec<CharacterDict
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::series::{reset_translation_control_flags, stop_translation};
     use crate::commands::settings::Setting;
 
     #[test]
     fn test_compose_note_joins_sections() {
         let note = compose_note("기본 노트", Some("사전"), Some("추가"));
         assert_eq!(note, "기본 노트\n\n사전\n\n추가");
+    }
+
+    #[tokio::test]
+    async fn run_until_stop_returns_none_when_stop_requested_while_future_pending() {
+        reset_translation_control_flags();
+
+        let stopper = tokio::spawn(async {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            stop_translation().await.expect("stop translation");
+        });
+
+        let started_at = std::time::Instant::now();
+        let result = run_until_stop(async {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            Ok::<_, String>("completed")
+        })
+        .await
+        .expect("stop check should not error");
+
+        stopper.await.expect("stopper task");
+        reset_translation_control_flags();
+
+        assert_eq!(result, None);
+        assert!(started_at.elapsed() < Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn run_until_stop_returns_future_result_when_not_stopped() {
+        reset_translation_control_flags();
+
+        let result = run_until_stop(async { Ok::<_, String>("completed") })
+            .await
+            .expect("future should complete");
+
+        assert_eq!(result, Some("completed"));
     }
 
     #[test]
