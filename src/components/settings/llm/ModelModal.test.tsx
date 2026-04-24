@@ -1,6 +1,7 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
 import { ModelModal } from './ModelModal';
 import { messages } from '../../../i18n';
 import type { ProviderConfig } from './types';
@@ -31,6 +32,7 @@ describe('ModelModal', () => {
     root = createRoot(container);
     useUIStore.setState({ theme: 'dark', viewConfigVersion: 0 });
     originalSettingsMessages = messages.settings;
+    vi.mocked(invoke).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -42,7 +44,7 @@ describe('ModelModal', () => {
     vi.clearAllMocks();
   });
 
-  it('guides manual model input for custom providers', async () => {
+  it('enables model discovery for custom providers', async () => {
     const providers: ProviderConfig[] = [
       {
         id: 'provider-custom',
@@ -72,8 +74,12 @@ describe('ModelModal', () => {
       button.textContent?.includes('↻'),
     );
 
-    expect(container.textContent).toContain('모델 ID를 직접 입력');
-    expect(refreshButton).toHaveProperty('disabled', true);
+    expect(container.textContent).not.toContain('모델 ID를 직접 입력');
+    expect(refreshButton).toHaveProperty('disabled', false);
+    expect(invoke).toHaveBeenCalledWith('fetch_openai_compatible_models', {
+      apiKey: 'sk-test',
+      baseUrl: 'https://example.com/v1',
+    });
   });
 
   it('disables edit and save controls when the managed lock is active', async () => {
@@ -199,7 +205,7 @@ describe('ModelModal', () => {
     expect(container.textContent).toContain('Add model sentinel');
     expect(container.textContent).toContain('Provider label sentinel');
     expect(container.textContent).toContain('Model ID sentinel');
-    expect(container.textContent).toContain('Manual entry sentinel');
+    expect(container.textContent).not.toContain('Manual entry sentinel');
     expect(container.textContent).toContain('Display name sentinel');
     expect(container.textContent).toContain('Cancel model sentinel');
     expect(container.textContent).toContain('Save model sentinel');
