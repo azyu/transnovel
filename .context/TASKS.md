@@ -4,6 +4,9 @@
 
 | 상태 | 등록일 | 작업내용 | 담당 agent |
 |---|---|---|---|
+| `[x]` | 2026-04-24 | 원문 빈 문단 보존 및 번역 UI 간격 반영 | Codex |
+| `[x]` | 2026-04-24 | OpenAI-compatible provider 모델 목록 조회 지원 | Codex |
+| `[x]` | 2026-04-24 | release Windows MSI 파일명 setup suffix로 정리 | Codex |
 | `[x]` | 2026-04-21 | #25 설정 화면 KO/EN 전환 누락 정리 | Codex |
 | `[~]` | 2026-03-16 | Frontend UI accessibility and workspace refresh | Codex |
 | `[ ]` | 2026-03-18 | EPUB 내보내기 구현 | - |

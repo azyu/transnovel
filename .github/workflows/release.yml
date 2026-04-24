@@ -136,6 +136,16 @@ jobs:
         with:
           args: --target ${{ matrix.target }}
 
+      - name: Normalize Windows MSI artifact names
+        if: startsWith(matrix.target, 'x86_64-pc-windows') || startsWith(matrix.target, 'aarch64-pc-windows')
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle/msi" -Filter "*_en-US.msi" -ErrorAction SilentlyContinue |
+            ForEach-Object {
+              $newName = $_.Name -replace "_en-US\.msi$", "_setup.msi"
+              Rename-Item -LiteralPath $_.FullName -NewName $newName
+            }
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
