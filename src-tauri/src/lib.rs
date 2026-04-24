@@ -44,6 +44,7 @@ pub fn run() {
             commands::settings::fetch_latest_release_info,
             commands::settings::fetch_gemini_models,
             commands::settings::fetch_openrouter_models,
+            commands::settings::fetch_openai_compatible_models,
             commands::settings::start_openai_oauth,
             commands::settings::check_openai_oauth_status,
             commands::settings::refresh_openai_token,
@@ -70,7 +71,7 @@ pub fn run() {
                     log::error!("Failed to initialize database: {}", e);
                 }
             });
-            
+
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();

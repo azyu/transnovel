@@ -58,7 +58,11 @@ export const ModelModal: React.FC<ModelModalProps> = ({
   const providerType = selectedProvider?.type;
   const preset = providerType ? PROVIDER_PRESETS[providerType] : null;
   const isEditing = !!editingModel;
-  const supportsModelDiscovery = providerType === 'gemini' || providerType === 'openrouter' || providerType === 'openai-oauth';
+  const supportsModelDiscovery = providerType === 'gemini'
+    || providerType === 'openrouter'
+    || providerType === 'openai'
+    || providerType === 'openai-oauth'
+    || providerType === 'custom';
 
   useEffect(() => {
     if (editingModel) {
@@ -120,6 +124,16 @@ export const ModelModal: React.FC<ModelModalProps> = ({
           name: m.name,
           contextLength: m.context_length,
         }));
+      } else if ((providerType === 'openai' || providerType === 'custom') && apiKey) {
+        const result = await invoke<OpenRouterModel[]>('fetch_openai_compatible_models', {
+          apiKey,
+          baseUrl: selectedProvider.baseUrl || preset?.defaultBaseUrl || '',
+        });
+        fetchedModels = result.map(m => ({
+          id: m.id,
+          name: m.name,
+          contextLength: m.context_length,
+        }));
       } else if (providerType === 'openai-oauth') {
         const result = await invoke<OpenRouterModel[]>('fetch_openai_oauth_models', {
           providerId: selectedProvider.id,
@@ -142,7 +156,7 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     } finally {
       setLoadingModels(false);
     }
-  }, [selectedProvider, providerType, preset?.apiKeyRequired, supportsModelDiscovery, isLocked]);
+  }, [selectedProvider, providerType, preset?.apiKeyRequired, preset?.defaultBaseUrl, supportsModelDiscovery, isLocked]);
 
   useEffect(() => {
     if (isOpen && providerId && !isLocked) {
@@ -253,11 +267,6 @@ export const ModelModal: React.FC<ModelModalProps> = ({
               ↻
             </Button>
           </div>
-          {!supportsModelDiscovery && providerType === 'custom' && (
-            <p className={`text-xs mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              {modelModalMessages.manualEntryHint}
-            </p>
-          )}
           {models.length > 0 && (
             <div className={`max-h-32 overflow-y-auto rounded-lg border ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
               {models.map(m => (

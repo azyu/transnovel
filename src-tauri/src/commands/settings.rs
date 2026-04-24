@@ -420,6 +420,37 @@ struct OpenRouterModelInfo {
     context_length: Option<u32>,
 }
 
+fn build_openai_compatible_models_url(base_url: &str) -> String {
+    format!(
+        "{}{}",
+        base_url.trim_end_matches("/v1").trim_end_matches('/'),
+        "/v1/models"
+    )
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAICompatibleModelsResponse {
+    data: Option<Vec<OpenAICompatibleModelInfo>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAICompatibleModelInfo {
+    id: String,
+}
+
+fn map_openai_compatible_models(response: OpenAICompatibleModelsResponse) -> Vec<OpenRouterModel> {
+    response
+        .data
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| OpenRouterModel {
+            id: m.id.clone(),
+            name: format_model_name(&m.id),
+            context_length: 0,
+        })
+        .collect()
+}
+
 #[tauri::command]
 pub async fn fetch_openrouter_models(api_key: String) -> Result<Vec<OpenRouterModel>, String> {
     let client = reqwest::Client::builder()
@@ -474,6 +505,36 @@ pub async fn fetch_openrouter_models(api_key: String) -> Result<Vec<OpenRouterMo
     });
 
     Ok(models)
+}
+
+#[tauri::command]
+pub async fn fetch_openai_compatible_models(
+    api_key: String,
+    base_url: String,
+) -> Result<Vec<OpenRouterModel>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get(build_openai_compatible_models_url(&base_url))
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("API 요청 실패: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("API 오류: {}", error_text));
+    }
+
+    let models_response: OpenAICompatibleModelsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("응답 파싱 실패: {}", e))?;
+
+    Ok(map_openai_compatible_models(models_response))
 }
 
 fn get_openrouter_model_score(id: &str) -> i32 {
@@ -1001,5 +1062,43 @@ mod tests {
     fn normalize_release_version_rejects_malformed_tag() {
         let error = normalize_release_version("release-0.1.2").expect_err("invalid tag");
         assert!(error.contains("버전"));
+    }
+
+    #[test]
+    fn builds_openai_compatible_models_url_from_root_or_v1_base() {
+        assert_eq!(
+            build_openai_compatible_models_url("https://example.com"),
+            "https://example.com/v1/models"
+        );
+        assert_eq!(
+            build_openai_compatible_models_url("https://example.com/"),
+            "https://example.com/v1/models"
+        );
+        assert_eq!(
+            build_openai_compatible_models_url("https://example.com/v1"),
+            "https://example.com/v1/models"
+        );
+    }
+
+    #[test]
+    fn parses_openai_compatible_models_from_data_response() {
+        let response: OpenAICompatibleModelsResponse = serde_json::from_str(
+            r#"{
+                "data": [
+                    {"id": "gpt-5.2", "owned_by": "openai"},
+                    {"id": "local-model", "object": "model"}
+                ]
+            }"#,
+        )
+        .expect("parse models response");
+
+        let models = map_openai_compatible_models(response);
+
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0].id, "gpt-5.2");
+        assert_eq!(models[0].name, "Gpt 5.2");
+        assert_eq!(models[0].context_length, 0);
+        assert_eq!(models[1].id, "local-model");
+        assert_eq!(models[1].name, "Local Model");
     }
 }
