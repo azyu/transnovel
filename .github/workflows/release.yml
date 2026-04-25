@@ -165,6 +165,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Generate release notes
+        run: node scripts/generate-release-notes.mjs ${{ needs.prepare.outputs.tag }} > RELEASE_NOTES.md
+
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
@@ -175,7 +189,7 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           draft: false
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           files: artifacts/**/*
 
   sync-main-version:
