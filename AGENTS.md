@@ -9,6 +9,7 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
 - Use GitHub Issues as the source of truth for backlog and non-trivial task context. Keep issue bodies short but sufficient: background, goal, scope, exclusions, verification, and follow-up links when needed.
 - Use `src-tauri/src/AGENTS.md` for backend-specific rules.
 - Use `docs/references.md` when you need command lists, event payloads, or architecture detail.
+- Use `docs/DESIGN.md` as the design system contract for the GitHub Pages landing site (`docs/index.html`, `docs/quickstart.html`). Does not apply to the desktop app UI in `src/`.
 
 ## Structure
 
@@ -36,6 +37,7 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
 | Parser change | `src-tauri/src/parsers/` | Implement `NovelParser` and register both router paths |
 | Translation or provider change | `src-tauri/src/services/` | Keep orchestration in `translator.rs` and transport in provider clients |
 | DB migration | `src-tauri/src/db/migrations/` | Add SQL file and load it through `include_str!()` in `db/mod.rs` |
+| Landing site styling | `docs/` | Follow tokens and rules in `docs/DESIGN.md`; do not introduce new colors or `rounded` steps. Update DESIGN.md in the same change |
 
 ## Current Runtime Boundaries
 
