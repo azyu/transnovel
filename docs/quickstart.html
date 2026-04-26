@@ -113,13 +113,14 @@
         <section id="before-you-start" class="doc-section" data-animate>
           <p class="section-eyebrow">Step 0</p>
           <h2>준비물</h2>
-          <p>TransNovel 자체는 무료 오픈소스 앱입니다. 실제 번역에는 사용할 LLM 제공자 계정이나 API 키가 필요합니다.</p>
+          <p>TransNovel 자체는 무료 오픈소스 앱입니다. 실제 번역에는 Gemini API 키가 필요합니다.</p>
           <div class="doc-callout">
             처음 테스트할 때는 짧은 챕터 하나로 모델, 비용, 번역 톤을 확인한 뒤 긴 챕터를 번역하세요.
           </div>
           <ul>
             <li>macOS Apple Silicon 또는 Windows x64/ARM64 환경</li>
-            <li>Gemini, OpenRouter, OpenAI-compatible 제공자, 또는 OpenAI Codex 로그인</li>
+            <li>Google 계정</li>
+            <li>Google AI Studio에서 발급한 Gemini API 키</li>
             <li>번역할 지원 사이트의 챕터 URL</li>
           </ul>
         </section>
@@ -146,15 +147,19 @@
 
         <section id="provider" class="doc-section" data-animate>
           <p class="section-eyebrow">Step 2</p>
-          <h2>LLM 제공자와 모델 설정</h2>
-          <p>설정의 LLM 화면에서 제공자와 모델을 하나 이상 등록합니다. API 키는 앱 설정 저장소에 로컬로 저장됩니다.</p>
+          <h2>Gemini API 키 설정</h2>
+          <p>처음 시작할 때는 Google AI Studio에서 Gemini API 키를 발급받아 Gemini 제공자로 등록하는 흐름을 권장합니다. API 키는 앱 설정 저장소에 로컬로 저장됩니다.</p>
           <ol>
-            <li><strong>설정</strong> 탭을 열고 <strong>LLM</strong> 섹션으로 이동합니다.</li>
-            <li><strong>제공자 추가</strong>에서 Gemini, OpenRouter, OpenAI, Anthropic, Custom, OpenAI Codex 중 하나를 선택합니다.</li>
-            <li>API 키가 필요한 제공자는 키를 입력합니다. Custom 제공자는 OpenAI-compatible <code>base_url</code>도 입력합니다.</li>
-            <li><strong>모델 추가</strong>에서 방금 만든 제공자를 선택하고 사용할 모델을 저장합니다.</li>
-            <li>등록한 모델을 활성 모델로 선택합니다.</li>
+            <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio API Keys</a> 페이지를 엽니다.</li>
+            <li>Google 계정으로 로그인한 뒤 새 Gemini API 키를 만듭니다.</li>
+            <li>TransNovel에서 <strong>설정</strong> 탭을 열고 <strong>LLM</strong> 섹션으로 이동합니다.</li>
+            <li><strong>제공자 추가</strong>에서 <strong>Gemini</strong>를 선택하고, 발급받은 API 키를 붙여 넣어 저장합니다.</li>
+            <li><strong>모델 추가</strong>에서 방금 만든 Gemini 제공자를 선택하고 사용할 모델을 저장합니다.</li>
+            <li>등록한 Gemini 모델을 활성 모델로 선택합니다.</li>
           </ol>
+          <div class="doc-callout">
+            API 키는 비밀번호처럼 다루세요. 공개 저장소, 이슈, 채팅, 스크린샷에 노출하지 않는 것이 안전합니다.
+          </div>
           <div class="doc-table-wrap">
             <table class="doc-table">
               <thead>
@@ -167,8 +172,8 @@
               <tbody>
                 <tr>
                   <td>Gemini</td>
-                  <td>API key, model</td>
-                  <td>Google Gemini API를 직접 호출합니다.</td>
+                  <td>Google AI Studio API key, model</td>
+                  <td>Quick Start 권장 경로입니다.</td>
                 </tr>
                 <tr>
                   <td>OpenRouter</td>
@@ -188,6 +193,7 @@
               </tbody>
             </table>
           </div>
+          <p class="doc-muted">다른 제공자를 쓰고 싶다면 OpenRouter, OpenAI-compatible 엔드포인트, OpenAI Codex 로그인도 같은 LLM 화면에서 추가할 수 있습니다.</p>
         </section>
 
         <section id="translate" class="doc-section" data-animate>

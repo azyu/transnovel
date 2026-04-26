@@ -479,6 +479,12 @@ details .faq-body {
   border-bottom: none;
 }
 
+.doc-muted {
+  margin-top: 1rem;
+  color: var(--text-tertiary) !important;
+  font-size: 0.9375rem;
+}
+
 .doc-next {
   padding: 1.5rem;
   border: 1px solid var(--border);

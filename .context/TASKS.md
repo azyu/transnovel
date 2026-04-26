@@ -4,6 +4,7 @@
 
 | 상태 | 등록일 | 작업내용 | 담당 agent |
 |---|---|---|---|
+| `[x]` | 2026-04-26 | Quick Start Gemini API 키 발급 흐름 보강 | Codex |
 | `[x]` | 2026-04-26 | GitHub Pages 메인 문구와 지원 사이트 표시 정리 | Codex |
 | `[x]` | 2026-04-26 | GitHub Pages Quick Start 문서 추가 | Codex |
 | `[x]` | 2026-04-24 | 원문 빈 문단 보존 및 번역 UI 간격 반영 | Codex |
