@@ -290,6 +290,206 @@ details .faq-body {
   opacity: 0.5;
 }
 
+/* ── Docs ── */
+.doc-page {
+  min-height: 100vh;
+  padding-top: 4rem;
+}
+
+.doc-hero {
+  padding: 7rem 0 4rem;
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.12), transparent 32%),
+    radial-gradient(circle at 80% 10%, rgba(16, 185, 129, 0.08), transparent 28%);
+}
+
+.doc-hero h1 {
+  font-size: clamp(2.8rem, 8vw, 5rem);
+  line-height: 1;
+  font-weight: 800;
+}
+
+.doc-lead {
+  max-width: 46rem;
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  line-height: 1.8;
+}
+
+.doc-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.doc-layout {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: 4rem;
+  padding-top: 4rem;
+  padding-bottom: 6rem;
+}
+
+.doc-sidebar {
+  position: sticky;
+  top: 6rem;
+  height: fit-content;
+}
+
+.doc-sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.doc-sidebar a {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  text-decoration: none;
+  padding: 0.5rem 0;
+  transition: color 0.2s;
+}
+
+.doc-sidebar a:hover {
+  color: var(--text-primary);
+}
+
+.doc-content {
+  max-width: 48rem;
+}
+
+.doc-section {
+  padding-bottom: 4rem;
+  margin-bottom: 4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.doc-section h2 {
+  font-size: clamp(1.75rem, 4vw, 2.35rem);
+  line-height: 1.2;
+  font-weight: 750;
+  margin-bottom: 1rem;
+}
+
+.doc-section h3 {
+  font-size: 1rem;
+  font-weight: 650;
+  margin-bottom: 0.5rem;
+}
+
+.doc-section p,
+.doc-section li {
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+.doc-section a {
+  color: var(--accent-bright);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.doc-section code {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.9em;
+}
+
+.doc-section ul,
+.doc-section ol {
+  padding-left: 1.25rem;
+  margin: 1rem 0 0;
+}
+
+.doc-section li + li {
+  margin-top: 0.45rem;
+}
+
+.doc-callout {
+  margin: 1.25rem 0;
+  padding: 1rem 1.125rem;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.7;
+}
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.doc-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 1.125rem;
+}
+
+.doc-card p {
+  margin: 0;
+}
+
+.doc-table-wrap {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 42rem;
+}
+
+.doc-table th,
+.doc-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc-table th {
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.doc-table td {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.doc-table tr:last-child td {
+  border-bottom: none;
+}
+
+.doc-next {
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.doc-next h2 {
+  font-size: 1.5rem;
+}
+
 /* ── Section styling ── */
 .section-eyebrow {
   font-size: 0.8125rem;
@@ -402,11 +602,39 @@ details .faq-body {
 /* ── Responsive ── */
 @media (max-width: 1023px) {
   .nav-links { display: none !important; }
+  .doc-layout {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .doc-sidebar {
+    position: static;
+  }
+  .doc-sidebar nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
 }
 
 @media (max-width: 767px) {
   .hero-actions { flex-direction: column; align-items: stretch; }
   .hero-actions a { justify-content: center; }
+  .doc-hero {
+    padding: 5rem 0 3rem;
+  }
+  .doc-actions {
+    flex-direction: column;
+  }
+  .doc-actions a {
+    justify-content: center;
+  }
+  .doc-grid {
+    grid-template-columns: 1fr;
+  }
+  .doc-section {
+    padding-bottom: 3rem;
+    margin-bottom: 3rem;
+  }
 }
 
 /* ── Reduced motion ── */
