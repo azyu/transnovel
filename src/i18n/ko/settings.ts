@@ -13,10 +13,23 @@ export const settingsMessages = {
     versionPrefix: '버전',
     versionUnknown: '...',
     checkUpdates: '업데이트 확인',
-    updateAvailable: (tagName: string) => `새 버전 ${tagName}을 사용할 수 있습니다.`,
-    openRelease: '릴리즈 열기',
+    updateAvailable: (version: string) => `새 버전 v${version}을 사용할 수 있습니다.`,
+    installUpdate: '업데이트하기',
     upToDate: '현재 최신 버전을 사용 중입니다.',
     updateCheckFailed: (detail: string) => `업데이트 확인 실패: ${detail}`,
+  },
+  updater: {
+    title: (version: string) => `TransNovel v${version} 업데이트`,
+    description: (currentVersion: string, version: string) =>
+      `현재 v${currentVersion}에서 v${version}으로 업데이트할 수 있습니다.`,
+    releaseNotes: '변경 사항',
+    restartWarning: '설치가 시작되면 앱이 종료되거나 재시작됩니다. 저장하지 않은 작업을 먼저 확인하세요.',
+    activeWorkBlocked: '번역 작업이 진행 중이거나 일시 정지되어 있습니다. 작업을 완료하거나 중지한 뒤 업데이트하세요.',
+    later: '나중에',
+    installAndRestart: '업데이트 및 재시작',
+    downloading: '업데이트 다운로드 중',
+    installing: '업데이트를 설치하고 앱을 재시작합니다.',
+    installFailed: (detail: string) => `업데이트 설치 실패: ${detail}`,
   },
   translation: {
     defaultSystemPrompt: `# 절대 규칙 (위반 시 출력 무효)

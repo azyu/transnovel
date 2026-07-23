@@ -4,14 +4,20 @@ mod models;
 mod parsers;
 mod services;
 
+#[cfg(debug_assertions)]
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_log::Builder::default().build())
+        .plugin(tauri_plugin_log::Builder::default().build());
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
+    builder
         .invoke_handler(tauri::generate_handler![
             commands::translation::translate_chapter,
             commands::translation::translate_text,
@@ -41,7 +47,8 @@ pub fn run() {
             commands::settings::add_api_key,
             commands::settings::remove_api_key,
             commands::settings::open_url,
-            commands::settings::fetch_latest_release_info,
+            commands::updater::check_for_update,
+            commands::updater::install_update,
             commands::settings::fetch_gemini_models,
             commands::settings::fetch_openrouter_models,
             commands::settings::fetch_openai_compatible_models,

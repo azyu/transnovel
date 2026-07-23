@@ -13,10 +13,23 @@ export const settingsMessages = {
     versionPrefix: 'Version',
     versionUnknown: '...',
     checkUpdates: 'Check for updates',
-    updateAvailable: (tagName: string) => `A new version ${tagName} is available.`,
-    openRelease: 'Open release',
+    updateAvailable: (version: string) => `A new version v${version} is available.`,
+    installUpdate: 'Update',
     upToDate: 'You are using the latest version.',
     updateCheckFailed: (detail: string) => `Failed to check for updates: ${detail}`,
+  },
+  updater: {
+    title: (version: string) => `TransNovel v${version} update`,
+    description: (currentVersion: string, version: string) =>
+      `You can update from v${currentVersion} to v${version}.`,
+    releaseNotes: 'Release notes',
+    restartWarning: 'The app will exit or restart when installation begins. Check any unsaved work first.',
+    activeWorkBlocked: 'A translation is running or paused. Finish or stop it before updating.',
+    later: 'Later',
+    installAndRestart: 'Update and restart',
+    downloading: 'Downloading update',
+    installing: 'Installing the update and restarting the app.',
+    installFailed: (detail: string) => `Failed to install update: ${detail}`,
   },
   translation: {
     defaultSystemPrompt: `# Hard Rules (any violation invalidates the output)

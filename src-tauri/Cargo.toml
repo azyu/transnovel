@@ -64,6 +64,9 @@ open = "5"
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-updater = "2"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

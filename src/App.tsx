@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { StatusBar } from './components/layout/StatusBar';
 import { Toast } from './components/common/Toast';
+import { AppUpdateController } from './components/common/AppUpdateController';
 import { TranslationView } from './components/translation/TranslationView';
 import { SeriesManager } from './components/series/SeriesManager';
 import { SettingsPanel } from './components/settings/SettingsPanel';
@@ -66,6 +67,7 @@ function App() {
       
       <StatusBar />
       <Toast />
+      <AppUpdateController />
     </div>
   );
 }

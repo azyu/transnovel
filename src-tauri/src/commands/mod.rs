@@ -5,4 +5,5 @@ pub mod parser;
 pub mod series;
 pub mod settings;
 pub mod translation;
+pub mod updater;
 pub mod watchlist;

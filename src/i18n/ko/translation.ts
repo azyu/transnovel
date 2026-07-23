@@ -35,6 +35,9 @@ export const translationMessages = {
       `${count}개 항목 번역에 실패했습니다. 재시도 버튼을 눌러 다시 시도할 수 있습니다.`,
     batchFailed: '일괄 번역 실패',
     pauseFailed: '번역 일시정지 실패',
+    updateInstallingTitle: '업데이트 설치 중',
+    updateInstallingMessage:
+      '업데이트 설치가 진행 중입니다. 앱이 재시작될 때까지 새 번역을 시작할 수 없습니다.',
     retry: '재시도',
     retrying: '재시도 중...',
     failedItems: (count: number) => `${count}개 항목 실패`,

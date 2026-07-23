@@ -43,8 +43,38 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-  build:
+  create-release:
     needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Generate release notes
+        run: node scripts/generate-release-notes.mjs ${{ needs.prepare.outputs.tag }} > RELEASE_NOTES.md
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
+          draft: true
+          make_latest: false
+          body_path: RELEASE_NOTES.md
+
+  build:
+    needs:
+      - prepare
+      - create-release
     strategy:
       fail-fast: false
       matrix:
@@ -52,12 +82,6 @@ jobs:
           - runner: macos-14
             target: aarch64-apple-darwin
             name: macOS-ARM64
-          # - runner: ubuntu-22.04
-          #   target: x86_64-unknown-linux-gnu
-          #   name: Linux-AMD64
-          # - runner: ubuntu-22.04-arm
-          #   target: aarch64-unknown-linux-gnu
-          #   name: Linux-ARM64
           - runner: windows-latest
             target: x86_64-pc-windows-msvc
             name: Windows-x64
@@ -94,69 +118,36 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - name: Install Linux dependencies (native)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Install Linux dependencies (cross ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo dpkg --add-architecture arm64
-          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            libwebkit2gtk-4.1-dev:arm64 \
-            libappindicator3-dev:arm64 \
-            librsvg2-dev:arm64 \
-            patchelf
-          echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Sync workspace version to release tag
         run: node scripts/sync-release-version.mjs ${{ needs.prepare.outputs.version }}
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+      - name: Ensure updater signing key is configured
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY is not configured."
+            exit 1
+          fi
+
+      - name: Build, sign, and upload Tauri app
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: ${{ needs.prepare.outputs.tag }}
+          releaseDraft: true
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: true
+          updaterJsonPreferNsis: true
           args: --target ${{ matrix.target }}
-
-      - name: Normalize Windows MSI artifact names
-        if: startsWith(matrix.target, 'x86_64-pc-windows') || startsWith(matrix.target, 'aarch64-pc-windows')
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle/msi" -Filter "*_en-US.msi" -ErrorAction SilentlyContinue |
-            ForEach-Object {
-              $newName = $_.Name -replace "_en-US\.msi$", "_setup.msi"
-              Rename-Item -LiteralPath $_.FullName -NewName $newName
-            }
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.name }}
-          path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
-            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
-          if-no-files-found: ignore
 
   release:
     needs:
@@ -177,20 +168,52 @@ jobs:
           package-manager-cache: false
 
       - name: Generate release notes
-        run: node scripts/generate-release-notes.mjs ${{ needs.prepare.outputs.tag }} > RELEASE_NOTES.md
+        run: node scripts/generate-release-notes.mjs ${{ needs.prepare.outputs.tag }} > updater-release-notes.md
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: artifacts
+      - name: Download signed updater artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p updater-release
+          gh release download "${{ needs.prepare.outputs.tag }}" --pattern '*.sig' --dir updater-release
+          gh release download "${{ needs.prepare.outputs.tag }}" --pattern '*_aarch64.app.tar.gz' --dir updater-release
+          gh release download "${{ needs.prepare.outputs.tag }}" --pattern '*_x64-setup.exe' --dir updater-release
+          gh release download "${{ needs.prepare.outputs.tag }}" --pattern '*_arm64-setup.exe' --dir updater-release
+          gh release view "${{ needs.prepare.outputs.tag }}" --json assets > updater-release/assets-before-metadata.json
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.prepare.outputs.tag }}
-          draft: false
-          body_path: RELEASE_NOTES.md
-          files: artifacts/**/*
+      - name: Generate and upload updater metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/generate-updater-release.mjs \
+            updater-release \
+            "${{ needs.prepare.outputs.version }}" \
+            updater-release-notes.md \
+            updater-release/assets-before-metadata.json \
+            src-tauri/tauri.conf.json
+          gh release upload "${{ needs.prepare.outputs.tag }}" updater-release/latest.json --clobber
+          gh release view "${{ needs.prepare.outputs.tag }}" --json assets > updater-release/assets.json
+
+      - name: Verify updater signatures with embedded public key
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes minisign
+          while IFS= read -r asset; do
+            signature="updater-release/${asset}.sig"
+            node -e "require('node:fs').writeFileSync(process.argv[2], Buffer.from(require('node:fs').readFileSync(process.argv[1], 'utf8').trim(), 'base64'))" \
+              "${signature}" "${signature}.minisig"
+            minisign -Vm "updater-release/${asset}" \
+              -p updater-release/updater.pub \
+              -x "${signature}.minisig"
+          done < updater-release/selected-updater-assets.txt
+
+      - name: Validate updater metadata
+        run: node scripts/validate-updater-release.mjs updater-release/latest.json ${{ needs.prepare.outputs.version }} updater-release/assets.json
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false --latest
 
   sync-main-version:
     needs:

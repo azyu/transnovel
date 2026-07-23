@@ -4,6 +4,7 @@ import {
   buildCharacterDictionaryReviewTexts,
   createCharacterDictionaryReviewContent,
   filterNewProperNounEntries,
+  isUpdateInstallationActive,
   markViewedChapter,
   mergeCharacterDictionaryEntries,
   resolveCharacterDictionaryTarget,
@@ -250,5 +251,14 @@ describe('markViewedChapter', () => {
       remainingNewEpisodeCount: 1,
     });
     expect(skipped).toBeNull();
+  });
+});
+
+describe('isUpdateInstallationActive', () => {
+  it('blocks translation only while an update is being downloaded or installed', () => {
+    expect(isUpdateInstallationActive('available')).toBe(false);
+    expect(isUpdateInstallationActive('downloading')).toBe(true);
+    expect(isUpdateInstallationActive('installing')).toBe(true);
+    expect(isUpdateInstallationActive('error')).toBe(false);
   });
 });

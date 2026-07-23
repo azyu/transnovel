@@ -1,23 +1,19 @@
 import { useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
-import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '../../stores/uiStore';
-import type { LatestReleaseInfo } from '../../types';
+import { useUpdateStore } from '../../stores/updateStore';
 import appIcon from '../../assets/app-icon.png';
 import { Button } from '../common/Button';
-import { isReleaseNewer } from '../../utils/release';
 import { useSettingsMessages } from './useSettingsMessages';
 
-type UpdateStatus =
-  | { kind: 'idle' }
-  | { kind: 'checking' }
-  | { kind: 'available'; release: LatestReleaseInfo }
-  | { kind: 'up-to-date' }
-  | { kind: 'error'; message: string };
 
 export const AboutSettings: React.FC = () => {
   const [version, setVersion] = useState<string>('');
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ kind: 'idle' });
+  const updateStatus = useUpdateStore((state) => state.status);
+  const update = useUpdateStore((state) => state.update);
+  const updateError = useUpdateStore((state) => state.error);
+  const checkForUpdate = useUpdateStore((state) => state.checkForUpdate);
+  const openUpdateDialog = useUpdateStore((state) => state.openDialog);
   const theme = useUIStore((state) => state.theme);
   const settingsMessages = useSettingsMessages();
   const isDark = theme === 'dark';
@@ -26,32 +22,6 @@ export const AboutSettings: React.FC = () => {
     getVersion().then(setVersion).catch(console.error);
   }, []);
 
-  const handleCheckForUpdates = async () => {
-    setUpdateStatus({ kind: 'checking' });
-
-    try {
-      const release = await invoke<LatestReleaseInfo>('fetch_latest_release_info');
-      if (isReleaseNewer(version, release.version)) {
-        setUpdateStatus({ kind: 'available', release });
-        return;
-      }
-
-      setUpdateStatus({ kind: 'up-to-date' });
-    } catch (error) {
-      setUpdateStatus({
-        kind: 'error',
-        message: settingsMessages.about.updateCheckFailed(String(error)),
-      });
-    }
-  };
-
-  const handleOpenRelease = async (url: string) => {
-    try {
-      await invoke('open_url', { url });
-    } catch (error) {
-      console.error('Failed to open release page:', error);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -89,40 +59,36 @@ export const AboutSettings: React.FC = () => {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={handleCheckForUpdates}
-                isLoading={updateStatus.kind === 'checking'}
-                disabled={!version}
+                onClick={() => void checkForUpdate()}
+                isLoading={updateStatus === 'checking'}
+                disabled={!version || updateStatus === 'downloading' || updateStatus === 'installing'}
               >
                 {settingsMessages.about.checkUpdates}
               </Button>
             </div>
 
-            {updateStatus.kind === 'available' ? (
+            {updateStatus === 'available' && update ? (
               <div className="space-y-3">
                 <p className={`text-sm ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                  {settingsMessages.about.updateAvailable(updateStatus.release.tagName)}
+                  {settingsMessages.about.updateAvailable(update.version)}
                 </p>
                 <div className="flex justify-center">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleOpenRelease(updateStatus.release.htmlUrl)}
-                  >
-                    {settingsMessages.about.openRelease}
+                  <Button variant="primary" size="sm" onClick={openUpdateDialog}>
+                    {settingsMessages.about.installUpdate}
                   </Button>
                 </div>
               </div>
             ) : null}
 
-            {updateStatus.kind === 'up-to-date' ? (
+            {updateStatus === 'up-to-date' ? (
               <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 {settingsMessages.about.upToDate}
               </p>
             ) : null}
 
-            {updateStatus.kind === 'error' ? (
+            {updateStatus === 'error' && updateError ? (
               <p className={`text-sm ${isDark ? 'text-red-300' : 'text-red-600'}`}>
-                {updateStatus.message}
+                {settingsMessages.about.updateCheckFailed(updateError)}
               </p>
             ) : null}
           </div>

@@ -143,9 +143,3 @@ export interface ApiLogEntry extends ApiLogSummary {
   responseBody?: string;
 }
 
-export interface LatestReleaseInfo {
-  version: string;
-  tagName: string;
-  name: string;
-  htmlUrl: string;
-}

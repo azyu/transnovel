@@ -29,6 +29,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -38,10 +39,22 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "bundleName": "TransNovel"
+      "bundleName": "TransNovel",
+      "signingIdentity": "-"
     },
     "category": "Utility",
     "shortDescription": "AI-powered Japanese web novel translator",
     "longDescription": "A desktop application for translating Japanese web novels to Korean using AI (Gemini/Claude)"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUzOThCQjRGRjlDMjM2RUEKUldUcU5zTDVUN3VZNDJwNE9rZURKZ2N6WkZzSlRwU3llRjBuQ24ya1BQRHBXRGsrUnF3eEx2V2oK",
+      "endpoints": [
+        "https://github.com/azyu/transnovel/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

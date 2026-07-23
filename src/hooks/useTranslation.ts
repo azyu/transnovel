@@ -6,6 +6,8 @@ import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
 import { useDebugStore } from '../stores/debugStore';
 import { getMessages } from '../i18n';
+import { useUpdateStore } from '../stores/updateStore';
+import type { AppUpdateStatus } from '../stores/updateStore';
 import type {
   Chapter,
   ChapterContent,
@@ -15,6 +17,9 @@ import type {
   TranslationChunk,
   WatchlistViewedUpdate,
 } from '../types';
+
+export const isUpdateInstallationActive = (status: AppUpdateStatus): boolean =>
+  status === 'downloading' || status === 'installing';
 
 export const markViewedChapter = async (
   invokeFn: typeof invoke,
@@ -349,6 +354,13 @@ export const useTranslation = () => {
       showError('번역 진행 중', '현재 번역이 진행 중입니다. 완료 후 다시 시도해주세요.');
       return;
     }
+    if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
+      showError(
+        translationStatusMessages.updateInstallingTitle,
+        translationStatusMessages.updateInstallingMessage,
+      );
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -570,6 +582,9 @@ export const useTranslation = () => {
   }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview, translationStatusMessages]);
 
   const translateText = useCallback(async (site: string, novelId: string, text: string, note?: string) => {
+    if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
+      throw new Error(translationStatusMessages.updateInstallingMessage);
+    }
     try {
       const result = await invoke<{ translated_text: string }>('translate_text', { site, novelId, text, note });
       return result.translated_text;
@@ -577,9 +592,12 @@ export const useTranslation = () => {
       console.error("Translation failed:", err);
       throw err;
     }
-  }, []);
+  }, [translationStatusMessages.updateInstallingMessage]);
 
   const translateParagraphs = useCallback(async (site: string, novelId: string, paragraphs: string[], note?: string) => {
+    if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
+      throw new Error(translationStatusMessages.updateInstallingMessage);
+    }
     try {
       const result = await invoke<{ translated: string[] }>('translate_paragraphs', { site, novelId, paragraphs, note });
       return result.translated;
@@ -587,7 +605,7 @@ export const useTranslation = () => {
       console.error("Translation failed:", err);
       throw err;
     }
-  }, []);
+  }, [translationStatusMessages.updateInstallingMessage]);
 
   const translateParagraphsStreaming = useCallback(async (
     site: string,
@@ -598,6 +616,9 @@ export const useTranslation = () => {
     hasSubtitle?: boolean,
     note?: string
   ) => {
+    if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
+      throw new Error(translationStatusMessages.updateInstallingMessage);
+    }
     const unlistenChunk = await listen<TranslationChunk>('translation-chunk', (event) => {
       onChunk(event.payload);
     });
@@ -617,9 +638,16 @@ export const useTranslation = () => {
       console.error("Streaming translation failed:", err);
       throw err;
     }
-  }, []);
+  }, [translationStatusMessages.updateInstallingMessage]);
 
   const startBatchTranslation = useCallback(async (novelId: string, site: string, start: number, end: number, baseUrl: string) => {
+      if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
+        showError(
+          translationStatusMessages.updateInstallingTitle,
+          translationStatusMessages.updateInstallingMessage,
+        );
+        return;
+      }
       if (useTranslationStore.getState().isTranslating) {
         showError('번역 진행 중', '현재 번역이 진행 중입니다. 완료 후 다시 시도해주세요.');
         return;
@@ -677,6 +705,13 @@ await invoke('start_batch_translation', {
   }, [showError]);
 
   const retryFailedParagraphs = useCallback(async () => {
+    if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
+      showError(
+        translationStatusMessages.updateInstallingTitle,
+        translationStatusMessages.updateInstallingMessage,
+      );
+      return;
+    }
     const chapterContent = useTranslationStore.getState().getChapterContent();
     const failedOriginalIndices = useTranslationStore.getState().failedParagraphIndices;
     
@@ -776,7 +811,7 @@ await invoke('start_batch_translation', {
       setIsTranslating(false);
       showError('재시도 실패', String(err));
     }
-  }, [setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog]);
+  }, [setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, translationStatusMessages]);
 
   const exportNovel = useCallback(async (request: ExportRequest) => {
       try {

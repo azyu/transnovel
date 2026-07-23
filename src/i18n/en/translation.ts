@@ -35,6 +35,9 @@ export const translationMessages = {
       `${count} items failed to translate. You can retry them with the retry button.`,
     batchFailed: 'Batch translation failed',
     pauseFailed: 'Failed to pause translation',
+    updateInstallingTitle: 'Installing update',
+    updateInstallingMessage:
+      'An update is being installed. You cannot start a new translation until the app restarts.',
     retry: 'Retry',
     retrying: 'Retrying...',
     failedItems: (count: number) => `${count} failed items`,
