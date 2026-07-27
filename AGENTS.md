@@ -84,20 +84,17 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
 
 ## Agent Coordination
 
-- Before mutating tracked files, read `.context/TASKS.md` and `.context/STEERING.md`.
-- For new work that should survive across sessions, create or update a GitHub Issue before implementation unless the task is truly trivial. Prefer one issue per independently shippable task.
-- Use `.context/TASKS.md` as a local execution snapshot for active work, not as the long-term backlog. Keep durable backlog and follow-up items in GitHub Issues.
-- Keep `.context/TASKS.md` as a single Markdown table with the columns `상태 | 등록일 | 작업내용 | 담당 agent`.
-- Track only non-trivial work that directly affects product behavior, runtime or release reliability, supported sites/providers, persistence, or other shippable project outcomes.
-- Skip rows for simple one-off chores and project-adjacent meta work such as README edits, agent-instruction maintenance, tracker format changes, issue workflow bookkeeping, and similar coordination-only updates.
-- For multi-step implementation, keep the lightweight plan in the issue body or an issue comment. Write a dedicated document only when the task is complex enough that the plan or investigation needs to outlive the issue discussion.
-- Use `[ ]`, `[~]`, and `[x]` in the `상태` column for pending, in progress, and done.
-- Set `등록일` to the date when the task was first recorded in `.context/TASKS.md`. If the date is unclear, check `git log -- .context/TASKS.md` before editing.
-- When starting mutating work, add a new row or update an existing row in `.context/TASKS.md` with `상태` = `[~]` and your agent name in `담당 agent`.
-- When finishing mutating work, update that row to `상태` = `[x]` if the task is complete.
-- For read-only review, planning, or investigation, read `.context/*` as needed and leave the tracker unchanged.
+- Before mutating tracked files, read `.context/STEERING.md` and the relevant GitHub Issue.
+- GitHub Issues are the sole source of truth for task, backlog, plan, progress, blocker, verification, and completion state. Do not maintain a parallel local task or Todo tracker.
+- Create or update a GitHub Issue before starting non-trivial work. Prefer one Issue per independently shippable task; reuse an existing Issue when it already covers the work.
+- Keep Issue bodies short but sufficient: background, goal, scope, exclusions, and verification. Put lightweight multi-step plans and subsequent progress in the Issue body or comments.
+- Record blockers, consequential decisions, verification evidence, commit/PR links, and follow-up Issue links in the active Issue.
+- Close an Issue only after its acceptance criteria and verification pass. If work stops incomplete, leave the Issue open and record the exact blocker or remaining scope.
+- Work too trivial to merit durable tracking does not need an Issue, but must not be added to a local tracker.
+- Completed history migrated from `.context/TASKS.md` is archived in GitHub Issue #35. Do not recreate `.context/TASKS.md`.
+- For read-only review, planning, or investigation, update the relevant Issue only when the result must survive the current session.
 - If a task needs a durable project document, write it under `docs/`. Do not create parallel `mydocs/`-style task folders.
-- If intent is still unclear after checking code and docs, state the ambiguity explicitly and ask one focused clarifying question.
+- If intent is still unclear after checking code, docs, and Issues, state the ambiguity explicitly and ask one focused clarifying question.
 
 ## Verification
 
