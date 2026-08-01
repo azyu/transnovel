@@ -46,7 +46,7 @@ pub async fn start_batch_translation(
     
     reset_translation_control_flags();
     
-    let completed: HashSet<u32> = get_completed_chapters_internal(&request.novel_id)
+    let completed: HashSet<u32> = get_completed_chapters_internal(&request.site, &request.novel_id)
         .await?
         .into_iter()
         .map(|n| n as u32)
@@ -97,6 +97,7 @@ pub async fn start_batch_translation(
         match translate_single_chapter(&mut translator, &request.novel_id, &chapter_url).await {
             Ok(translated) => {
                 mark_chapter_complete(
+                    request.site.clone(),
                     request.novel_id.clone(),
                     chapter_num as i32,
                     translated.len() as i32,
@@ -204,43 +205,124 @@ pub async fn get_translation_progress(_novel_id: String) -> Result<TranslationPr
 }
 
 #[tauri::command]
-pub async fn mark_chapter_complete(novel_id: String, chapter_number: i32, paragraph_count: i32) -> Result<(), String> {
-    use crate::db::get_pool;
-    
+pub async fn mark_chapter_complete(
+    site: String,
+    novel_id: String,
+    chapter_number: i32,
+    paragraph_count: i32,
+) -> Result<(), String> {
     let pool = get_pool()?;
-    
+
     sqlx::query(
-        "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count, completed_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(novel_id, chapter_number) DO UPDATE SET
+        "INSERT INTO completed_chapters
+            (site, novel_id, chapter_number, paragraph_count, completed_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(site, novel_id, chapter_number) DO UPDATE SET
            paragraph_count = excluded.paragraph_count,
-           completed_at = CURRENT_TIMESTAMP"
+           completed_at = CURRENT_TIMESTAMP",
     )
+    .bind(&site)
     .bind(&novel_id)
     .bind(chapter_number)
     .bind(paragraph_count)
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_completed_chapters(novel_id: String) -> Result<Vec<i32>, String> {
-    get_completed_chapters_internal(&novel_id).await
+pub async fn get_completed_chapters(site: String, novel_id: String) -> Result<Vec<i32>, String> {
+    get_completed_chapters_internal(&site, &novel_id).await
 }
 
-async fn get_completed_chapters_internal(novel_id: &str) -> Result<Vec<i32>, String> {
+async fn get_completed_chapters_internal(site: &str, novel_id: &str) -> Result<Vec<i32>, String> {
     let pool = get_pool()?;
-    
+    get_completed_chapters_with_pool(pool, site, novel_id).await
+}
+
+async fn get_completed_chapters_with_pool(
+    pool: &sqlx::Pool<sqlx::Sqlite>,
+    site: &str,
+    novel_id: &str,
+) -> Result<Vec<i32>, String> {
     let rows = sqlx::query(
-        "SELECT chapter_number FROM completed_chapters WHERE novel_id = ? ORDER BY chapter_number"
+        "SELECT chapter_number
+         FROM completed_chapters
+         WHERE site = ? AND novel_id = ?
+         ORDER BY chapter_number",
     )
+    .bind(site)
     .bind(novel_id)
     .fetch_all(pool)
     .await
     .map_err(|e| e.to_string())?;
-    
-    Ok(rows.iter().map(|r| r.get::<i32, _>("chapter_number")).collect())
+
+    Ok(rows
+        .iter()
+        .map(|row| row.get::<i32, _>("chapter_number"))
+        .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
+
+    async fn setup_test_pool() -> Pool<Sqlite> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create sqlite memory pool");
+        sqlx::query(include_str!("../db/migrations/001_initial.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply initial migration");
+        pool
+    }
+
+    #[tokio::test]
+    async fn completed_chapters_are_isolated_by_site() {
+        let pool = setup_test_pool().await;
+        sqlx::query(
+            "INSERT INTO completed_chapters
+                (site, novel_id, chapter_number, paragraph_count)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind("syosetu")
+        .bind("shared-id")
+        .bind(1_i64)
+        .bind(10_i64)
+        .execute(&pool)
+        .await
+        .expect("insert syosetu completion");
+
+        sqlx::query(
+            "INSERT INTO completed_chapters
+                (site, novel_id, chapter_number, paragraph_count)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind("nocturne")
+        .bind("shared-id")
+        .bind(2_i64)
+        .bind(12_i64)
+        .execute(&pool)
+        .await
+        .expect("insert nocturne completion");
+
+        assert_eq!(
+            get_completed_chapters_with_pool(&pool, "syosetu", "shared-id")
+                .await
+                .expect("read syosetu completions"),
+            vec![1]
+        );
+        assert_eq!(
+            get_completed_chapters_with_pool(&pool, "nocturne", "shared-id")
+                .await
+                .expect("read nocturne completions"),
+            vec![2]
+        );
+    }
 }

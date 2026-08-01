@@ -41,7 +41,7 @@ pub async fn save_novel_character_dictionary(
     entries: Vec<CharacterDictionaryEntry>,
 ) -> Result<SaveCharacterDictionaryResult, String> {
     save_novel_character_dictionary_entries(&site, &novel_id, &entries).await?;
-    clear_translation_cache_by_novel_internal(&novel_id).await?;
+    clear_translation_cache_by_novel_internal(&site, &novel_id).await?;
 
     Ok(SaveCharacterDictionaryResult { cleared_cache: true })
 }

@@ -329,7 +329,7 @@ export const useTranslation = () => {
 
       try {
          const list = await invoke<{ chapters: Chapter[] }>('get_chapter_list', { url });
-         const completedChapters = await invoke<number[]>('get_completed_chapters', { novelId: content.novel_id });
+         const completedChapters = await invoke<number[]>('get_completed_chapters', { site: content.site, novelId: content.novel_id });
          const chaptersWithStatus = list.chapters.map(ch => ({
            ...ch,
            status: completedChapters.includes(ch.number) ? 'completed' as const : ch.status,
@@ -490,13 +490,14 @@ export const useTranslation = () => {
         if (content.chapter_number > 0 && success) {
           try {
             await invoke('mark_chapter_complete', {
+              site: content.site,
               novelId: content.novel_id,
               chapterNumber: content.chapter_number,
               paragraphCount: content.paragraphs.length,
             });
             addDebugLog('info', `Chapter ${content.chapter_number} marked as completed`);
             
-            const completedChapters = await invoke<number[]>('get_completed_chapters', { novelId: content.novel_id });
+            const completedChapters = await invoke<number[]>('get_completed_chapters', { site: content.site, novelId: content.novel_id });
             const currentChapterList = useSeriesStore.getState().chapterList;
             if (currentChapterList.length > 0) {
               const updatedChapters = currentChapterList.map((ch: Chapter) => ({

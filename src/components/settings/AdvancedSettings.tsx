@@ -170,7 +170,7 @@ export const AdvancedSettings: React.FC = () => {
                 <div className="max-h-48 overflow-y-auto">
                   {cacheStats.by_novel.map((novel) => (
                     <div
-                      key={novel.novel_id}
+                      key={`${novel.site ?? 'unknown'}:${novel.novel_id}`}
                       className={`flex items-center justify-between px-4 py-2 border-b last:border-b-0 ${isDark ? 'border-slate-700/30' : 'border-slate-100'}`}
                     >
                       <div className="flex-1 min-w-0 mr-4">
@@ -191,9 +191,10 @@ export const AdvancedSettings: React.FC = () => {
                           e.preventDefault();
                           e.stopPropagation();
                           if (clearingNovelId) return;
-                          setClearingNovelId(novel.novel_id);
+                          const cacheKey = `${novel.site ?? ''}:${novel.novel_id}`;
+                          setClearingNovelId(cacheKey);
                           try {
-                            await invoke<number>('clear_cache_by_novel', { novelId: novel.novel_id });
+                            await invoke<number>('clear_cache_by_novel', { site: novel.site, novelId: novel.novel_id });
                             await loadCacheStats();
                           } catch (error) {
                             await message(settingsMessages.advanced.clearCacheFailed(String(error)), {
@@ -204,7 +205,7 @@ export const AdvancedSettings: React.FC = () => {
                             setClearingNovelId(null);
                           }
                         }}
-                        isLoading={clearingNovelId === novel.novel_id}
+                        isLoading={clearingNovelId === `${novel.site ?? ''}:${novel.novel_id}`}
                         disabled={clearingNovelId !== null}
                       >
                         {settingsMessages.advanced.cache.deleteAction}
