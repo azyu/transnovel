@@ -55,7 +55,7 @@ struct OpenRouterRequest {
 mod tests {
     use super::{
         build_chat_completions_url, provider_brand_name, should_send_openrouter_headers,
-        ProviderVariant,
+        OpenAICompatibleClient, ProviderVariant,
     };
 
     #[test]
@@ -87,6 +87,24 @@ mod tests {
             provider_brand_name(ProviderVariant::OpenAICompatible),
             "OpenAI-Compatible"
         );
+    }
+
+    #[tokio::test]
+    async fn invalid_custom_base_url_returns_configuration_error() {
+        let client = OpenAICompatibleClient::new_with_base_url(
+            "test-key".to_string(),
+            Some("test-model".to_string()),
+            Some("not a URL".to_string()),
+            "Custom".to_string(),
+            "custom".to_string(),
+        );
+
+        let error = client
+            .generate_text("test prompt")
+            .await
+            .expect_err("invalid URL should fail while building request");
+
+        assert!(error.starts_with("API 요청 구성 실패:"));
     }
 }
 
@@ -237,13 +255,25 @@ impl OpenAICompatibleClient {
                 log_entry.error = Some(e.to_string());
                 let entry = log_entry;
                 let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-                return Err(format!("API 요청 실패: {}", e));
+                let prefix = if e.is_builder() || e.is_redirect() {
+                    "API 요청 구성 실패"
+                } else {
+                    "API 요청 실패"
+                };
+                return Err(format!("{}: {}", prefix, e));
             }
         };
 
         let status = response.status();
         log_entry.status = status.as_u16();
-        let response_text = response.text().await.unwrap_or_default();
+        let response_text = if status.is_success() {
+            response
+                .text()
+                .await
+                .map_err(|e| format!("응답 읽기 실패: {}", e))?
+        } else {
+            response.text().await.unwrap_or_default()
+        };
         log_entry.duration_ms = start.elapsed().as_millis() as u64;
         log_entry.response_body = Some(response_text.clone());
 
@@ -330,14 +360,26 @@ impl OpenAICompatibleClient {
                 log_entry.error = Some(e.to_string());
                 let entry = log_entry;
                 let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-                return Err(format!("API 요청 실패: {}", e));
+                let prefix = if e.is_builder() || e.is_redirect() {
+                    "API 요청 구성 실패"
+                } else {
+                    "API 요청 실패"
+                };
+                return Err(format!("{}: {}", prefix, e));
             }
         };
 
         let status = response.status();
         log_entry.status = status.as_u16();
 
-        let response_text = response.text().await.unwrap_or_default();
+        let response_text = if status.is_success() {
+            response
+                .text()
+                .await
+                .map_err(|e| format!("응답 읽기 실패: {}", e))?
+        } else {
+            response.text().await.unwrap_or_default()
+        };
         log_entry.duration_ms = start.elapsed().as_millis() as u64;
         log_entry.response_body = Some(response_text.clone());
 
@@ -437,7 +479,12 @@ impl OpenAICompatibleClient {
                 log_entry.error = Some(e.to_string());
                 let entry = log_entry;
                 let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-                return Err(format!("API 요청 실패: {}", e));
+                let prefix = if e.is_builder() || e.is_redirect() {
+                    "API 요청 구성 실패"
+                } else {
+                    "API 요청 실패"
+                };
+                return Err(format!("{}: {}", prefix, e));
             }
         };
 
@@ -470,7 +517,17 @@ impl OpenAICompatibleClient {
         let mut final_usage: Option<TokenUsage> = None;
 
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
+            let chunk = match chunk {
+                Ok(chunk) => chunk,
+                Err(e) => {
+                    let prefix = if emitted_ids.is_empty() {
+                        "스트림 읽기 실패"
+                    } else {
+                        "부분 스트림 읽기 실패"
+                    };
+                    return Err(format!("{}: {}", prefix, e));
+                }
+            };
             let chunk_str = String::from_utf8_lossy(&chunk);
             buffer.push_str(&chunk_str);
 
