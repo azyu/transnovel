@@ -14,7 +14,10 @@ pub struct TokenUsage {
 
 type TranslateAttemptResult = (Vec<String>, Option<TokenUsage>);
 use crate::models::translation::TranslationResult;
-use crate::services::cache::{cache_translations, get_cached_translations};
+use crate::services::cache::{
+    cache_translations, get_cached_translations, translation_context_fingerprint,
+    TranslationCacheContext, TranslationContextFingerprintInput,
+};
 use crate::services::character_dictionary::{
     format_character_dictionary_note, get_novel_character_dictionary, CharacterDictionaryEntry,
 };
@@ -103,8 +106,10 @@ pub enum ApiClient {
 
 pub struct TranslatorService {
     client: ApiClient,
+    provider_identity: String,
     system_prompt: String,
     translation_note: String,
+    substitutions: String,
     substitution: SubstitutionService,
     use_streaming: bool,
 }
@@ -151,6 +156,14 @@ impl TranslatorService {
     pub async fn new() -> Result<Self, String> {
         let settings = Self::load_settings().await?;
 
+        let provider_identity = [
+            settings.provider_type.as_str(),
+            settings.provider_id.as_deref().unwrap_or_default(),
+            settings.base_url.as_deref().unwrap_or_default(),
+        ]
+        .into_iter()
+        .map(|value| format!("{}:{}", value.len(), value))
+        .collect::<String>();
         let client = match settings.provider_type.as_str() {
             "gemini" => {
                 let key = settings.api_key
@@ -186,40 +199,68 @@ impl TranslatorService {
                 return Err("사용할 모델이 설정되지 않았습니다. 설정에서 모델을 추가해주세요.".to_string());
             }
         };
-
         Ok(Self {
             client,
+            provider_identity,
             system_prompt: settings.system_prompt,
             translation_note: settings.translation_note,
+            substitutions: settings.substitutions.clone(),
             substitution: SubstitutionService::from_config(&settings.substitutions),
             use_streaming: settings.use_streaming,
         })
     }
-
     async fn load_settings() -> Result<TranslatorSettings, String> {
         let settings = get_settings().await?;
         build_translator_settings_from_records(&settings)
     }
 
-    async fn build_prompt(
+    fn provider_identity(&self) -> (&str, &str) {
+        match &self.client {
+            ApiClient::Gemini(client) => (&self.provider_identity, &client.model),
+            ApiClient::OpenAICompatible(client) => (&self.provider_identity, &client.model),
+            ApiClient::Codex(client) => (&self.provider_identity, &client.model),
+        }
+    }
+
+    async fn build_prompt_and_context(
         &self,
         site: &str,
         novel_id: &str,
         additional_note: Option<&str>,
-    ) -> String {
+        has_subtitle: bool,
+    ) -> (String, TranslationCacheContext) {
         let dictionary_note = get_novel_character_dictionary(site, novel_id)
             .await
             .ok()
             .map(|entries| format_character_dictionary_note(&entries))
-            .filter(|note| !note.is_empty());
-
+            .filter(|note| !note.is_empty())
+            .unwrap_or_default();
+        let additional_note = additional_note.unwrap_or_default();
         let full_note = compose_note(
             &self.translation_note,
-            dictionary_note.as_deref(),
-            additional_note,
+            (!dictionary_note.is_empty()).then_some(dictionary_note.as_str()),
+            (!additional_note.trim().is_empty()).then_some(additional_note),
         );
-        self.system_prompt.replace("{{note}}", &full_note)
+        let prompt = self.system_prompt.replace("{{note}}", &full_note);
+        let (provider, model) = self.provider_identity();
+        let context_fingerprint = translation_context_fingerprint(
+            TranslationContextFingerprintInput {
+                provider,
+                model,
+                system_prompt: &self.system_prompt,
+                translation_note: &self.translation_note,
+                dictionary_note: &dictionary_note,
+                additional_note,
+                substitutions: &self.substitutions,
+                has_subtitle,
+            },
+        );
+        (
+            prompt,
+            TranslationCacheContext::new(site, novel_id, &context_fingerprint),
+        )
     }
+
 
     pub async fn translate_paragraphs(
         &mut self,
@@ -234,24 +275,27 @@ impl TranslatorService {
         }
 
         let preprocessed: Vec<String> = self.substitution.apply_to_paragraphs(paragraphs);
+        let (prompt, cache_context) = self
+            .build_prompt_and_context(site, novel_id, note, has_subtitle)
+            .await;
 
-        let cached = get_cached_translations(novel_id, &preprocessed).await.unwrap_or_else(|_| vec![None; preprocessed.len()]);
-        
+        let cached = get_cached_translations(&cache_context, &preprocessed)
+            .await
+            .unwrap_or_else(|_| vec![None; preprocessed.len()]);
+
         let mut uncached_indices: Vec<usize> = Vec::new();
         let mut uncached_paragraphs: Vec<String> = Vec::new();
-        
+
         for (i, (p, c)) in preprocessed.iter().zip(cached.iter()).enumerate() {
             if c.is_none() && !p.trim().is_empty() {
                 uncached_indices.push(i);
                 uncached_paragraphs.push(p.clone());
             }
         }
-        
-        let mut results: Vec<String> = cached.into_iter().map(|c| c.unwrap_or_default()).collect();
-        
-        if !uncached_paragraphs.is_empty() {
-            let prompt = self.build_prompt(site, novel_id, note).await;
 
+        let mut results: Vec<String> = cached.into_iter().map(|c| c.unwrap_or_default()).collect();
+
+        if !uncached_paragraphs.is_empty() {
             let translated = match &mut self.client {
                 ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
                 ApiClient::OpenAICompatible(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
@@ -266,7 +310,7 @@ impl TranslatorService {
                 pairs.push((uncached_paragraphs[uncached_indices.iter().position(|x| x == i).unwrap()].clone(), trans.clone()));
             }
             
-            cache_translations(novel_id, &pairs).await.ok();
+            cache_translations(&cache_context, &pairs).await.ok();
         }
         
         Ok(results)
@@ -311,6 +355,9 @@ impl TranslatorService {
         }
 
         let preprocessed: Vec<String> = self.substitution.apply_to_paragraphs(paragraphs);
+        let (prompt, cache_context) = self
+            .build_prompt_and_context(site, novel_id, note, has_subtitle)
+            .await;
 
         // If original_indices provided (retry mode), skip cache and use provided indices
         let (uncached_indices, uncached_paragraphs, mut results) = if let Some(indices) = original_indices {
@@ -321,7 +368,7 @@ impl TranslatorService {
             (indices, uncached, results)
         } else {
             // Normal mode: check cache
-            let cached = get_cached_translations(novel_id, &preprocessed)
+            let cached = get_cached_translations(&cache_context, &preprocessed)
                 .await
                 .unwrap_or_else(|_| vec![None; preprocessed.len()]);
 
@@ -365,7 +412,6 @@ impl TranslatorService {
         };
 
         if !uncached_paragraphs.is_empty() {
-            let prompt = self.build_prompt(site, novel_id, note).await;
 
             // Dynamic chunk sizing: send all at once if small enough
             const MAX_SINGLE_BATCH_CHARS: usize = 50_000; // ~50KB threshold
@@ -414,7 +460,7 @@ impl TranslatorService {
                         match &mut self.client {
                             ApiClient::Gemini(client) => {
                                 run_until_stop(client.translate_streaming(
-                                    novel_id,
+                                    &cache_context,
                                     chunk_paragraphs,
                                     chunk_indices,
                                     has_subtitle,
@@ -425,7 +471,7 @@ impl TranslatorService {
                             }
                             ApiClient::OpenAICompatible(client) => {
                                 run_until_stop(client.translate_streaming(
-                                    novel_id,
+                                    &cache_context,
                                     chunk_paragraphs,
                                     chunk_indices,
                                     has_subtitle,
@@ -436,7 +482,7 @@ impl TranslatorService {
                             }
                             ApiClient::Codex(client) => {
                                 run_until_stop(client.translate_streaming(
-                                    novel_id,
+                                    &cache_context,
                                     chunk_paragraphs,
                                     chunk_indices,
                                     has_subtitle,
@@ -547,7 +593,7 @@ impl TranslatorService {
                             }
 
                             if !pairs.is_empty() {
-                                cache_translations(novel_id, &pairs).await.ok();
+                                cache_translations(&cache_context, &pairs).await.ok();
                             }
 
                             if !chunk_failed_indices.is_empty() {

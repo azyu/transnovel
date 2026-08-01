@@ -318,13 +318,14 @@ chapters (id, novel_id FK→novels, chapter_number, chapter_url, title, subtitle
 translations (id, chapter_id FK→chapters, paragraph_index, original_text, translated_text, model_used, created_at)
   UNIQUE(chapter_id, paragraph_index)
 
-translation_cache (id, text_hash UNIQUE, novel_id, original_text, translated_text, hit_count, created_at, last_used_at)
+translation_cache (id, text_hash UNIQUE, site, novel_id, context_fingerprint, normalized_source, original_text, translated_text, hit_count, created_at, last_used_at)
 
 api_keys (id, key_type, api_key, is_active, daily_usage, last_used_at, last_error, created_at)
 
 settings (key PK, value, updated_at)
 
-completed_chapters (novel_id + chapter_number PK, paragraph_count, completed_at)
+completed_chapters (site, novel_id, chapter_number, paragraph_count, completed_at)
+  PRIMARY KEY (site, novel_id, chapter_number)
 
 api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, protocol, input_tokens, output_tokens, request_body, response_body, error)
 ```
