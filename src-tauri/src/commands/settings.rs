@@ -496,7 +496,7 @@ pub struct CacheStatsDetailed {
     pub by_novel: Vec<NovelCacheStats>,
 }
 
-type NovelCacheStatsRow = (Option<String>, i64, i64, Option<String>, Option<String>);
+type NovelCacheStatsRow = (Option<String>, Option<String>, i64, i64, Option<String>);
 
 #[tauri::command]
 pub async fn get_cache_stats() -> Result<CacheStats, String> {
@@ -529,39 +529,22 @@ async fn get_cache_stats_detailed_with_pool(
 
     let by_novel: Vec<NovelCacheStatsRow> = sqlx::query_as(
         "SELECT
+            translation_cache.site,
             translation_cache.novel_id,
             COUNT(*),
             COALESCE(SUM(translation_cache.hit_count), 0),
             (
                 SELECT title
                 FROM novels
-                WHERE novels.novel_id = translation_cache.novel_id
-                  AND (
-                      SELECT COUNT(DISTINCT site)
-                      FROM novels AS novel_sites
-                      WHERE novel_sites.novel_id = translation_cache.novel_id
-                  ) = 1
+                WHERE novels.site = translation_cache.site
+                  AND novels.novel_id = translation_cache.novel_id
                   AND title IS NOT NULL
                   AND title != ''
                 ORDER BY updated_at DESC, id DESC
                 LIMIT 1
-            ) AS title,
-            (
-                SELECT site
-                FROM novels
-                WHERE novels.novel_id = translation_cache.novel_id
-                  AND (
-                      SELECT COUNT(DISTINCT site)
-                      FROM novels AS novel_sites
-                      WHERE novel_sites.novel_id = translation_cache.novel_id
-                  ) = 1
-                  AND site IS NOT NULL
-                  AND site != ''
-                ORDER BY updated_at DESC, id DESC
-                LIMIT 1
-            ) AS site
+            ) AS title
          FROM translation_cache
-         GROUP BY translation_cache.novel_id
+         GROUP BY translation_cache.site, translation_cache.novel_id
          ORDER BY COUNT(*) DESC",
     )
     .fetch_all(pool)
@@ -573,7 +556,7 @@ async fn get_cache_stats_detailed_with_pool(
         total_hits: total.1,
         by_novel: by_novel
             .into_iter()
-            .map(|(novel_id, count, hits, title, site)| NovelCacheStats {
+            .map(|(site, novel_id, count, hits, title)| NovelCacheStats {
                 novel_id: novel_id.unwrap_or_else(|| "(unknown)".to_string()),
                 title,
                 site,
@@ -602,15 +585,17 @@ pub async fn clear_cache() -> Result<i64, String> {
 }
 
 #[tauri::command]
-pub async fn clear_cache_by_novel(novel_id: String) -> Result<i64, String> {
-    clear_cache_by_novel_internal(&novel_id).await
+pub async fn clear_cache_by_novel(site: String, novel_id: String) -> Result<i64, String> {
+    clear_cache_by_novel_internal(&site, &novel_id).await
 }
 
 async fn clear_translation_cache_by_novel_with_pool(
     pool: &Pool<Sqlite>,
+    site: &str,
     novel_id: &str,
 ) -> Result<i64, String> {
-    let result = sqlx::query("DELETE FROM translation_cache WHERE novel_id = ?")
+    let result = sqlx::query("DELETE FROM translation_cache WHERE site = ? AND novel_id = ?")
+        .bind(site)
         .bind(novel_id)
         .execute(pool)
         .await
@@ -621,11 +606,14 @@ async fn clear_translation_cache_by_novel_with_pool(
 
 async fn clear_cache_by_novel_with_pool(
     pool: &Pool<Sqlite>,
+    site: &str,
     novel_id: &str,
 ) -> Result<i64, String> {
-    let deleted_rows = clear_translation_cache_by_novel_with_pool(pool, novel_id).await?;
+    let deleted_rows =
+        clear_translation_cache_by_novel_with_pool(pool, site, novel_id).await?;
 
-    sqlx::query("DELETE FROM completed_chapters WHERE novel_id = ?")
+    sqlx::query("DELETE FROM completed_chapters WHERE site = ? AND novel_id = ?")
+        .bind(site)
         .bind(novel_id)
         .execute(pool)
         .await
@@ -634,18 +622,21 @@ async fn clear_cache_by_novel_with_pool(
     Ok(deleted_rows)
 }
 
-pub(crate) async fn clear_cache_by_novel_internal(novel_id: &str) -> Result<i64, String> {
-    let pool = get_pool()?;
-    clear_cache_by_novel_with_pool(pool, novel_id).await
-}
-
-pub(crate) async fn clear_translation_cache_by_novel_internal(
+pub(crate) async fn clear_cache_by_novel_internal(
+    site: &str,
     novel_id: &str,
 ) -> Result<i64, String> {
     let pool = get_pool()?;
-    clear_translation_cache_by_novel_with_pool(pool, novel_id).await
+    clear_cache_by_novel_with_pool(pool, site, novel_id).await
 }
 
+pub(crate) async fn clear_translation_cache_by_novel_internal(
+    site: &str,
+    novel_id: &str,
+) -> Result<i64, String> {
+    let pool = get_pool()?;
+    clear_translation_cache_by_novel_with_pool(pool, site, novel_id).await
+}
 async fn reset_all_with_pool(pool: &Pool<Sqlite>) -> Result<(), String> {
     sqlx::query("DELETE FROM translation_cache")
         .execute(pool)
@@ -725,13 +716,20 @@ mod tests {
     #[tokio::test]
     async fn clear_translation_cache_by_novel_keeps_completed_chapters() {
         let pool = setup_test_pool().await;
+        let site = "syosetu";
         let novel_id = "novel-1";
 
         sqlx::query(
-            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text) VALUES (?, ?, ?, ?)",
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind("hash-1")
+        .bind(site)
         .bind(novel_id)
+        .bind("context")
+        .bind("원문")
         .bind("원문")
         .bind("번역")
         .execute(&pool)
@@ -739,8 +737,11 @@ mod tests {
         .expect("insert translation cache");
 
         sqlx::query(
-            "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count) VALUES (?, ?, ?)",
+            "INSERT INTO completed_chapters
+                (site, novel_id, chapter_number, paragraph_count)
+             VALUES (?, ?, ?, ?)",
         )
+        .bind(site)
         .bind(novel_id)
         .bind(1_i64)
         .bind(10_i64)
@@ -748,7 +749,7 @@ mod tests {
         .await
         .expect("insert completed chapter");
 
-        clear_translation_cache_by_novel_with_pool(&pool, novel_id)
+        clear_translation_cache_by_novel_with_pool(&pool, site, novel_id)
             .await
             .expect("clear translation cache");
 
@@ -759,13 +760,20 @@ mod tests {
     #[tokio::test]
     async fn clear_cache_by_novel_with_pool_removes_completed_chapters() {
         let pool = setup_test_pool().await;
+        let site = "syosetu";
         let novel_id = "novel-1";
 
         sqlx::query(
-            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text) VALUES (?, ?, ?, ?)",
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind("hash-1")
+        .bind(site)
         .bind(novel_id)
+        .bind("context")
+        .bind("원문")
         .bind("원문")
         .bind("번역")
         .execute(&pool)
@@ -773,8 +781,11 @@ mod tests {
         .expect("insert translation cache");
 
         sqlx::query(
-            "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count) VALUES (?, ?, ?)",
+            "INSERT INTO completed_chapters
+                (site, novel_id, chapter_number, paragraph_count)
+             VALUES (?, ?, ?, ?)",
         )
+        .bind(site)
         .bind(novel_id)
         .bind(1_i64)
         .bind(10_i64)
@@ -782,12 +793,70 @@ mod tests {
         .await
         .expect("insert completed chapter");
 
-        clear_cache_by_novel_with_pool(&pool, novel_id)
+        clear_cache_by_novel_with_pool(&pool, site, novel_id)
             .await
             .expect("clear cache and completed chapters");
 
         assert_eq!(count_rows(&pool, "translation_cache", novel_id).await, 0);
         assert_eq!(count_rows(&pool, "completed_chapters", novel_id).await, 0);
+    }
+
+    #[tokio::test]
+    async fn clear_cache_by_novel_with_pool_keeps_same_id_on_other_site() {
+        let pool = setup_test_pool().await;
+        for (site, hash) in [("syosetu", "hash-s"), ("nocturne", "hash-n")] {
+            sqlx::query(
+                "INSERT INTO translation_cache
+                    (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                     original_text, translated_text)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(hash)
+            .bind(site)
+            .bind("shared-id")
+            .bind("context")
+            .bind("원문")
+            .bind("원문")
+            .bind("번역")
+            .execute(&pool)
+            .await
+            .expect("insert cache row");
+            sqlx::query(
+                "INSERT INTO completed_chapters
+                    (site, novel_id, chapter_number, paragraph_count)
+                 VALUES (?, ?, ?, ?)",
+            )
+            .bind(site)
+            .bind("shared-id")
+            .bind(1_i64)
+            .bind(10_i64)
+            .execute(&pool)
+            .await
+            .expect("insert completed row");
+        }
+        clear_cache_by_novel_with_pool(&pool, "syosetu", "shared-id")
+            .await
+            .expect("clear syosetu cache");
+
+
+        assert_eq!(count_rows(&pool, "translation_cache", "shared-id").await, 1);
+        let remaining_completed: i64 = sqlx::query(
+            "SELECT COUNT(*) AS count
+             FROM completed_chapters
+             WHERE site = 'nocturne' AND novel_id = 'shared-id'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read remaining completion")
+        .get("count");
+        assert_eq!(remaining_completed, 1);
+        let remaining_site: String =
+            sqlx::query("SELECT site FROM translation_cache WHERE novel_id = 'shared-id'")
+                .fetch_one(&pool)
+                .await
+                .expect("read remaining cache row")
+                .get("site");
+        assert_eq!(remaining_site, "nocturne");
     }
 
     #[tokio::test]
@@ -802,19 +871,27 @@ mod tests {
         .expect("apply dictionary migration");
 
         sqlx::query(
-            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text) VALUES (?, ?, ?, ?)",
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind("hash-1")
+        .bind("syosetu")
         .bind("novel-1")
+        .bind("context")
+        .bind("원문")
         .bind("원문")
         .bind("번역")
         .execute(&pool)
         .await
         .expect("insert translation cache");
-
         sqlx::query(
-            "INSERT INTO completed_chapters (novel_id, chapter_number, paragraph_count) VALUES (?, ?, ?)",
+            "INSERT INTO completed_chapters
+                (site, novel_id, chapter_number, paragraph_count)
+             VALUES (?, ?, ?, ?)",
         )
+        .bind("syosetu")
         .bind("novel-1")
         .bind(1_i64)
         .bind(10_i64)
@@ -862,31 +939,39 @@ mod tests {
         let pool = setup_test_pool().await;
 
         sqlx::query(
-            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text, hit_count)
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text, hit_count)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind("hash-1")
+        .bind("syosetu")
         .bind("n6233ly")
+        .bind("context")
+        .bind("원문 1")
         .bind("원문 1")
         .bind("번역 1")
         .bind(10_i64)
         .execute(&pool)
         .await
         .expect("insert first cache row");
-
         sqlx::query(
-            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text, hit_count)
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text, hit_count)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind("hash-2")
+        .bind("syosetu")
         .bind("n6233ly")
+        .bind("context")
+        .bind("원문 2")
         .bind("원문 2")
         .bind("번역 2")
         .bind(5_i64)
         .execute(&pool)
         .await
         .expect("insert second cache row");
-
         sqlx::query(
             "INSERT INTO novels (site, novel_id, title, total_chapters) VALUES (?, ?, ?, ?)",
         )
@@ -901,7 +986,6 @@ mod tests {
         let stats = get_cache_stats_detailed_with_pool(&pool)
             .await
             .expect("get cache stats");
-
         assert_eq!(stats.total_count, 2);
         assert_eq!(stats.total_hits, 15);
         assert_eq!(stats.by_novel.len(), 1);
@@ -911,23 +995,45 @@ mod tests {
         assert_eq!(stats.by_novel[0].count, 2);
         assert_eq!(stats.by_novel[0].total_hits, 15);
     }
-
     #[tokio::test]
     async fn get_cache_stats_detailed_with_pool_omits_ambiguous_metadata_for_shared_novel_ids() {
         let pool = setup_test_pool().await;
 
         sqlx::query(
-            "INSERT INTO translation_cache (text_hash, novel_id, original_text, translated_text, hit_count)
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text, hit_count)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind("hash-1")
+        .bind("syosetu")
         .bind("n6233ly")
+        .bind("context")
+        .bind("원문 1")
         .bind("원문 1")
         .bind("번역 1")
         .bind(3_i64)
         .execute(&pool)
         .await
-        .expect("insert cache row");
+        .expect("insert syosetu cache row");
+
+        sqlx::query(
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text, hit_count)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("hash-2")
+        .bind("nocturne")
+        .bind("n6233ly")
+        .bind("context")
+        .bind("원문 2")
+        .bind("원문 2")
+        .bind("번역 2")
+        .bind(4_i64)
+        .execute(&pool)
+        .await
+        .expect("insert nocturne cache row");
 
         sqlx::query(
             "INSERT INTO novels (site, novel_id, title, total_chapters) VALUES (?, ?, ?, ?)",
@@ -955,14 +1061,21 @@ mod tests {
             .await
             .expect("get cache stats");
 
-        assert_eq!(stats.total_count, 1);
-        assert_eq!(stats.total_hits, 3);
-        assert_eq!(stats.by_novel.len(), 1);
-        assert_eq!(stats.by_novel[0].novel_id, "n6233ly");
-        assert_eq!(stats.by_novel[0].title, None);
-        assert_eq!(stats.by_novel[0].site, None);
-        assert_eq!(stats.by_novel[0].count, 1);
-        assert_eq!(stats.by_novel[0].total_hits, 3);
+        assert_eq!(stats.total_count, 2);
+        assert_eq!(stats.total_hits, 7);
+        assert_eq!(stats.by_novel.len(), 2);
+        assert!(stats
+            .by_novel
+            .iter()
+            .any(|entry| entry.site.as_deref() == Some("syosetu")
+                && entry.title.as_deref() == Some("시리즈 A")
+                && entry.total_hits == 3));
+        assert!(stats
+            .by_novel
+            .iter()
+            .any(|entry| entry.site.as_deref() == Some("nocturne")
+                && entry.title.as_deref() == Some("시리즈 B")
+                && entry.total_hits == 4));
     }
 
     #[test]

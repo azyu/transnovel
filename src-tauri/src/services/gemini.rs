@@ -7,7 +7,7 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use super::api_logger;
-use super::cache::cache_translation;
+use super::cache::{cache_translation, TranslationCacheContext};
 use super::paragraph::{
     decode_paragraph_id, encode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
@@ -340,7 +340,7 @@ impl GeminiClient {
 
     pub async fn translate_streaming<R: tauri::Runtime>(
         &mut self,
-        novel_id: &str,
+        cache_context: &TranslationCacheContext,
         paragraphs: &[String],
         original_indices: &[usize],
         has_subtitle: bool,
@@ -469,7 +469,7 @@ impl GeminiClient {
                                         {
                                             if pos < paragraphs.len() {
                                                 let _ = cache_translation(
-                                                    novel_id,
+                                                    cache_context,
                                                     &paragraphs[pos],
                                                     &chunk.text,
                                                 )
