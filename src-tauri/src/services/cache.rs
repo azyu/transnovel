@@ -20,16 +20,31 @@ impl TranslationCacheContext {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct TranslationContextFingerprintInput<'a> {
+    pub provider: &'a str,
+    pub model: &'a str,
+    pub system_prompt: &'a str,
+    pub translation_note: &'a str,
+    pub dictionary_note: &'a str,
+    pub additional_note: &'a str,
+    pub substitutions: &'a str,
+    pub has_subtitle: bool,
+}
+
 pub fn translation_context_fingerprint(
-    provider: &str,
-    model: &str,
-    system_prompt: &str,
-    translation_note: &str,
-    dictionary_note: &str,
-    additional_note: &str,
-    substitutions: &str,
-    has_subtitle: bool,
+    input: TranslationContextFingerprintInput<'_>,
 ) -> String {
+    let TranslationContextFingerprintInput {
+        provider,
+        model,
+        system_prompt,
+        translation_note,
+        dictionary_note,
+        additional_note,
+        substitutions,
+        has_subtitle,
+    } = input;
     let fields = [
         ("provider", provider),
         ("model", model),
@@ -265,14 +280,14 @@ mod tests {
         pool
     }
 
-    fn context(site: &str, fingerprint: &str) -> TranslationCacheContext {
-        TranslationCacheContext::new(site, "shared-id", fingerprint)
+    fn context(site: &str, novel_id: &str, fingerprint: &str) -> TranslationCacheContext {
+        TranslationCacheContext::new(site, novel_id, fingerprint)
     }
 
     #[test]
     fn test_compute_hash_is_deterministic_and_context_sensitive() {
-        let ctx_a = context("syosetu", "model-a");
-        let ctx_b = context("nocturne", "model-a");
+        let ctx_a = context("syosetu", "shared-id", "model-a");
+        let ctx_b = context("nocturne", "shared-id", "model-a");
         assert_eq!(
             compute_hash(&ctx_a, "source"),
             compute_hash(&ctx_a, "source")
@@ -285,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_compute_hash_normalizes_source_line_endings_and_outer_whitespace() {
-        let ctx = context("syosetu", "model-a");
+        let ctx = context("syosetu", "shared-id", "model-a");
         assert_eq!(
             compute_hash(&ctx, "  source\r\ntext  "),
             compute_hash(&ctx, "source\ntext")
@@ -293,50 +308,85 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cache_reads_are_isolated_by_site_and_context() {
+    async fn cache_reads_are_isolated_by_site_novel_and_context() {
         let pool = setup_test_pool().await;
-        let syosetu = context("syosetu", "model-a");
-        let nocturne = context("nocturne", "model-a");
+        let baseline = context("syosetu", "shared-id", "model-a");
+        let by_site = context("nocturne", "shared-id", "model-a");
+        let by_novel = context("syosetu", "other-id", "model-a");
+        let by_context = context("syosetu", "shared-id", "model-b");
 
-        cache_translation_with_pool(&pool, &syosetu, "source", "syosetu translation")
-            .await
-            .expect("cache syosetu translation");
+        for (cache_context, translated) in [
+            (&baseline, "baseline translation"),
+            (&by_site, "other site translation"),
+            (&by_novel, "other novel translation"),
+            (&by_context, "other context translation"),
+        ] {
+            cache_translation_with_pool(&pool, cache_context, "source", translated)
+                .await
+                .expect("cache translation");
+        }
 
-        assert_eq!(
-            get_cached_translations_with_pool(&pool, &syosetu, &["source".to_string()])
-                .await
-                .expect("read syosetu cache"),
-            vec![Some("syosetu translation".to_string())]
-        );
-        assert_eq!(
-            get_cached_translations_with_pool(&pool, &nocturne, &["source".to_string()])
-                .await
-                .expect("read nocturne cache"),
-            vec![None]
-        );
+        for (cache_context, translated) in [
+            (&baseline, "baseline translation"),
+            (&by_site, "other site translation"),
+            (&by_novel, "other novel translation"),
+            (&by_context, "other context translation"),
+        ] {
+            assert_eq!(
+                get_cached_translations_with_pool(&pool, cache_context, &["source".to_string()])
+                    .await
+                    .expect("read cache"),
+                vec![Some(translated.to_string())]
+            );
+        }
     }
 
     #[test]
     fn context_fingerprint_changes_for_each_translation_input() {
-        let baseline = translation_context_fingerprint(
-            "gemini",
-            "gemini-2.0-flash",
-            "system",
-            "note",
-            "dictionary",
-            "additional",
-            "substitutions",
-            true,
-        );
+        let baseline_input = TranslationContextFingerprintInput {
+            provider: "gemini",
+            model: "gemini-2.0-flash",
+            system_prompt: "system",
+            translation_note: "note",
+            dictionary_note: "dictionary",
+            additional_note: "additional",
+            substitutions: "substitutions",
+            has_subtitle: true,
+        };
+        let baseline = translation_context_fingerprint(baseline_input);
         let variants = [
-            translation_context_fingerprint("openai", "gemini-2.0-flash", "system", "note", "dictionary", "additional", "substitutions", true),
-            translation_context_fingerprint("gemini", "other-model", "system", "note", "dictionary", "additional", "substitutions", true),
-            translation_context_fingerprint("gemini", "gemini-2.0-flash", "other-system", "note", "dictionary", "additional", "substitutions", true),
-            translation_context_fingerprint("gemini", "gemini-2.0-flash", "system", "other-note", "dictionary", "additional", "substitutions", true),
-            translation_context_fingerprint("gemini", "gemini-2.0-flash", "system", "note", "other-dictionary", "additional", "substitutions", true),
-            translation_context_fingerprint("gemini", "gemini-2.0-flash", "system", "note", "dictionary", "other-additional", "substitutions", true),
-            translation_context_fingerprint("gemini", "gemini-2.0-flash", "system", "note", "dictionary", "additional", "other-substitutions", true),
-            translation_context_fingerprint("gemini", "gemini-2.0-flash", "system", "note", "dictionary", "additional", "substitutions", false),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                provider: "openai",
+                ..baseline_input
+            }),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                model: "other-model",
+                ..baseline_input
+            }),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                system_prompt: "other-system",
+                ..baseline_input
+            }),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                translation_note: "other-note",
+                ..baseline_input
+            }),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                dictionary_note: "other-dictionary",
+                ..baseline_input
+            }),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                additional_note: "other-additional",
+                ..baseline_input
+            }),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                substitutions: "other-substitutions",
+                ..baseline_input
+            }),
+            translation_context_fingerprint(TranslationContextFingerprintInput {
+                has_subtitle: false,
+                ..baseline_input
+            }),
         ];
         assert!(variants.iter().all(|variant| variant != &baseline));
     }

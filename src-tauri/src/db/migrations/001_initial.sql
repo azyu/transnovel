@@ -80,3 +80,8 @@ CREATE TABLE IF NOT EXISTS completed_chapters (
     completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (site, novel_id, chapter_number)
 );
+
+CREATE INDEX IF NOT EXISTS idx_chapters_novel ON chapters(novel_id);
+CREATE INDEX IF NOT EXISTS idx_chapters_status ON chapters(status);
+CREATE INDEX IF NOT EXISTS idx_translations_chapter ON translations(chapter_id);
+CREATE INDEX IF NOT EXISTS idx_completed_chapters_novel ON completed_chapters(novel_id);

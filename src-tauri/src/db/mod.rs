@@ -247,22 +247,126 @@ mod tests {
         .await
         .expect("insert legacy completion");
 
-        run_migrations(&pool).await.expect("run first migration");
-        run_migrations(&pool).await.expect("run idempotent migration");
+        run_migrations(&pool)
+            .await
+            .expect("run first migration");
 
         let cache_count: i64 = sqlx::query("SELECT COUNT(*) AS count FROM translation_cache")
             .fetch_one(&pool)
             .await
-            .expect("count cache")
+            .expect("count invalidated cache")
             .get("count");
         let completion_count: i64 =
             sqlx::query("SELECT COUNT(*) AS count FROM completed_chapters")
                 .fetch_one(&pool)
                 .await
-                .expect("count completions")
+                .expect("count invalidated completions")
                 .get("count");
         assert_eq!(cache_count, 0);
         assert_eq!(completion_count, 0);
+
+        sqlx::query(
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("identified-hash")
+        .bind("syosetu")
+        .bind("identified-novel")
+        .bind("identified-context")
+        .bind("identified-source")
+        .bind("source")
+        .bind("translation")
+        .execute(&pool)
+        .await
+        .expect("insert identified cache");
+        sqlx::query(
+            "INSERT INTO completed_chapters
+                (site, novel_id, chapter_number, paragraph_count)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind("syosetu")
+        .bind("identified-novel")
+        .bind(7_i64)
+        .bind(11_i64)
+        .execute(&pool)
+        .await
+        .expect("insert identified completion");
+
+        run_migrations(&pool)
+            .await
+            .expect("run idempotent migration");
+
+        let cache_count: i64 = sqlx::query("SELECT COUNT(*) AS count FROM translation_cache")
+            .fetch_one(&pool)
+            .await
+            .expect("count preserved cache")
+            .get("count");
+        let completion_count: i64 =
+            sqlx::query("SELECT COUNT(*) AS count FROM completed_chapters")
+                .fetch_one(&pool)
+                .await
+                .expect("count preserved completions")
+                .get("count");
+        assert_eq!(cache_count, 1);
+        assert_eq!(completion_count, 1);
+
+        let cache_row = sqlx::query(
+            "SELECT site, novel_id, context_fingerprint, normalized_source,
+                    original_text, translated_text
+             FROM translation_cache",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read preserved cache");
+        assert_eq!(cache_row.get::<String, _>("site"), "syosetu");
+        assert_eq!(cache_row.get::<String, _>("novel_id"), "identified-novel");
+        assert_eq!(
+            cache_row.get::<String, _>("context_fingerprint"),
+            "identified-context"
+        );
+        assert_eq!(
+            cache_row.get::<String, _>("normalized_source"),
+            "identified-source"
+        );
+        assert_eq!(cache_row.get::<String, _>("original_text"), "source");
+        assert_eq!(cache_row.get::<String, _>("translated_text"), "translation");
+
+        let completion_row = sqlx::query(
+            "SELECT site, novel_id, chapter_number, paragraph_count
+             FROM completed_chapters",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read preserved completion");
+        assert_eq!(completion_row.get::<String, _>("site"), "syosetu");
+        assert_eq!(
+            completion_row.get::<String, _>("novel_id"),
+            "identified-novel"
+        );
+        assert_eq!(completion_row.get::<i64, _>("chapter_number"), 7);
+        assert_eq!(completion_row.get::<i64, _>("paragraph_count"), 11);
+
+        let completion_indexes: Vec<String> = sqlx::query_scalar(
+            "SELECT name
+             FROM sqlite_master
+             WHERE type = 'index'
+               AND tbl_name = 'completed_chapters'
+               AND name IN ('idx_completed_chapters_novel', 'idx_completed_chapters_work')
+             ORDER BY name",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("read completion indexes");
+        assert_eq!(
+            completion_indexes,
+            vec![
+                "idx_completed_chapters_novel".to_string(),
+                "idx_completed_chapters_work".to_string(),
+            ]
+        );
+
         assert_eq!(
             sqlx::query("SELECT COUNT(*) FROM pragma_table_info('translation_cache') WHERE name IN ('site', 'context_fingerprint', 'normalized_source')")
                 .fetch_one(&pool)

@@ -16,7 +16,7 @@ type TranslateAttemptResult = (Vec<String>, Option<TokenUsage>);
 use crate::models::translation::TranslationResult;
 use crate::services::cache::{
     cache_translations, get_cached_translations, translation_context_fingerprint,
-    TranslationCacheContext,
+    TranslationCacheContext, TranslationContextFingerprintInput,
 };
 use crate::services::character_dictionary::{
     format_character_dictionary_note, get_novel_character_dictionary, CharacterDictionaryEntry,
@@ -244,14 +244,16 @@ impl TranslatorService {
         let prompt = self.system_prompt.replace("{{note}}", &full_note);
         let (provider, model) = self.provider_identity();
         let context_fingerprint = translation_context_fingerprint(
-            provider,
-            model,
-            &self.system_prompt,
-            &self.translation_note,
-            &dictionary_note,
-            additional_note,
-            &self.substitutions,
-            has_subtitle,
+            TranslationContextFingerprintInput {
+                provider,
+                model,
+                system_prompt: &self.system_prompt,
+                translation_note: &self.translation_note,
+                dictionary_note: &dictionary_note,
+                additional_note,
+                substitutions: &self.substitutions,
+                has_subtitle,
+            },
         );
         (
             prompt,

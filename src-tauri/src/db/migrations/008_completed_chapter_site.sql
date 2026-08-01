@@ -14,3 +14,6 @@ ALTER TABLE completed_chapters_v2 RENAME TO completed_chapters;
 
 CREATE INDEX idx_completed_chapters_work
     ON completed_chapters(site, novel_id);
+
+CREATE INDEX idx_completed_chapters_novel
+    ON completed_chapters(novel_id);
