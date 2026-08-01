@@ -5,57 +5,29 @@ use std::path::PathBuf;
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ExportFormat {
-    TxtSingle,
-    TxtChapters,
-    Epub,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ExportOptions {
-    pub format: ExportFormat,
-    pub include_original: bool,
-    pub include_notes: bool,
-    pub output_dir: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ExportChapter {
-    pub number: u32,
-    pub title: String,
-    pub paragraphs: Vec<ExportParagraph>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ExportParagraph {
-    pub original: String,
-    pub translated: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ExportRequest {
-    pub novel_id: String,
-    pub novel_title: String,
-    pub chapters: Vec<ExportChapter>,
-    pub options: ExportOptions,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ExportResult {
-    pub path: String,
-    pub file_count: u32,
-}
+use crate::models::export::{ExportFormat, ExportRequest, ExportResult};
+use crate::services::exporter::{convert_ruby_to_html, export_epub, html_escape};
 
 #[tauri::command]
 pub async fn export_novel(_app: AppHandle, request: ExportRequest) -> Result<ExportResult, String> {
     let output_path = match request.options.format {
         ExportFormat::TxtSingle => export_txt_single(&request).await?,
         ExportFormat::TxtChapters => export_txt_chapters(&request).await?,
-        ExportFormat::Epub => return Err("EPUB 내보내기는 아직 구현되지 않았습니다.".to_string()),
+        ExportFormat::Epub => export_epub_request(&request)?,
     };
 
     Ok(output_path)
+}
+fn export_epub_request(request: &ExportRequest) -> Result<ExportResult, String> {
+    let output_dir = get_output_dir(&request.options.output_dir)?;
+    let filename = format!("{}.epub", sanitize_filename(&request.novel_title));
+    let path = output_dir.join(filename);
+    export_epub(&path, request)?;
+
+    Ok(ExportResult {
+        path: path.to_string_lossy().to_string(),
+        file_count: 1,
+    })
 }
 
 async fn export_txt_single(request: &ExportRequest) -> Result<ExportResult, String> {
@@ -328,22 +300,68 @@ fn generate_html_content(request: &SaveChapterWithDialogRequest) -> String {
 }
 
 
+#[cfg(test)]
+mod tests {
+    use std::fs;
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
+    use uuid::Uuid;
 
-/// Converts 漢字(읽는법) format to HTML ruby tags: <ruby>漢字<rt>읽는법</rt></ruby>
-fn convert_ruby_to_html(text: &str) -> String {
-    let ruby_pattern = regex::Regex::new(r"([一-龯々]+)\(([^)]+)\)").unwrap();
-    let result = ruby_pattern.replace_all(text, "<ruby>$1<rt>$2</rt></ruby>");
-    html_escape(&result)
-        .replace("&lt;ruby&gt;", "<ruby>")
-        .replace("&lt;/ruby&gt;", "</ruby>")
-        .replace("&lt;rt&gt;", "<rt>")
-        .replace("&lt;/rt&gt;", "</rt>")
+    use super::{
+        export_epub_request, generate_html_content, SaveChapterWithDialogRequest, SaveFormat,
+        SaveParagraph,
+    };
+    use crate::models::export::{
+        ExportChapter, ExportFormat, ExportOptions, ExportParagraph, ExportRequest,
+    };
+
+    #[test]
+    fn exports_epub_to_sanitized_output_path() {
+        let output_dir = std::env::temp_dir().join(format!("transnovel-export-{}", Uuid::new_v4()));
+        fs::create_dir_all(&output_dir).expect("test output directory should be created");
+        let request = ExportRequest {
+            novel_id: "command-test".to_string(),
+            novel_title: "A/Novel".to_string(),
+            chapters: vec![ExportChapter {
+                number: 1,
+                title: "Chapter".to_string(),
+                paragraphs: vec![ExportParagraph {
+                    original: "Original".to_string(),
+                    translated: Some("Translated".to_string()),
+                }],
+            }],
+            options: ExportOptions {
+                format: ExportFormat::Epub,
+                include_original: false,
+                include_notes: false,
+                output_dir: Some(output_dir.to_string_lossy().to_string()),
+            },
+        };
+
+        let result = export_epub_request(&request).expect("EPUB command helper should succeed");
+        let expected_path = output_dir.join("A_Novel.epub");
+        assert_eq!(result.path, expected_path.to_string_lossy().to_string());
+        assert_eq!(result.file_count, 1);
+        assert!(expected_path.is_file());
+
+        fs::remove_dir_all(output_dir).expect("test output directory should be removed");
+    }
+    #[test]
+    fn html_export_preserves_legacy_ruby_markup() {
+        let request = SaveChapterWithDialogRequest {
+            title: "Ruby test".to_string(),
+            subtitle: None,
+            paragraphs: vec![SaveParagraph {
+                original: "Original".to_string(),
+                translated: Some(
+                    "漢字(かんじ) <ruby>literal<rt>reading</rt></ruby>".to_string(),
+                ),
+            }],
+            format: SaveFormat::Html,
+            include_original: false,
+        };
+
+        let content = generate_html_content(&request);
+        assert!(content.contains("<ruby>漢字<rt>かんじ</rt></ruby>"));
+        assert!(content.contains("<ruby>literal<rt>reading</rt></ruby>"));
+    }
 }

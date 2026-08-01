@@ -32,7 +32,7 @@ It is built to reduce the manual work of hopping between raw source pages, trans
 - See translated text stream paragraph by paragraph instead of waiting for the entire chapter
 - Reuse cached translations to save time and API cost on repeated text
 - Add frequently followed works to a watchlist and check for new episodes
-- Export translated output as TXT or HTML for offline reading
+- Export translated output as TXT, HTML, or EPUB for offline reading
 - Manage providers, models, prompts, substitutions, and reading view settings inside the app
 - Inspect API request and response logs when something fails
 
@@ -56,7 +56,7 @@ The easiest way to use TransNovel is to download a release build for your platfo
 3. Paste the URL of a supported chapter or series.
 4. Translate the chapter you want to read and start reading right away.
 5. Optionally add the work to your watchlist to keep an eye on new episodes.
-6. Export the result as TXT or HTML if you want to keep a copy.
+6. Export the result as TXT, HTML, or EPUB if you want to keep a copy.
 
 > [!TIP]
 > Start with a short chapter first to check that the model, prompt, and substitution rules match the reading style you want.
@@ -113,7 +113,6 @@ models:
 
 ## Current Limitations
 
-- EPUB export is not available yet.
 - Watchlist registration currently supports Syosetu, Nocturne, and Kakuyomu work pages.
 
 > [!IMPORTANT]

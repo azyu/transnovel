@@ -301,9 +301,9 @@ pattern/replacement     # One rule per line
 | TxtSingle | `export_txt_single()` | Single `.txt` file with all chapters |
 | TxtChapters | `export_txt_chapters()` | Directory with `{NNNN}_{title}.txt` per chapter |
 | Html (save) | `save_chapter_with_dialog()` | Single HTML with ruby text support |
-| Epub | Not implemented | Returns error |
+| Epub | `services::exporter::export_epub()` | One EPUB 3 archive containing metadata, navigation, and ordered XHTML chapters |
 
-**Ruby text conversion:** `漢字(읽는법)` → `<ruby>漢字<rt>읽는법</rt></ruby>` (HTML export only)
+**Ruby text conversion:** `漢字(읽는법)` → `<ruby>漢字<rt>읽는법</rt></ruby>` (HTML and EPUB export)
 
 ## 5. Database Schema
 
@@ -393,6 +393,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 - Batch translation with pause/stop/resume controls
 - TXT export (single file + per-chapter)
 - HTML export with ruby text support via save dialog
+- EPUB 3 export with metadata, navigation, and ordered XHTML chapters
 - Dark/Light theme
 - API request/response logging with detail viewer
 - Debug panel with buffered log stream
@@ -405,7 +406,6 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 - iOS project initialized
 
 ### Not Implemented
-- EPUB export (returns error)
 - Auto-retry on API failure (manual retry only, MAX_RETRIES=1)
 - API key rotation (single key per provider)
 - `novels`, `chapters`, `translations` tables exist but are unused (cache-only flow)
