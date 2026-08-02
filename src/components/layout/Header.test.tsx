@@ -204,11 +204,11 @@ describe('Header', () => {
     expect(languageButtons.map((button) => button.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
   });
 
-  it('keeps invalid batch chapter ordinals indeterminate instead of announcing completion', async () => {
+  it('keeps active batch progress indeterminate until the backend exposes a true ordinal', async () => {
     useSeriesStore.setState({
       batchProgress: {
-        current_chapter: 9,
-        total_chapters: 4,
+        current_chapter: 2,
+        total_chapters: 2,
         chapter_title: '제목',
         status: 'translating',
       },
@@ -222,7 +222,9 @@ describe('Header', () => {
     expect(progress).toHaveAttribute('aria-label', '진행률');
     expect(progress).not.toHaveAttribute('aria-valuenow');
     expect(progress).not.toHaveAttribute('aria-valuemax');
+    expect(progress).not.toHaveAttribute('aria-valuetext');
     expect(progress?.textContent).toContain('번역 중');
+    expect(progress?.textContent).not.toContain('2 / 2 화');
   });
 
   it('keeps terminal batch status nonvisual and exposes one announcement', async () => {
