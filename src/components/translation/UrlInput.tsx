@@ -12,11 +12,18 @@ import { FOCUS_TRANSLATION_URL_INPUT_EVENT } from '../../utils/tabShortcuts';
 interface UrlInputProps {
   historyKey?: string;
   parseOnly?: boolean;
+  translationEnabled?: boolean;
+  submissionBlockedReasonId?: string;
 }
 
 type UrlOption = UrlHistoryItem & { isFreeform?: boolean };
 
-export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', parseOnly = false }) => {
+export const UrlInput: React.FC<UrlInputProps> = ({
+  historyKey = 'url_history',
+  parseOnly = false,
+  translationEnabled = true,
+  submissionBlockedReasonId,
+}) => {
   const theme = useUIStore((s) => s.theme);
   const language = useUIStore((s) => s.language);
   const currentUrl = useTranslationStore((s) => s.currentUrl);
@@ -33,7 +40,18 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const isDark = theme === 'dark';
   const localeMessages = getMessages(language);
   const supportedSites = localeMessages.translation.urlInput.supportedSiteLinks;
+  const isTranslationBlocked = !parseOnly && !translationEnabled;
+  const submissionBlockedDescription = isTranslationBlocked ? submissionBlockedReasonId : undefined;
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
 
+    if (submissionBlockedDescription) {
+      input.setAttribute('aria-describedby', submissionBlockedDescription);
+    } else {
+      input.removeAttribute('aria-describedby');
+    }
+  }, [submissionBlockedDescription]);
   useEffect(() => {
     setHistory(getUrlHistory(historyKey));
   }, [historyKey]);
@@ -69,7 +87,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   }, [history.length, isTranslating, loading]);
 
   const submitUrl = async (url = localUrl) => {
-    if (!url || isTranslating) return;
+    if (!url || isTranslating || isTranslationBlocked) return;
     setUrl(url);
     if (parseOnly) {
       await parseChapter(url);
@@ -136,6 +154,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
                 setIsEditingFreeform(true);
               }}
               placeholder={localeMessages.common.placeholders.url}
+              aria-describedby={submissionBlockedDescription}
               className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
             />
             {(history.length > 0 || freeformOption) && (
@@ -180,7 +199,12 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             )}
           </Combobox>
         </div>
-        <Button type="submit" isLoading={loading} disabled={!localUrl || isTranslating}>
+        <Button
+          type="submit"
+          isLoading={loading}
+          disabled={!localUrl || isTranslating || isTranslationBlocked}
+          aria-describedby={submissionBlockedDescription}
+        >
           {localeMessages.common.actions.load}
         </Button>
       </form>

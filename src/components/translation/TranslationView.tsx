@@ -26,6 +26,7 @@ export const TranslationView: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
   const language = useUIStore((s) => s.language);
   const showError = useUIStore((s) => s.showError);
+  const setTab = useUIStore((s) => s.setTab);
   const showToast = useUIStore((s) => s.showToast);
   const watchlistItems = useSeriesStore((s) => s.watchlistItems);
   const batchProgress = useSeriesStore((s) => s.batchProgress);
@@ -56,6 +57,8 @@ export const TranslationView: React.FC = () => {
   const isDark = theme === 'dark';
   const localeMessages = getMessages(language);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const apiConfigRequestGeneration = useRef(0);
+  const apiConfigStatusId = 'translation-llm-config-status';
   
   const isTranslationComplete = 
     translatedCount === paragraphIds.length && 
@@ -87,35 +90,42 @@ export const TranslationView: React.FC = () => {
   }, [isTranslating]);
 
   const checkApiConfig = useCallback(async () => {
+    const requestGeneration = ++apiConfigRequestGeneration.current;
+
     try {
       const settings = await invoke<{ key: string; value: string }[]>('get_settings');
       const activeModelId = settings.find(s => s.key === 'active_model_id')?.value;
-      
-      if (!activeModelId) {
-        setApiConfigured(false);
-        return;
+      let hasValidConfig = false;
+
+      if (activeModelId) {
+        const modelsJson = settings.find(s => s.key === 'llm_models')?.value;
+        const providersJson = settings.find(s => s.key === 'llm_providers')?.value;
+
+        let models: { id: string; providerId: string }[] = [];
+        let providers: { id: string }[] = [];
+
+        try { models = modelsJson ? JSON.parse(modelsJson) : []; } catch { models = []; }
+        try { providers = providersJson ? JSON.parse(providersJson) : []; } catch { providers = []; }
+
+        const model = models.find(m => m.id === activeModelId);
+        hasValidConfig = !!model && providers.some(p => p.id === model.providerId);
       }
-      
-      const modelsJson = settings.find(s => s.key === 'llm_models')?.value;
-      const providersJson = settings.find(s => s.key === 'llm_providers')?.value;
-      
-      let models: { id: string; providerId: string }[] = [];
-      let providers: { id: string }[] = [];
-      
-      try { models = modelsJson ? JSON.parse(modelsJson) : []; } catch { models = []; }
-      try { providers = providersJson ? JSON.parse(providersJson) : []; } catch { providers = []; }
-      
-      const model = models.find(m => m.id === activeModelId);
-      const hasValidConfig = !!model && providers.some(p => p.id === model.providerId);
-      
-      setApiConfigured(hasValidConfig);
+
+      if (requestGeneration === apiConfigRequestGeneration.current) {
+        setApiConfigured(hasValidConfig);
+      }
     } catch {
-      setApiConfigured(false);
+      if (requestGeneration === apiConfigRequestGeneration.current) {
+        setApiConfigured(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    const handleSettingsChange = () => void checkApiConfig();
+    const handleSettingsChange = () => {
+      setApiConfigured(null);
+      void checkApiConfig();
+    };
     queueMicrotask(handleSettingsChange);
     window.addEventListener('settings-changed', handleSettingsChange);
     return () => window.removeEventListener('settings-changed', handleSettingsChange);
@@ -287,22 +297,46 @@ export const TranslationView: React.FC = () => {
           {isStopping ? localeMessages.translation.translation.stopping : localeMessages.translation.translation.inProgress}
         </div>
       )}
+      {apiConfigured === null && (
+        <p
+          id={apiConfigStatusId}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          {localeMessages.translation.llmConfig.checking}
+        </p>
+      )}
       {apiConfigured === false && (
         <div className="mx-6 mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
-          <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg aria-hidden="true" className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div>
             <p className="text-yellow-500 font-medium">{localeMessages.translation.llmConfig.requiredTitle}</p>
-            <p className="text-yellow-500/80 text-sm mt-1">
+            <p
+              id={apiConfigStatusId}
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="text-yellow-500/80 text-sm mt-1"
+            >
               {localeMessages.translation.llmConfig.requiredDescription}
             </p>
+            <Button className="mt-3" size="sm" onClick={() => setTab('settings')}>
+              {localeMessages.translation.llmConfig.openSettings}
+            </Button>
           </div>
         </div>
       )}
       
       <div className="p-6 pb-0">
-        <UrlInput historyKey="url_history_chapter" />
+        <UrlInput
+          historyKey="url_history_chapter"
+          translationEnabled={apiConfigured === true}
+          {...(apiConfigured === true ? {} : { submissionBlockedReasonId: apiConfigStatusId })}
+        />
       </div>
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-auto p-6">

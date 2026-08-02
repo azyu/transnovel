@@ -63,6 +63,8 @@ export const translationMessages = {
   llmConfig: {
     requiredTitle: 'LLM 설정 필요',
     requiredDescription: 'API 서비스 제공자를 등록 후 모델을 선택해주세요.',
+    openSettings: 'LLM 설정 열기',
+    checking: 'LLM 설정 확인 중...',
   },
   saveModal: {
     title: '번역 저장',
