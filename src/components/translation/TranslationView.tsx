@@ -282,7 +282,7 @@ export const TranslationView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto w-full">
-      {(isStopping || (isTranslating && !batchProgress)) && (
+      {!batchProgress && (isStopping || isTranslating) && (
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
           {isStopping ? localeMessages.translation.translation.stopping : localeMessages.translation.translation.inProgress}
         </div>

@@ -338,6 +338,51 @@ describe('TranslationView', () => {
     expect(actionLabels).not.toContain(messages.translation.navigation.nextChapter);
   });
 
+  it('keeps batch stopping announcements owned by the global header', async () => {
+    let resolveStop!: () => void;
+    const stopPromise = new Promise<void>((resolve) => {
+      resolveStop = resolve;
+    });
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') return getSettingsResponse;
+      if (command === 'stop_translation') {
+        await stopPromise;
+        return null;
+      }
+      return null;
+    });
+    useTranslationStore.setState({ isTranslating: true });
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 1,
+        total_chapters: 2,
+        chapter_title: '제1화',
+        status: 'translating',
+      },
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    const stopButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === messages.translation.translation.stop,
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      stopButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(stopButton).toHaveAttribute('aria-busy', 'true');
+    expect(container.querySelector('[role="status"]')).toBeNull();
+
+    await act(async () => {
+      resolveStop();
+      await stopPromise;
+    });
+  });
+
   it('keeps translation progress indeterminate until paragraph IDs are available', async () => {
     useTranslationStore.setState({
       isTranslating: true,
