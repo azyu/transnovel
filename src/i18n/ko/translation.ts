@@ -28,6 +28,9 @@ export const translationMessages = {
   translation: {
     stop: '번역 중지',
     stopFailed: '번역 중지 실패',
+    inProgress: '번역 중',
+    stopping: '번역 중지 중',
+    progressLabel: '번역 진행률',
     completeFromCache: '번역이 완료되었습니다. (캐시에서 로드됨)',
     completeWithTokens: (input: string, output: string) =>
       `번역이 완료되었습니다. (input=${input}, output=${output})`,

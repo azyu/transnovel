@@ -11,5 +11,12 @@ export const commonMessages = {
     translation: 'Translation',
     series: 'Watchlist',
     settings: 'Settings',
+    main: 'Main tabs',
+    language: 'Language',
+  },
+  accessibility: {
+    loading: 'Loading',
+    decrement: (label?: string) => label ? `${label} decrease` : 'Decrease',
+    increment: (label?: string) => label ? `${label} increase` : 'Increase',
   },
 } as const;

@@ -124,4 +124,141 @@ describe('Header', () => {
     });
     expect(container.textContent).toContain('Translation');
   });
+
+  it('does not steal focus when the header first mounts', async () => {
+    const outsideButton = document.createElement('button');
+    document.body.appendChild(outsideButton);
+    outsideButton.focus();
+
+    await act(async () => {
+      root.render(<Header />);
+    });
+
+    expect(document.activeElement).toBe(outsideButton);
+    outsideButton.remove();
+  });
+
+  it('uses a localized main tablist with roving focus and wrapping arrow navigation', async () => {
+    await act(async () => {
+      root.render(<Header />);
+    });
+
+    const tablist = container.querySelector('[role="tablist"]');
+    const tabs = Array.from(container.querySelectorAll('[role="tab"]')) as HTMLButtonElement[];
+    expect(tablist).toHaveAttribute('aria-label', '메인 탭');
+    expect(tabs.map((tab) => tab.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+
+    act(() => {
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+    });
+
+    expect(useUIStore.getState().currentTab).toBe('series');
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+    expect(document.activeElement).toBe(tabs[1]);
+
+    act(() => {
+      tabs[1].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowLeft' }));
+    });
+    expect(useUIStore.getState().currentTab).toBe('translation');
+    expect(document.activeElement).toBe(tabs[0]);
+
+    act(() => {
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'End' }));
+    });
+    expect(useUIStore.getState().currentTab).toBe('settings');
+    expect(document.activeElement).toBe(tabs[2]);
+
+    act(() => {
+      tabs[2].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Home' }));
+    });
+    expect(useUIStore.getState().currentTab).toBe('translation');
+    expect(document.activeElement).toBe(tabs[0]);
+
+    act(() => {
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowLeft' }));
+    });
+    expect(useUIStore.getState().currentTab).toBe('settings');
+    expect(document.activeElement).toBe(tabs[2]);
+  });
+
+  it('focuses the selected tab after a programmatic tab change and exposes language pressed state', async () => {
+    await act(async () => {
+      root.render(<Header />);
+    });
+
+    const tabs = Array.from(container.querySelectorAll('[role="tab"]')) as HTMLButtonElement[];
+    act(() => {
+      useUIStore.getState().setTab('settings');
+    });
+
+    expect(document.activeElement).toBe(tabs[2]);
+
+    const languageGroup = container.querySelector('[role="group"]');
+    expect(languageGroup).toHaveAttribute('aria-label', '언어');
+    const languageButtons = Array.from(languageGroup?.querySelectorAll('button') ?? []) as HTMLButtonElement[];
+    expect(languageButtons.map((button) => button.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+  });
+
+  it('exposes clamped progress values while a batch translation is active', async () => {
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 9,
+        total_chapters: 4,
+        chapter_title: '제목',
+        status: 'translating',
+      },
+    });
+
+    await act(async () => {
+      root.render(<Header />);
+    });
+
+    const progress = container.querySelector('[role="progressbar"]');
+    expect(progress).toHaveAttribute('aria-label', '진행률');
+    expect(progress).toHaveAttribute('aria-valuenow', '4');
+    expect(progress).toHaveAttribute('aria-valuemax', '4');
+    expect(progress?.textContent).toContain('4 / 4 화');
+  });
+
+  it('keeps terminal batch status nonvisual and exposes one announcement', async () => {
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 4,
+        total_chapters: 4,
+        chapter_title: '제목',
+        status: 'error',
+        error_message: '네트워크 오류',
+      },
+    });
+
+    await act(async () => {
+      root.render(<Header />);
+    });
+
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    const statuses = Array.from(container.querySelectorAll('[role="status"]'));
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0].textContent).toContain('오류 발생');
+    expect(statuses[0].textContent).toContain('네트워크 오류');
+  });
+
+  it('keeps zero-total batch progress indeterminate instead of exposing NaN', async () => {
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 0,
+        total_chapters: 0,
+        chapter_title: '',
+        status: 'translating',
+      },
+    });
+
+    await act(async () => {
+      root.render(<Header />);
+    });
+
+    const progress = container.querySelector('[role="progressbar"]');
+    expect(progress).not.toHaveAttribute('aria-valuenow');
+    expect(progress).not.toHaveAttribute('aria-valuemax');
+    expect(container.textContent).not.toContain('NaN');
+  });
 });

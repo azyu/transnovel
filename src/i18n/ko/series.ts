@@ -33,6 +33,7 @@ export const seriesMessages = {
   batchTranslation: {
     dialogLabel: '일괄 번역 진행 상태',
     status: {
+      pending: '대기 중',
       paused: '일시정지됨',
       error: '오류 발생',
       completed: '완료',

@@ -35,6 +35,7 @@ export const seriesMessages = {
   batchTranslation: {
     dialogLabel: 'Batch translation progress',
     status: {
+      pending: 'Pending',
       paused: 'Paused',
       error: 'Error',
       completed: 'Completed',

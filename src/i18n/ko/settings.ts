@@ -6,6 +6,7 @@ export const settingsMessages = {
     advanced: '고급',
     apiLogs: 'API 로그',
     about: '정보',
+    ariaLabel: '설정 탭',
   },
   about: {
     title: '정보',

@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
 import { useDebugStore } from '../../stores/debugStore';
-import { useTranslationStore } from '../../stores/translationStore';
 import appIcon from '../../assets/app-icon.png';
 import type { TabType } from '../../types';
 import { useUILanguage } from '../../hooks/useUILanguage';
@@ -22,9 +21,10 @@ export const Header: React.FC = () => {
 
   const batchProgress = useSeriesStore((s) => s.batchProgress);
   const watchlistBadgeCount = useSeriesStore((s) => s.watchlistBadgeCount);
-  const isTranslating = useTranslationStore((s) => s.isTranslating);
   const debugMode = useDebugStore((s) => s.debugMode);
   const [hoveredTab, setHoveredTab] = useState<TabType | null>(null);
+  const tabRefs = useRef<Partial<Record<TabType, HTMLButtonElement>>>({});
+  const previousTabRef = useRef(currentTab);
 
   const allTabs: { id: TabType; label: string; devOnly?: boolean }[] = [
     { id: 'translation', label: messages.common.tabs.translation },
@@ -35,7 +35,46 @@ export const Header: React.FC = () => {
   const tabs = allTabs.filter(tab => !tab.devOnly || debugMode);
 
   const isDark = theme === 'dark';
-  const showBatchProgress = batchProgress && isTranslating && batchProgress.status === 'translating';
+  const batchMessages = messages.series.batchTranslation;
+  const showBatchProgress = batchProgress?.status === 'translating';
+  const batchTotal = Math.max(0, batchProgress?.total_chapters ?? 0);
+  const batchCurrent = batchProgress
+    ? Math.min(batchTotal, Math.max(0, batchProgress.current_chapter))
+    : 0;
+  const batchStatusText = batchProgress
+    ? batchProgress.status === 'pending'
+      ? batchMessages.status.pending
+      : batchProgress.status === 'paused'
+        ? batchMessages.status.paused
+        : batchProgress.status === 'error'
+          ? batchMessages.status.error
+          : batchProgress.status === 'completed'
+            ? batchMessages.status.completed
+            : batchMessages.status.translating
+    : '';
+
+  useLayoutEffect(() => {
+    if (previousTabRef.current === currentTab) return;
+
+    previousTabRef.current = currentTab;
+    tabRefs.current[currentTab]?.focus();
+  }, [currentTab]);
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null;
+
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = tabs.length - 1;
+
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextTab = tabs[nextIndex].id;
+    setTab(nextTab);
+    tabRefs.current[nextTab]?.focus();
+  };
 
   return (
     <header className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} border-b min-h-16 pt-[env(safe-area-inset-top)] flex items-center justify-between gap-2 px-3 lg:px-6 shrink-0 z-50 relative transition-colors duration-200`}>
@@ -52,14 +91,15 @@ export const Header: React.FC = () => {
 
       <nav
         role="tablist"
-        aria-label="메인 탭"
+        aria-label={messages.common.tabs.main}
         className={`flex shrink-0 items-center p-1 rounded-xl ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'}`}
       >
-        {tabs.map((tab) => (
+        {tabs.map((tab, index) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setTab(tab.id)}
+            onKeyDown={(event) => handleTabKeyDown(event, index)}
             title={`${tab.label} (${getMainTabShortcutLabel(tab.id)})`}
             onMouseOver={() => setHoveredTab(tab.id)}
             onMouseOut={() => setHoveredTab((current) => (current === tab.id ? null : current))}
@@ -69,6 +109,11 @@ export const Header: React.FC = () => {
             role="tab"
             aria-selected={currentTab === tab.id}
             aria-controls={`panel-${tab.id}`}
+            tabIndex={currentTab === tab.id ? 0 : -1}
+            ref={(element) => {
+              if (element) tabRefs.current[tab.id] = element;
+              else delete tabRefs.current[tab.id];
+            }}
             className={`relative shrink-0 whitespace-nowrap px-2.5 lg:px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
               currentTab === tab.id
                 ? 'bg-blue-600 text-white shadow-md'
@@ -107,17 +152,36 @@ export const Header: React.FC = () => {
 
       <div className="flex shrink-0 items-center gap-2 lg:gap-4">
         {showBatchProgress && (
-          <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-sm lg:px-3 lg:py-1.5 ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
+          <div
+            role="progressbar"
+            aria-label={batchMessages.progressLabel}
+            aria-valuemin={0}
+            {...(batchProgress && batchTotal <= 0
+              ? {}
+              : { 'aria-valuenow': batchCurrent, 'aria-valuemax': batchTotal })}
+            aria-valuetext={batchTotal > 0 ? batchMessages.chapterProgress(batchCurrent, batchTotal) : undefined}
+            className={`flex items-center gap-2 px-2 py-1 rounded-lg text-sm lg:px-3 lg:py-1.5 ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}
+          >
+            {batchProgress?.status === 'translating' && (
+              <svg aria-hidden="true" className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            )}
             <span className="font-medium tabular-nums whitespace-nowrap">
-              {batchProgress.current_chapter}/{batchProgress.total_chapters}
+              {batchTotal > 0 ? batchMessages.chapterProgress(batchCurrent, batchTotal) : batchStatusText}
             </span>
           </div>
         )}
+        {batchProgress && (
+          <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            {batchMessages.title(batchStatusText)}
+            {batchProgress.status === 'error' && batchProgress.error_message ? `: ${batchProgress.error_message}` : ''}
+          </div>
+        )}
         <div
+          role="group"
+          aria-label={messages.common.tabs.language}
           className={`inline-flex items-center rounded-lg p-1 ${
             isDark ? 'bg-slate-900/50' : 'bg-slate-100'
           }`}
@@ -127,6 +191,7 @@ export const Header: React.FC = () => {
               key={value}
               type="button"
               onClick={() => void setLanguage(value)}
+              aria-pressed={language === value}
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
                 language === value
                   ? 'bg-blue-600 text-white'

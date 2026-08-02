@@ -28,6 +28,9 @@ export const translationMessages = {
   translation: {
     stop: 'Stop translation',
     stopFailed: 'Failed to stop translation',
+    inProgress: 'Translation in progress',
+    stopping: 'Stopping translation',
+    progressLabel: 'Translation progress',
     completeFromCache: 'Translation completed. (Loaded from cache)',
     completeWithTokens: (input: string, output: string) =>
       `Translation completed. (input=${input}, output=${output})`,
