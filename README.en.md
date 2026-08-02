@@ -38,7 +38,16 @@ It is built to reduce the manual work of hopping between raw source pages, trans
 
 ## Install
 
-The easiest way to use TransNovel is to download a release build for your platform from [Releases](https://github.com/azyu/transnovel/releases).
+On Apple Silicon Macs, install TransNovel through Homebrew:
+
+```bash
+brew install --cask azyu/tap/transnovel
+```
+
+> [!IMPORTANT]
+> The macOS app is currently ad-hoc signed and not Apple-notarized. If macOS blocks it, Control-click TransNovel in Finder and choose **Open**, or use **System Settings > Privacy & Security > Open Anyway**. Only bypass the warning if you trust the published artifact.
+
+For a manual installation or another platform, choose the appropriate file from [Releases](https://github.com/azyu/transnovel/releases).
 
 | Platform | Installer |
 | --- | --- |

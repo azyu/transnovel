@@ -38,7 +38,16 @@ TransNovel은 일본 웹소설 URL만 붙여 넣으면 작품을 불러오고, �
 
 ## 설치하기
 
-가장 쉬운 방법은 [Releases](https://github.com/azyu/transnovel/releases) 페이지에서 운영체제에 맞는 설치 파일을 내려받는 것입니다.
+macOS Apple Silicon에서는 Homebrew로 설치할 수 있습니다.
+
+```bash
+brew install --cask azyu/tap/transnovel
+```
+
+> [!IMPORTANT]
+> 현재 macOS 앱은 ad-hoc 서명 상태이며 Apple 공증을 받지 않았습니다. macOS에서 실행을 차단하면 Finder에서 TransNovel을 Control-click한 뒤 **열기**를 선택하거나, **시스템 설정 > 개인정보 보호 및 보안 > 확인 없이 열기**를 사용하세요. 배포 파일을 신뢰할 때만 이 경고를 우회하세요.
+
+직접 설치 파일을 내려받으려면 [Releases](https://github.com/azyu/transnovel/releases) 페이지에서 운영체제에 맞는 파일을 선택하세요.
 
 | 운영체제 | 설치 파일 |
 | --- | --- |
