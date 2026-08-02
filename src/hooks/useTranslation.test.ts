@@ -55,17 +55,23 @@ vi.mock('@tauri-apps/api/event', () => ({
 let container: HTMLDivElement;
 let root: Root;
 type ParseAndTranslate = (url: string) => Promise<void>;
+type RetryFailedParagraphs = () => Promise<void>;
 
 let parseAndTranslate: ParseAndTranslate | null = null;
+let retryFailedParagraphs: RetryFailedParagraphs | null = null;
 let batchProgressWhenInteractive: TranslationProgress | null | 'not-observed';
 let unsubscribeTranslationState: (() => void) | null = null;
 
 function TranslationHarness() {
-  const { parseAndTranslate: runParseAndTranslate } = useTranslation();
+  const {
+    parseAndTranslate: runParseAndTranslate,
+    retryFailedParagraphs: runRetryFailedParagraphs,
+  } = useTranslation();
 
   useEffect(() => {
     parseAndTranslate = runParseAndTranslate;
-  }, [runParseAndTranslate]);
+    retryFailedParagraphs = runRetryFailedParagraphs;
+  }, [runParseAndTranslate, runRetryFailedParagraphs]);
 
   return null;
 }
@@ -77,6 +83,7 @@ describe('useTranslation interactive flow', () => {
     root = createRoot(container);
     batchProgressWhenInteractive = 'not-observed';
     parseAndTranslate = null;
+    retryFailedParagraphs = null;
 
     useUpdateStore.setState({ status: 'idle' });
     useTranslationStore.setState({ isTranslating: false });
@@ -116,6 +123,36 @@ describe('useTranslation interactive flow', () => {
 
     await act(async () => {
       await parseAndTranslate?.('https://example.com/2');
+    });
+
+    expect(batchProgressWhenInteractive).toBeNull();
+    expect(useSeriesStore.getState().batchProgress).toBeNull();
+    expect(useTranslationStore.getState().isTranslating).toBe(true);
+  });
+
+  it('clears completed batch state before an interactive retry becomes active', async () => {
+    useTranslationStore.getState().setChapterContent({
+      site: 'syosetu',
+      novel_id: 'n1234',
+      novel_title: '작품',
+      chapter_number: 2,
+      title: '제2화',
+      subtitle: '',
+      paragraphs: [{ id: 'p-1', original: '본문', isSpacer: false }],
+      prev_url: null,
+      next_url: null,
+      source_url: 'https://example.com/2',
+    });
+    useTranslationStore.getState().setFailedParagraphIndices([1]);
+
+    await act(async () => {
+      root.render(createElement(TranslationHarness));
+    });
+
+    expect(retryFailedParagraphs).not.toBeNull();
+
+    await act(async () => {
+      await retryFailedParagraphs?.();
     });
 
     expect(batchProgressWhenInteractive).toBeNull();

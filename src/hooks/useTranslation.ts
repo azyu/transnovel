@@ -742,6 +742,7 @@ await invoke('start_batch_translation', {
 
     if (retryTexts.length === 0) return;
 
+    setBatchProgress(null);
     setIsTranslating(true);
     clearFailedParagraphIndices();
 
@@ -820,7 +821,7 @@ await invoke('start_batch_translation', {
       setIsTranslating(false);
       showError('재시도 실패', String(err));
     }
-  }, [setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, translationStatusMessages]);
+  }, [setBatchProgress, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, translationStatusMessages]);
 
   const exportNovel = useCallback(async (request: ExportRequest) => {
       try {
