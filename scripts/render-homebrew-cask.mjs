@@ -6,6 +6,16 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const SHA256_PATTERN = /^sha256:([0-9a-f]{64})$/;
 const TOKEN_PATTERN = /{{[A-Z0-9_]+}}/g;
 
+function assertExactlyOneToken(template, token) {
+  const firstIndex = template.indexOf(token);
+  if (firstIndex === -1) {
+    throw new Error(`Missing mandatory template token: ${token}`);
+  }
+  if (firstIndex !== template.lastIndexOf(token)) {
+    throw new Error(`Duplicate mandatory template token: ${token}`);
+  }
+}
+
 export function renderHomebrewCask(tag, release, template) {
   const version = tag.startsWith('v') ? tag.slice(1) : tag;
   if (!VERSION_PATTERN.test(version)) {
@@ -26,6 +36,9 @@ export function renderHomebrewCask(tag, release, template) {
   if (!digestMatch) {
     throw new Error(`Invalid SHA256 digest for ${assetName}`);
   }
+
+  assertExactlyOneToken(template, '{{VERSION}}');
+  assertExactlyOneToken(template, '{{MACOS_ARM64_SHA256}}');
 
   const rendered = template
     .replaceAll('{{VERSION}}', version)

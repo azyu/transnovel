@@ -79,3 +79,48 @@ test('rejects unresolved template substitution tokens', () => {
     /Unresolved template tokens: \{\{UNRESOLVED_TOKEN\}\}/,
   );
 });
+
+test('rejects a template missing the version token', () => {
+  assert.throws(
+    () =>
+      renderHomebrewCask(
+        'v1.2.3',
+        releaseWith({
+          name: 'TransNovel_1.2.3_aarch64.dmg',
+          digest: `sha256:${digest}`,
+        }),
+        template.replace('{{VERSION}}', '1.2.3'),
+      ),
+    /Missing mandatory template token: \{\{VERSION\}\}/,
+  );
+});
+
+test('rejects a template missing the ARM64 SHA256 token', () => {
+  assert.throws(
+    () =>
+      renderHomebrewCask(
+        'v1.2.3',
+        releaseWith({
+          name: 'TransNovel_1.2.3_aarch64.dmg',
+          digest: `sha256:${digest}`,
+        }),
+        template.replace('{{MACOS_ARM64_SHA256}}', digest),
+      ),
+    /Missing mandatory template token: \{\{MACOS_ARM64_SHA256\}\}/,
+  );
+});
+
+test('rejects a template with a duplicated mandatory token', () => {
+  assert.throws(
+    () =>
+      renderHomebrewCask(
+        'v1.2.3',
+        releaseWith({
+          name: 'TransNovel_1.2.3_aarch64.dmg',
+          digest: `sha256:${digest}`,
+        }),
+        template.replace('{{VERSION}}', '{{VERSION}} {{VERSION}}'),
+      ),
+    /Duplicate mandatory template token: \{\{VERSION\}\}/,
+  );
+});
