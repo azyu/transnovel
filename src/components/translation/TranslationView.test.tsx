@@ -332,6 +332,10 @@ describe('TranslationView', () => {
 
     expect(container.querySelector('[role="status"]')).toBeNull();
     expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    const actionLabels = Array.from(container.querySelectorAll('button')).map((button) => button.textContent);
+    expect(actionLabels).toContain(messages.translation.translation.stop);
+    expect(actionLabels).not.toContain(messages.translation.navigation.prevChapter);
+    expect(actionLabels).not.toContain(messages.translation.navigation.nextChapter);
   });
 
   it('keeps translation progress indeterminate until paragraph IDs are available', async () => {

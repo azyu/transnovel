@@ -407,29 +407,31 @@ export const TranslationView: React.FC = () => {
           </div>
           {hasPrimaryActions && (
             <div className="min-w-0 flex flex-wrap items-center justify-end gap-2 lg:gap-4">
-              {isTranslating && !batchProgress ? (
+              {isTranslating ? (
                 <>
-                  <div
-                    role="progressbar"
-                    aria-label={localeMessages.translation.translation.progressLabel}
-                    aria-valuemin={0}
-                    {...(paragraphIds.length > 0
-                      ? {
-                          'aria-valuemax': paragraphIds.length,
-                          'aria-valuenow': progressValue,
-                          'aria-valuetext': `${progressValue} / ${paragraphIds.length}`,
-                        }
-                      : {})}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}
-                  >
-                    <svg aria-hidden="true" className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span>
-                      {progressValue} / {paragraphIds.length}
-                    </span>
-                  </div>
+                  {!batchProgress && (
+                    <div
+                      role="progressbar"
+                      aria-label={localeMessages.translation.translation.progressLabel}
+                      aria-valuemin={0}
+                      {...(paragraphIds.length > 0
+                        ? {
+                            'aria-valuemax': paragraphIds.length,
+                            'aria-valuenow': progressValue,
+                            'aria-valuetext': `${progressValue} / ${paragraphIds.length}`,
+                          }
+                        : {})}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}
+                    >
+                      <svg aria-hidden="true" className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>
+                        {progressValue} / {paragraphIds.length}
+                      </span>
+                    </div>
+                  )}
                   <Button
                     className="shrink-0 whitespace-nowrap"
                     variant="danger"
