@@ -28,6 +28,12 @@ vi.mock('../../utils/urlHistory', () => ({
   getUrlHistory: vi.fn(() => []),
   saveUrlHistory: vi.fn(),
 }));
+const setInputValue = (input: HTMLInputElement, value: string) => {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
 
 describe('UrlInput', () => {
   let container: HTMLDivElement;
@@ -163,12 +169,11 @@ describe('UrlInput', () => {
     expect(input).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('opens history from the focus shortcut and submits an arbitrary URL with one Enter', async () => {
+  it('edits a history URL and submits the arbitrary value with one Enter', async () => {
     getUrlHistoryMock.mockReturnValue([
       { url: 'https://example.com/novel/1', novelTitle: '첫 작품', chapterNumber: 1 },
     ]);
 
-    useTranslationStore.setState({ currentUrl: 'https://new.example.com/free-form' });
 
     await act(async () => {
       root.render(<UrlInput historyKey="test_url_history" />);
@@ -181,6 +186,12 @@ describe('UrlInput', () => {
     });
     expect(document.activeElement).toBe(input);
     expect(input).toHaveAttribute('aria-expanded', 'true');
+    await act(async () => {
+      setInputValue(input, 'https://new.example.com/free-form');
+      await Promise.resolve();
+    });
+    expect(input.value).toBe('https://new.example.com/free-form');
+
 
     const form = container.querySelector('form');
     await act(async () => {

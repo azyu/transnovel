@@ -112,6 +112,10 @@ describe('SettingsPanel', () => {
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
     expect(tabs[0]).toHaveAttribute('tabindex', '0');
     expect(tabs[1]).toHaveAttribute('tabindex', '-1');
+    let selectedAtFocus: string | null = null;
+    tabs[1].addEventListener('focus', () => {
+      selectedAtFocus = tabs[1].getAttribute('aria-selected');
+    });
 
     const activePanel = container.querySelector('#settings-panel-llm');
     const inactivePanel = container.querySelector('#settings-panel-translation');
@@ -127,6 +131,7 @@ describe('SettingsPanel', () => {
     expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
     expect(tabs[1]).toHaveAttribute('tabindex', '0');
     expect(document.activeElement).toBe(tabs[1]);
+    expect(selectedAtFocus).toBe('true');
     expect(container.querySelector('#settings-panel-translation')).not.toHaveAttribute('hidden');
 
     act(() => {

@@ -27,6 +27,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const { parseAndTranslate, parseChapter, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
   const [history, setHistory] = useState<UrlHistoryItem[]>([]);
+  const [isEditingFreeform, setIsEditingFreeform] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const isDark = theme === 'dark';
@@ -39,6 +40,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
 
   useEffect(() => {
     setLocalUrl(currentUrl);
+    setIsEditingFreeform(false);
   }, [currentUrl]);
 
   useEffect(() => {
@@ -85,6 +87,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
     history.find((item) => item.url === localUrl)
     ?? (localUrl ? { url: localUrl, isFreeform: true } : null);
   const freeformOption = selectedOption?.isFreeform ? selectedOption : null;
+  const hideHistoryOptions = isEditingFreeform && freeformOption !== null;
 
 
   return (
@@ -116,6 +119,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             by="url"
             onChange={(option: UrlOption | null) => {
               if (!option) return;
+              setIsEditingFreeform(false);
 
               setLocalUrl(option.url);
               if (option.isFreeform) void submitUrl(option.url);
@@ -127,7 +131,10 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
               ref={inputRef}
               id={inputId}
               displayValue={(option: UrlOption | null) => option?.url ?? ''}
-              onChange={(e) => setLocalUrl(e.target.value)}
+              onChange={(e) => {
+                setLocalUrl(e.target.value);
+                setIsEditingFreeform(true);
+              }}
               placeholder={localeMessages.common.placeholders.url}
               className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
             />
@@ -146,7 +153,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
                     </span>
                   </ComboboxOption>
                 )}
-                {history.map((item) => (
+                {!hideHistoryOptions && history.map((item) => (
                   <ComboboxOption
                     key={item.url}
                     value={item}

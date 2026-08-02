@@ -38,9 +38,10 @@ export const Header: React.FC = () => {
   const batchMessages = messages.series.batchTranslation;
   const showBatchProgress = batchProgress?.status === 'translating';
   const batchTotal = Math.max(0, batchProgress?.total_chapters ?? 0);
-  const batchCurrent = batchProgress
-    ? Math.min(batchTotal, Math.max(0, batchProgress.current_chapter))
-    : 0;
+  const batchCurrent = batchProgress?.current_chapter ?? 0;
+  const hasBatchOrdinal = batchTotal > 0
+    && batchCurrent >= 0
+    && batchCurrent <= batchTotal;
   const batchStatusText = batchProgress
     ? batchProgress.status === 'pending'
       ? batchMessages.status.pending
@@ -73,7 +74,6 @@ export const Header: React.FC = () => {
     event.preventDefault();
     const nextTab = tabs[nextIndex].id;
     setTab(nextTab);
-    tabRefs.current[nextTab]?.focus();
   };
 
   return (
@@ -156,10 +156,10 @@ export const Header: React.FC = () => {
             role="progressbar"
             aria-label={batchMessages.progressLabel}
             aria-valuemin={0}
-            {...(batchProgress && batchTotal <= 0
-              ? {}
-              : { 'aria-valuenow': batchCurrent, 'aria-valuemax': batchTotal })}
-            aria-valuetext={batchTotal > 0 ? batchMessages.chapterProgress(batchCurrent, batchTotal) : undefined}
+            {...(hasBatchOrdinal
+              ? { 'aria-valuenow': batchCurrent, 'aria-valuemax': batchTotal }
+              : {})}
+            aria-valuetext={hasBatchOrdinal ? batchMessages.chapterProgress(batchCurrent, batchTotal) : undefined}
             className={`flex items-center gap-2 px-2 py-1 rounded-lg text-sm lg:px-3 lg:py-1.5 ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}
           >
             {batchProgress?.status === 'translating' && (
@@ -169,7 +169,7 @@ export const Header: React.FC = () => {
               </svg>
             )}
             <span className="font-medium tabular-nums whitespace-nowrap">
-              {batchTotal > 0 ? batchMessages.chapterProgress(batchCurrent, batchTotal) : batchStatusText}
+              {hasBatchOrdinal ? batchMessages.chapterProgress(batchCurrent, batchTotal) : batchStatusText}
             </span>
           </div>
         )}

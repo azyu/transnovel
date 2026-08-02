@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { LLMSettings } from './LLMSettings';
 import { TranslationSettings } from './TranslationSettings';
 import { ViewSettings } from './ViewSettings';
@@ -13,6 +13,7 @@ type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced' | 'api-logs' | 'a
 export const SettingsPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('llm');
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement>>>({});
+  const previousTabRef = useRef(activeTab);
   const { theme } = useUIStore();
   const settingsMessages = useSettingsMessages();
 
@@ -27,6 +28,13 @@ export const SettingsPanel: React.FC = () => {
 
 
   const isDark = theme === 'dark';
+  useLayoutEffect(() => {
+    if (previousTabRef.current === activeTab) return;
+
+    previousTabRef.current = activeTab;
+    tabRefs.current[activeTab]?.focus();
+  }, [activeTab]);
+
 
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null;
@@ -41,7 +49,6 @@ export const SettingsPanel: React.FC = () => {
     event.preventDefault();
     const nextTab = tabs[nextIndex].id;
     setActiveTab(nextTab);
-    tabRefs.current[nextTab]?.focus();
   };
 
   return (

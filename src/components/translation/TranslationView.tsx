@@ -28,6 +28,7 @@ export const TranslationView: React.FC = () => {
   const showError = useUIStore((s) => s.showError);
   const showToast = useUIStore((s) => s.showToast);
   const watchlistItems = useSeriesStore((s) => s.watchlistItems);
+  const batchProgress = useSeriesStore((s) => s.batchProgress);
   const chapter = useTranslationStore((s) => s.chapter);
   const translatedTitle = useTranslationStore((s) => s.translatedTitle);
   const translatedSubtitle = useTranslationStore((s) => s.translatedSubtitle);
@@ -281,7 +282,7 @@ export const TranslationView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto w-full">
-      {(isTranslating || isStopping) && (
+      {(isStopping || (isTranslating && !batchProgress)) && (
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
           {isStopping ? localeMessages.translation.translation.stopping : localeMessages.translation.translation.inProgress}
         </div>

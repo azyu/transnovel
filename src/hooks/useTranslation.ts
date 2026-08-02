@@ -218,7 +218,6 @@ export const useTranslation = () => {
   
   const setChapterList = useSeriesStore((s) => s.setChapterList);
   const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
-  const updateBatchProgress = useSeriesStore((s) => s.updateBatchProgress);
   const markWatchlistEpisodeViewed = useSeriesStore((s) => s.markWatchlistEpisodeViewed);
   
   const language = useUIStore((s) => s.language);
@@ -659,30 +658,23 @@ export const useTranslation = () => {
       }
       
       try {
-          setBatchProgress({
-            current_chapter: 0,
-            total_chapters: Math.max(0, end - start + 1),
-            chapter_title: '',
-            status: 'pending',
-          });
           setIsTranslating(true);
-          await invoke('start_batch_translation', {
-               request: {
-                   novelId,
-                   site,
-                   startChapter: start,
+await invoke('start_batch_translation', { 
+               request: { 
+                   novelId, 
+                   site, 
+                   startChapter: start, 
                    endChapter: end,
                    baseUrl
-               }
+               } 
            });
       } catch (err) {
           setIsTranslating(false);
-          setBatchProgress(null);
           const errMsg = String(err);
           setError(errMsg);
           showError(translationStatusMessages.batchFailed, errMsg);
       }
-  }, [setBatchProgress, setIsTranslating, showError, translationStatusMessages]);
+  }, [setIsTranslating, showError, translationStatusMessages]);
 
   const stopBatchTranslation = useCallback(async () => {
       try {
@@ -699,24 +691,22 @@ export const useTranslation = () => {
   const pauseBatchTranslation = useCallback(async () => {
       try {
           await invoke('pause_translation');
-          updateBatchProgress({ status: 'paused' });
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
           showError(translationStatusMessages.pauseFailed, errMsg);
       }
-  }, [showError, translationStatusMessages, updateBatchProgress]);
+  }, [showError, translationStatusMessages]);
 
   const resumeBatchTranslation = useCallback(async () => {
       try {
           await invoke('resume_translation');
-          updateBatchProgress({ status: 'translating' });
       } catch (err) {
           const errMsg = String(err);
           setError(errMsg);
           showError('번역 재개 실패', errMsg);
       }
-  }, [showError, updateBatchProgress]);
+  }, [showError]);
 
   const retryFailedParagraphs = useCallback(async () => {
     if (isUpdateInstallationActive(useUpdateStore.getState().status)) {

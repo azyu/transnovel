@@ -120,6 +120,7 @@ describe('TranslationView', () => {
       watchlistLoaded: true,
       watchlistError: null,
       watchlistBadgeCount: 0,
+      batchProgress: null,
     });
 
     useTranslationStore.setState({
@@ -308,6 +309,28 @@ describe('TranslationView', () => {
     expect(progress).toHaveAttribute('aria-valuenow', '1');
     expect(progress).toHaveAttribute('aria-valuemax', '2');
     expect(container.querySelectorAll('[aria-live]').length).toBe(1);
+  });
+
+  it('defers batch announcement ownership to the global header status', async () => {
+    useTranslationStore.setState({
+      isTranslating: true,
+      translatedCount: 1,
+      paragraphIds: ['p-1', 'p-2'],
+    });
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 1,
+        total_chapters: 2,
+        chapter_title: '제1화',
+        status: 'translating',
+      },
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    expect(container.querySelector('[role="status"]')).toBeNull();
   });
 
   it('keeps translation progress indeterminate until paragraph IDs are available', async () => {

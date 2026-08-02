@@ -147,6 +147,10 @@ describe('Header', () => {
     const tabs = Array.from(container.querySelectorAll('[role="tab"]')) as HTMLButtonElement[];
     expect(tablist).toHaveAttribute('aria-label', '메인 탭');
     expect(tabs.map((tab) => tab.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+    let selectedAtFocus: string | null = null;
+    tabs[1].addEventListener('focus', () => {
+      selectedAtFocus = tabs[1].getAttribute('aria-selected');
+    });
 
     act(() => {
       tabs[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
@@ -155,6 +159,7 @@ describe('Header', () => {
     expect(useUIStore.getState().currentTab).toBe('series');
     expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
     expect(document.activeElement).toBe(tabs[1]);
+    expect(selectedAtFocus).toBe('true');
 
     act(() => {
       tabs[1].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowLeft' }));
@@ -199,7 +204,7 @@ describe('Header', () => {
     expect(languageButtons.map((button) => button.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
   });
 
-  it('exposes clamped progress values while a batch translation is active', async () => {
+  it('keeps invalid batch chapter ordinals indeterminate instead of announcing completion', async () => {
     useSeriesStore.setState({
       batchProgress: {
         current_chapter: 9,
@@ -215,9 +220,9 @@ describe('Header', () => {
 
     const progress = container.querySelector('[role="progressbar"]');
     expect(progress).toHaveAttribute('aria-label', '진행률');
-    expect(progress).toHaveAttribute('aria-valuenow', '4');
-    expect(progress).toHaveAttribute('aria-valuemax', '4');
-    expect(progress?.textContent).toContain('4 / 4 화');
+    expect(progress).not.toHaveAttribute('aria-valuenow');
+    expect(progress).not.toHaveAttribute('aria-valuemax');
+    expect(progress?.textContent).toContain('번역 중');
   });
 
   it('keeps terminal batch status nonvisual and exposes one announcement', async () => {
