@@ -215,6 +215,82 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false --latest
 
+  homebrew-tap:
+    name: Update Homebrew Tap
+    needs:
+      - prepare
+      - release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+    steps:
+      - name: Ensure Homebrew tap token is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${HOMEBREW_TAP_TOKEN}" ]]; then
+            echo "HOMEBREW_TAP_TOKEN is not configured."
+            exit 1
+          fi
+
+      - name: Checkout TransNovel release
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          path: transnovel
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v5
+        with:
+          repository: azyu/homebrew-tap
+          token: ${{ env.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Load published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --json assets > homebrew-release.json
+
+      - name: Render cask from published DMG digest
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          node transnovel/scripts/render-homebrew-cask.mjs \
+            "${RELEASE_TAG}" \
+            homebrew-release.json \
+            homebrew-tap/Casks/transnovel.rb.template \
+            homebrew-tap/Casks/transnovel.rb
+
+      - name: Commit and push cask update
+        shell: bash
+        working-directory: homebrew-tap
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- Casks/transnovel.rb; then
+            echo "Homebrew cask already matches ${RELEASE_TAG}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/transnovel.rb
+          git commit -m "chore: update transnovel to ${RELEASE_TAG#v}"
+          git push origin HEAD:main
+
   sync-main-version:
     needs:
       - prepare
