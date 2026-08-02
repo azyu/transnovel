@@ -59,6 +59,13 @@ export const TranslationView: React.FC = () => {
     translatedCount === paragraphIds.length && 
     failedParagraphIndices.length === 0 &&
     paragraphIds.length > 0;
+  const hasPrimaryActions =
+    isTranslating ||
+    (
+      translatedCount === paragraphIds.length &&
+      paragraphIds.length > 0 &&
+      Boolean(chapter?.prevUrl || chapter?.nextUrl)
+    );
   const isAlreadyInWatchlist = chapter
     ? watchlistItems.some((item) => item.site === chapter.site && item.novelId === chapter.novelId)
     : false;
@@ -282,9 +289,9 @@ export const TranslationView: React.FC = () => {
         <UrlInput historyKey="url_history_chapter" />
       </div>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-6">
+      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-auto p-6">
         {chapter ? (
-          <div className="space-y-8 pb-20">
+          <div className="space-y-8">
             <header className={`border-b pb-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
               <div data-testid="chapter-title-layout" className={titleLayoutClass}>
                 {originalTitleVisible && (
@@ -339,9 +346,10 @@ export const TranslationView: React.FC = () => {
       </div>
 
       {chapter && (
-        <div className={`py-4 px-6 border-t backdrop-blur absolute bottom-0 w-full max-w-7xl mx-auto left-0 right-0 z-10 flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
-          <div className="flex items-center gap-4">
+        <div className={`shrink-0 grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center py-4 px-6 border-t backdrop-blur w-full max-w-7xl mx-auto z-10 ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/80'}`}>
+          <div className="min-w-0 flex flex-wrap items-center gap-2 lg:gap-4">
             <Button
+              className="shrink-0 whitespace-nowrap"
               variant="secondary"
               onClick={handleAddToWatchlist}
               isLoading={addingWatchlist}
@@ -355,19 +363,20 @@ export const TranslationView: React.FC = () => {
             >
               {localeMessages.translation.addToWatchlist}
             </Button>
-            <Button variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying || !isTranslationComplete}>
+            <Button className="shrink-0 whitespace-nowrap" variant="secondary" onClick={() => setShowSaveModal(true)} disabled={isTranslating || retrying || !isTranslationComplete}>
               {localeMessages.common.actions.save}
             </Button>
-            <Button variant="secondary" onClick={handleOpenDictionary} disabled={isTranslating || retrying || dictionaryLoading}>
+            <Button className="shrink-0 whitespace-nowrap" variant="secondary" onClick={handleOpenDictionary} disabled={isTranslating || retrying || dictionaryLoading}>
               {dictionaryLoading ? localeMessages.translation.dictionary.loading : localeMessages.translation.dictionary.open}
             </Button>
             {failedParagraphIndices.length > 0 && !isTranslating && (
-              <div className="flex items-center gap-2">
+              <div className="min-w-0 flex flex-wrap items-center gap-2 lg:gap-4">
                 <span className="text-sm text-red-500">
                   {localeMessages.translation.translation.failedItems(failedParagraphIndices.length)}
                 </span>
-                <Button 
-                  variant="secondary" 
+                <Button
+                  className="shrink-0 whitespace-nowrap"
+                  variant="secondary"
                   onClick={async () => {
                     setRetrying(true);
                     await retryFailedParagraphs();
@@ -380,37 +389,39 @@ export const TranslationView: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4">
-            {isTranslating ? (
-              <>
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span>
-                    {translatedCount} / {paragraphIds.length}
-                  </span>
+          {hasPrimaryActions && (
+            <div className="min-w-0 flex flex-wrap items-center justify-end gap-2 lg:gap-4">
+              {isTranslating ? (
+                <>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span>
+                      {translatedCount} / {paragraphIds.length}
+                    </span>
+                  </div>
+                  <Button className="shrink-0 whitespace-nowrap" variant="danger" onClick={handleStop}>
+                    {localeMessages.translation.translation.stop}
+                  </Button>
+                </>
+              ) : translatedCount === paragraphIds.length && paragraphIds.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-2 lg:gap-4">
+                  {chapter.prevUrl && (
+                    <Button className="shrink-0 whitespace-nowrap" variant="secondary" onClick={handlePrevChapter}>
+                      {localeMessages.translation.navigation.prevChapter}
+                    </Button>
+                  )}
+                  {chapter.nextUrl && (
+                    <Button className="shrink-0 whitespace-nowrap" onClick={handleNextChapter}>
+                      {localeMessages.translation.navigation.nextChapter}
+                    </Button>
+                  )}
                 </div>
-                <Button variant="danger" onClick={handleStop}>
-                  {localeMessages.translation.translation.stop}
-                </Button>
-              </>
-            ) : translatedCount === paragraphIds.length && paragraphIds.length > 0 ? (
-              <div className="flex items-center gap-2">
-                {chapter.prevUrl && (
-                  <Button variant="secondary" onClick={handlePrevChapter}>
-                    {localeMessages.translation.navigation.prevChapter}
-                  </Button>
-                )}
-                {chapter.nextUrl && (
-                  <Button onClick={handleNextChapter}>
-                    {localeMessages.translation.navigation.nextChapter}
-                  </Button>
-                )}
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
 
