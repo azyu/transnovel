@@ -1,4 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { act, createElement, useEffect } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useTranslation } from './useTranslation';
+import { useSeriesStore } from '../stores/seriesStore';
+import { useTranslationStore } from '../stores/translationStore';
+import { useUpdateStore } from '../stores/updateStore';
+import type { TranslationProgress } from '../types';
 import {
   applyTranslationChunkToReviewContent,
   buildCharacterDictionaryReviewTexts,
@@ -9,6 +16,113 @@ import {
   mergeCharacterDictionaryEntries,
   resolveCharacterDictionaryTarget,
 } from './useTranslation';
+
+const { invokeMock, listenMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(async (command: string) => {
+    if (command === 'parse_chapter') {
+      return {
+        site: 'syosetu',
+        novel_id: 'n1234',
+        chapter_number: 2,
+        title: '제2화',
+        subtitle: '',
+        paragraphs: ['본문'],
+        prev_url: null,
+        next_url: null,
+        novel_title: '작품',
+      };
+    }
+
+    if (command === 'get_chapter_list') {
+      return {
+        chapters: [{ number: 2, title: '제2화', url: 'https://example.com/2' }],
+      };
+    }
+
+    return null;
+  }),
+  listenMock: vi.fn(async () => vi.fn()),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: invokeMock,
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: listenMock,
+}));
+
+let container: HTMLDivElement;
+let root: Root;
+type ParseAndTranslate = (url: string) => Promise<void>;
+
+let parseAndTranslate: ParseAndTranslate | null = null;
+let batchProgressWhenInteractive: TranslationProgress | null | 'not-observed';
+let unsubscribeTranslationState: (() => void) | null = null;
+
+function TranslationHarness() {
+  const { parseAndTranslate: runParseAndTranslate } = useTranslation();
+
+  useEffect(() => {
+    parseAndTranslate = runParseAndTranslate;
+  }, [runParseAndTranslate]);
+
+  return null;
+}
+
+describe('useTranslation interactive flow', () => {
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    batchProgressWhenInteractive = 'not-observed';
+    parseAndTranslate = null;
+
+    useUpdateStore.setState({ status: 'idle' });
+    useTranslationStore.setState({ isTranslating: false });
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 2,
+        total_chapters: 2,
+        chapter_title: '제2화',
+        status: 'completed',
+      },
+    });
+
+    unsubscribeTranslationState = useTranslationStore.subscribe((state) => {
+      if (state.isTranslating && batchProgressWhenInteractive === 'not-observed') {
+        batchProgressWhenInteractive = useSeriesStore.getState().batchProgress;
+      }
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    unsubscribeTranslationState?.();
+    unsubscribeTranslationState = null;
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.clearAllMocks();
+  });
+
+  it('clears completed batch state before interactive translation becomes active', async () => {
+    await act(async () => {
+      root.render(createElement(TranslationHarness));
+    });
+
+    expect(parseAndTranslate).not.toBeNull();
+
+    await act(async () => {
+      await parseAndTranslate?.('https://example.com/2');
+    });
+
+    expect(batchProgressWhenInteractive).toBeNull();
+    expect(useSeriesStore.getState().batchProgress).toBeNull();
+    expect(useTranslationStore.getState().isTranslating).toBe(true);
+  });
+});
 
 describe('filterNewProperNounEntries', () => {
   it('filters out entries that already exist in the saved dictionary', () => {

@@ -411,6 +411,7 @@ export const useTranslation = () => {
       }
 
       setLoading(false);
+      setBatchProgress(null);
       setIsTranslating(true);
       const reviewContent = createCharacterDictionaryReviewContent(content);
       
@@ -581,7 +582,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview, translationStatusMessages]);
+  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setBatchProgress, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview, translationStatusMessages]);
 
   const translateText = useCallback(async (site: string, novelId: string, text: string, note?: string) => {
     if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
