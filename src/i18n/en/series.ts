@@ -39,6 +39,7 @@ export const seriesMessages = {
       paused: 'Paused',
       error: 'Error',
       completed: 'Completed',
+      stopped: 'Stopped',
       translating: 'Translating...',
     },
     title: (statusText: string) => `Batch translation ${statusText}`,

@@ -37,6 +37,7 @@ export const seriesMessages = {
       paused: '일시정지됨',
       error: '오류 발생',
       completed: '완료',
+      stopped: '중지됨',
       translating: '번역 중...',
     },
     title: (statusText: string) => `일괄 번역 ${statusText}`,

@@ -249,6 +249,27 @@ describe('Header', () => {
     expect(statuses[0].textContent).toContain('네트워크 오류');
   });
 
+  it('announces a stopped batch as stopped rather than translating', async () => {
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 2,
+        total_chapters: 3,
+        chapter_title: '제목',
+        status: 'stopped',
+        error_message: '번역이 중지되었습니다.',
+      },
+    });
+
+    await act(async () => {
+      root.render(<Header />);
+    });
+
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    const statuses = Array.from(container.querySelectorAll('[role="status"]'));
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0].textContent).toBe('일괄 번역 중지됨');
+  });
+
   it('keeps zero-total batch progress indeterminate instead of exposing NaN', async () => {
     useSeriesStore.setState({
       batchProgress: {

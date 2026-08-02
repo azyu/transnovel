@@ -46,7 +46,9 @@ export const Header: React.FC = () => {
           ? batchMessages.status.error
           : batchProgress.status === 'completed'
             ? batchMessages.status.completed
-            : batchMessages.status.translating
+            : batchProgress.status === 'stopped'
+              ? batchMessages.status.stopped
+              : batchMessages.status.translating
     : '';
 
   useLayoutEffect(() => {
