@@ -127,13 +127,13 @@ brew install toss
 brew install --cask transnovel
 ```
 
-TransNovel is currently ad-hoc signed and not Apple-notarized. If macOS blocks the quarantined app, review the source and release before explicitly installing without quarantine:
+TransNovel is currently ad-hoc signed and not Apple-notarized. If macOS blocks the quarantined app after the standard `brew install --cask azyu/tap/transnovel`, review the source and release before allowing it to open:
 
-```bash
-brew install --cask --no-quarantine azyu/tap/transnovel
-```
+1. Locate `TransNovel` in Finder.
+2. Control-click the app, choose **Open**, then confirm **Open**.
+3. Alternatively, open **System Settings > Privacy & Security** and choose **Open Anyway** for TransNovel.
 
-`--no-quarantine` disables a macOS security control for this installation. Do not use it unless you trust the published artifact.
+Only bypass this warning if you trust the published artifact.
 
 ## Upgrade
 
@@ -166,7 +166,10 @@ Run:
 ```bash
 cd /Users/azyu/code/github/azyu/homebrew-tap
 ruby -c Casks/transnovel.rb
-brew audit --cask --strict Casks/transnovel.rb
+brew tap-new --no-git azyu/transnovel-local
+install -m 0644 Casks/transnovel.rb "$(brew --repository azyu/transnovel-local)/Casks/transnovel.rb"
+brew audit --cask --strict azyu/transnovel-local/transnovel
+brew untap azyu/transnovel-local
 ```
 
 Expected:
@@ -596,7 +599,10 @@ Run:
 ```bash
 cd /Users/azyu/code/github/azyu/homebrew-tap
 ruby -c Casks/transnovel.rb
-brew audit --cask --strict --online Casks/transnovel.rb
+brew tap-new --no-git azyu/transnovel-local
+install -m 0644 Casks/transnovel.rb "$(brew --repository azyu/transnovel-local)/Casks/transnovel.rb"
+brew audit --cask --strict --online azyu/transnovel-local/transnovel
+brew untap azyu/transnovel-local
 ```
 
 Expected: `Syntax OK`; Homebrew audit exits with status 0.
@@ -626,8 +632,9 @@ The workstation already has `/Applications/TransNovel.app`, so install into an i
 ```bash
 mkdir -p /tmp/transnovel-homebrew-apps
 brew update
-brew install --cask --no-quarantine --appdir=/tmp/transnovel-homebrew-apps azyu/tap/transnovel
+brew install --yes --cask --appdir=/tmp/transnovel-homebrew-apps azyu/tap/transnovel
 test -d /tmp/transnovel-homebrew-apps/TransNovel.app
+xattr -p com.apple.quarantine /tmp/transnovel-homebrew-apps/TransNovel.app
 spctl --assess --type execute /tmp/transnovel-homebrew-apps/TransNovel.app
 ```
 
@@ -635,15 +642,19 @@ Expected:
 
 - Homebrew downloads `TransNovel_0.1.5_aarch64.dmg` and validates its checksum.
 - `/tmp/transnovel-homebrew-apps/TransNovel.app` exists.
+- `xattr -p` prints the quarantine attribute for the installed bundle.
 - `spctl` returns non-zero for the current ad-hoc signed, non-notarized bundle, matching the README warning. This expected Gatekeeper result does not make the installation check fail.
 
-Launch the isolated app once:
+Before launching the isolated app, remove quarantine only from the isolated test copy:
 
 ```bash
+xattr -dr com.apple.quarantine /tmp/transnovel-homebrew-apps/TransNovel.app
 open /tmp/transnovel-homebrew-apps/TransNovel.app
 ```
 
-Expected: TransNovel opens from the isolated path when installed without quarantine.
+The quarantine removal is test-only. End-user documentation uses Finder Control-click **Open** and confirm **Open**, or **System Settings > Privacy & Security > Open Anyway**.
+
+Expected: TransNovel opens from the isolated path after quarantine is removed from the test copy.
 
 - [ ] **Step 7: Remove the isolated verification installation**
 

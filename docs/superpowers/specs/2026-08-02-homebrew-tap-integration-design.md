@@ -124,22 +124,31 @@ Concurrent release workflows retain the existing release concurrency policy. Eac
 
 The current Tauri configuration uses ad-hoc signing with `signingIdentity: "-"` and does not notarize the macOS artifact. Homebrew can install the DMG, but macOS may block the quarantined app or show an unidentified/developer verification warning.
 
-The tap README documents this limitation and the explicit `--no-quarantine` installation option. It must not imply that the application is Apple-notarized. Proper Developer ID signing and notarization remain separate follow-up work.
+After the normal Homebrew installation, users should locate `TransNovel` in Finder, Control-click it, choose **Open**, and confirm **Open**. Alternatively, open **System Settings > Privacy & Security** and choose **Open Anyway** for TransNovel. The tap README must not imply that the application is Apple-notarized; users should only bypass the warning if they trust the published artifact. Proper Developer ID signing and notarization remain separate follow-up work.
 
 ## Verification
 
 ### Cask definition
 
-- `brew audit --cask` accepts `Casks/transnovel.rb`.
+- A cask audit passes after staging the local cask in a temporary named tap.
 - The cask version equals the selected GitHub Release version.
 - The cask SHA256 equals the published DMG asset digest.
 - The cask rejects non-ARM64 installations through its architecture dependency.
 
+For the passing local audit, stage and audit the cask by qualified name:
+
+```bash
+brew tap-new --no-git azyu/transnovel-local
+install -m 0644 Casks/transnovel.rb "$(brew --repository azyu/transnovel-local)/Casks/transnovel.rb"
+brew audit --cask --strict azyu/transnovel-local/transnovel
+brew untap azyu/transnovel-local
+```
+
 ### Installation
 
 - Installing the local cask on Apple Silicon stages `TransNovel.app` in the Homebrew application target.
-- The installed bundle launches when quarantine is explicitly disabled.
-- Standard installation behavior is observed once to ensure the README Gatekeeper guidance matches the actual warning.
+- Standard installation preserves quarantine; `xattr -p com.apple.quarantine` verifies the attribute and `spctl --assess --type execute` rejects the current ad-hoc signed, non-notarized bundle.
+- Removing quarantine only from the isolated test copy allows the app to launch. This removal is test-only; end-user guidance uses Finder Control-click **Open** and confirm **Open**, or **System Settings > Privacy & Security > Open Anyway**.
 - Uninstall removes the app without deleting user configuration or translation data.
 
 ### Automation
@@ -154,7 +163,7 @@ The tap README documents this limitation and the explicit `--no-quarantine` inst
 The tap README adds TransNovel under a separate cask/application section and includes:
 
 - standard install command
-- Gatekeeper-aware `--no-quarantine` alternative with a security warning
+- Finder Control-click **Open** and confirm **Open** guidance, with **System Settings > Privacy & Security > Open Anyway** as an alternative, plus the ad-hoc/non-notarized security warning
 - `brew upgrade --cask --greedy transnovel`, because `auto_updates true` otherwise excludes it from normal cask upgrades
 - uninstall command
 - Apple Silicon-only support statement
