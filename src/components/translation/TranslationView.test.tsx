@@ -524,6 +524,15 @@ describe('TranslationView', () => {
       (recoveryButton as HTMLButtonElement).click();
     });
     expect(useUIStore.getState().currentTab).toBe('settings');
+
+    getSettingsResponse = baseSettings;
+    await act(async () => {
+      window.dispatchEvent(new Event('settings-changed'));
+      await flushAsync();
+    });
+
+    expect(container.querySelector('#translation-llm-config-status')).toBeNull();
+    expect(urlInputProps).toMatchObject({ translationEnabled: true });
   });
 
   it('blocks translation while settings changes are being rechecked', async () => {
