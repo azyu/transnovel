@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useTranslationStore } from '../stores/translationStore';
+import { useUIStore } from '../stores/uiStore';
 import type { TranslationProgress } from '../types';
 import { useTauriEvents } from './useTauriEvents';
 
@@ -35,8 +36,10 @@ describe('useTauriEvents batch outcomes', () => {
 
   beforeEach(() => {
     eventMocks.listeners.clear();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     useTranslationStore.setState({ isTranslating: true });
     useSeriesStore.setState({ batchProgress: activeProgress });
+    useUIStore.setState({ language: 'ko' });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -45,6 +48,7 @@ describe('useTauriEvents batch outcomes', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.restoreAllMocks();
   });
 
   it.each([
@@ -76,5 +80,49 @@ describe('useTauriEvents batch outcomes', () => {
     expect(useTranslationStore.getState().isTranslating).toBe(false);
     expect(useSeriesStore.getState().batchProgress?.status).toBe(status);
     expect(useSeriesStore.getState().batchProgress?.error_message).toBe(message);
+  });
+
+  it('preserves backend batch error detail for the header announcement', async () => {
+    await act(async () => {
+      root.render(<EventHarness />);
+      await Promise.resolve();
+    });
+
+    act(() => {
+      eventMocks.listeners.get('translation-error')?.({
+        payload: {
+          current_chapter: 2,
+          total_chapters: 4,
+          chapter_title: '제2화',
+          status: 'error',
+          error_message: 'provider quota exhausted',
+        },
+      });
+    });
+
+    expect(useSeriesStore.getState().batchProgress).toMatchObject({
+      status: 'error',
+      error_message: 'provider quota exhausted',
+    });
+  });
+
+  it('localizes synthesized batch failure detail for the active UI language', async () => {
+    useUIStore.setState({ language: 'en' });
+
+    await act(async () => {
+      root.render(<EventHarness />);
+    });
+    await vi.waitFor(() => expect(eventMocks.listeners.has('batch-translation-complete')).toBe(true));
+
+    act(() => {
+      eventMocks.listeners.get('batch-translation-complete')?.({
+        payload: { novel_id: 'n123', success: false, failed_count: 2, stopped: false },
+      });
+    });
+
+    expect(useSeriesStore.getState().batchProgress).toMatchObject({
+      status: 'error',
+      error_message: '2 chapters failed to translate.',
+    });
   });
 });

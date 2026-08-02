@@ -6,6 +6,7 @@ export const settingsMessages = {
     advanced: 'Advanced',
     apiLogs: 'API Logs',
     about: 'About',
+    ariaLabel: 'Settings tabs',
   },
   about: {
     title: 'About',

@@ -28,6 +28,7 @@ export const TranslationView: React.FC = () => {
   const showError = useUIStore((s) => s.showError);
   const showToast = useUIStore((s) => s.showToast);
   const watchlistItems = useSeriesStore((s) => s.watchlistItems);
+  const batchProgress = useSeriesStore((s) => s.batchProgress);
   const chapter = useTranslationStore((s) => s.chapter);
   const translatedTitle = useTranslationStore((s) => s.translatedTitle);
   const translatedSubtitle = useTranslationStore((s) => s.translatedSubtitle);
@@ -51,6 +52,7 @@ export const TranslationView: React.FC = () => {
   const [dictionarySaving, setDictionarySaving] = useState(false);
   const [addingWatchlist, setAddingWatchlist] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const isDark = theme === 'dark';
   const localeMessages = getMessages(language);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -76,6 +78,13 @@ export const TranslationView: React.FC = () => {
   const translatedTitleVisible = Boolean(translatedTitle);
   const originalTitleColor = isDark ? 'text-slate-400' : 'text-slate-500';
   const originalSubtitleColor = isDark ? 'text-slate-500' : 'text-slate-400';
+  const progressValue = Math.min(Math.max(translatedCount, 0), paragraphIds.length);
+
+  useEffect(() => {
+    if (!isTranslating) {
+      setIsStopping(false);
+    }
+  }, [isTranslating]);
 
   const checkApiConfig = useCallback(async () => {
     try {
@@ -113,9 +122,11 @@ export const TranslationView: React.FC = () => {
   }, [checkApiConfig]);
 
   const handleStop = async () => {
+    setIsStopping(true);
     try {
       await invoke('stop_translation');
     } catch (err) {
+      setIsStopping(false);
       showError(localeMessages.translation.translation.stopFailed, String(err));
     }
   };
@@ -271,6 +282,11 @@ export const TranslationView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto w-full">
+      {!batchProgress && (isStopping || isTranslating) && (
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {isStopping ? localeMessages.translation.translation.stopping : localeMessages.translation.translation.inProgress}
+        </div>
+      )}
       {apiConfigured === false && (
         <div className="mx-6 mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
           <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -393,16 +409,35 @@ export const TranslationView: React.FC = () => {
             <div className="min-w-0 flex flex-wrap items-center justify-end gap-2 lg:gap-4">
               {isTranslating ? (
                 <>
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span>
-                      {translatedCount} / {paragraphIds.length}
-                    </span>
-                  </div>
-                  <Button className="shrink-0 whitespace-nowrap" variant="danger" onClick={handleStop}>
+                  {!batchProgress && (
+                    <div
+                      role="progressbar"
+                      aria-label={localeMessages.translation.translation.progressLabel}
+                      aria-valuemin={0}
+                      {...(paragraphIds.length > 0
+                        ? {
+                            'aria-valuemax': paragraphIds.length,
+                            'aria-valuenow': progressValue,
+                            'aria-valuetext': `${progressValue} / ${paragraphIds.length}`,
+                          }
+                        : {})}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}
+                    >
+                      <svg aria-hidden="true" className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>
+                        {progressValue} / {paragraphIds.length}
+                      </span>
+                    </div>
+                  )}
+                  <Button
+                    className="shrink-0 whitespace-nowrap"
+                    variant="danger"
+                    onClick={handleStop}
+                    isLoading={isStopping}
+                  >
                     {localeMessages.translation.translation.stop}
                   </Button>
                 </>

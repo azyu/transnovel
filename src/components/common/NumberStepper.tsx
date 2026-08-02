@@ -1,4 +1,5 @@
 import React from 'react';
+import { getMessages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 
 interface NumberStepperProps {
@@ -26,6 +27,8 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
 }) => {
   const generatedId = React.useId();
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const language = useUIStore((state) => state.language);
+  const accessibilityMessages = getMessages(language).common.accessibility;
 
   const precision = decimals ?? (step < 1 ? String(step).split('.')[1]?.length ?? 0 : 0);
 
@@ -100,7 +103,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           onClick={handleDecrement}
           disabled={value <= min}
           className={`flex items-center justify-center w-10 h-10 rounded-l-lg border border-r-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${buttonStyles}`}
-          aria-label="감소"
+          aria-label={accessibilityMessages.decrement(label)}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -132,7 +135,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           onClick={handleIncrement}
           disabled={value >= max}
           className={`flex items-center justify-center w-10 h-10 rounded-r-lg border border-l-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${buttonStyles}`}
-          aria-label="증가"
+          aria-label={accessibilityMessages.increment(label)}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

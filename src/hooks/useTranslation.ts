@@ -411,6 +411,7 @@ export const useTranslation = () => {
       }
 
       setLoading(false);
+      setBatchProgress(null);
       setIsTranslating(true);
       const reviewContent = createCharacterDictionaryReviewContent(content);
       
@@ -581,7 +582,7 @@ export const useTranslation = () => {
       setLoading(false);
       setIsTranslating(false);
     }
-  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview, translationStatusMessages]);
+  }, [markWatchlistEpisodeViewed, setChapterContent, setChapterList, setBatchProgress, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, showToast, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, maybePrepareCharacterDictionaryReview, translationStatusMessages]);
 
   const translateText = useCallback(async (site: string, novelId: string, text: string, note?: string) => {
     if (isUpdateInstallationActive(useUpdateStore.getState().status)) {
@@ -741,6 +742,7 @@ await invoke('start_batch_translation', {
 
     if (retryTexts.length === 0) return;
 
+    setBatchProgress(null);
     setIsTranslating(true);
     clearFailedParagraphIndices();
 
@@ -819,7 +821,7 @@ await invoke('start_batch_translation', {
       setIsTranslating(false);
       showError('재시도 실패', String(err));
     }
-  }, [setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, translationStatusMessages]);
+  }, [setBatchProgress, setIsTranslating, updateParagraphTranslation, updateTitleTranslation, showError, setFailedParagraphIndices, clearFailedParagraphIndices, addDebugLog, translationStatusMessages]);
 
   const exportNovel = useCallback(async (request: ExportRequest) => {
       try {

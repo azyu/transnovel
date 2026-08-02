@@ -29,6 +29,9 @@ export function useKeyboardShortcuts() {
 
         if (targetTab) {
           e.preventDefault();
+          if (targetTab === currentTab) {
+            document.getElementById(`tab-${targetTab}`)?.focus();
+          }
           setTab(targetTab);
           return;
         }

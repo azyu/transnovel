@@ -33,12 +33,15 @@ export const seriesMessages = {
   batchTranslation: {
     dialogLabel: '일괄 번역 진행 상태',
     status: {
+      pending: '대기 중',
       paused: '일시정지됨',
       error: '오류 발생',
       completed: '완료',
+      stopped: '중지됨',
       translating: '번역 중...',
     },
     title: (statusText: string) => `일괄 번역 ${statusText}`,
+    failedChapters: (count: number) => `${count}개 챕터 번역에 실패했습니다.`,
     progressLabel: '진행률',
     chapterProgress: (current: number, total: number) => `${current} / ${total} 화`,
     percentComplete: (percentage: number) => `${percentage}% 완료`,

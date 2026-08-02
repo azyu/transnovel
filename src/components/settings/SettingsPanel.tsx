@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { LLMSettings } from './LLMSettings';
 import { TranslationSettings } from './TranslationSettings';
 import { ViewSettings } from './ViewSettings';
@@ -12,6 +12,8 @@ type SettingsTab = 'llm' | 'translation' | 'view' | 'advanced' | 'api-logs' | 'a
 
 export const SettingsPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('llm');
+  const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement>>>({});
+  const previousTabRef = useRef(activeTab);
   const { theme } = useUIStore();
   const settingsMessages = useSettingsMessages();
 
@@ -26,15 +28,52 @@ export const SettingsPanel: React.FC = () => {
 
 
   const isDark = theme === 'dark';
+  useLayoutEffect(() => {
+    if (previousTabRef.current === activeTab) return;
+
+    previousTabRef.current = activeTab;
+    tabRefs.current[activeTab]?.focus();
+  }, [activeTab]);
+
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null;
+
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = tabs.length - 1;
+
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextTab = tabs[nextIndex].id;
+    setActiveTab(nextTab);
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6 w-full">
       <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-        <nav className={`flex p-1 rounded-xl ${isDark ? 'bg-slate-900/50' : 'bg-slate-200'}`}>
-          {tabs.map((tab) => (
+        <nav
+          role="tablist"
+          aria-label={settingsMessages.tabs.ariaLabel}
+          className={`flex p-1 rounded-xl ${isDark ? 'bg-slate-900/50' : 'bg-slate-200'}`}
+        >
+          {tabs.map((tab, index) => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
+              id={`settings-tab-${tab.id}`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={`settings-panel-${tab.id}`}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              ref={(element) => {
+                if (element) tabRefs.current[tab.id] = element;
+                else delete tabRefs.current[tab.id];
+              }}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === tab.id
                   ? 'bg-blue-600 text-white shadow-sm'
                   : isDark
@@ -50,22 +89,58 @@ export const SettingsPanel: React.FC = () => {
 
       </div>
 
-      <div className={activeTab === 'llm' ? 'block' : 'hidden'}>
+      <div
+        id="settings-panel-llm"
+        role="tabpanel"
+        aria-labelledby="settings-tab-llm"
+        hidden={activeTab !== 'llm'}
+        className={activeTab === 'llm' ? 'block' : 'hidden'}
+      >
         <LLMSettings />
       </div>
-      <div className={activeTab === 'translation' ? 'block' : 'hidden'}>
+      <div
+        id="settings-panel-translation"
+        role="tabpanel"
+        aria-labelledby="settings-tab-translation"
+        hidden={activeTab !== 'translation'}
+        className={activeTab === 'translation' ? 'block' : 'hidden'}
+      >
         <TranslationSettings />
       </div>
-      <div className={activeTab === 'view' ? 'block' : 'hidden'}>
+      <div
+        id="settings-panel-view"
+        role="tabpanel"
+        aria-labelledby="settings-tab-view"
+        hidden={activeTab !== 'view'}
+        className={activeTab === 'view' ? 'block' : 'hidden'}
+      >
         <ViewSettings />
       </div>
-      <div className={activeTab === 'advanced' ? 'block' : 'hidden'}>
+      <div
+        id="settings-panel-advanced"
+        role="tabpanel"
+        aria-labelledby="settings-tab-advanced"
+        hidden={activeTab !== 'advanced'}
+        className={activeTab === 'advanced' ? 'block' : 'hidden'}
+      >
         <AdvancedSettings />
       </div>
-      <div className={activeTab === 'api-logs' ? 'block' : 'hidden'}>
+      <div
+        id="settings-panel-api-logs"
+        role="tabpanel"
+        aria-labelledby="settings-tab-api-logs"
+        hidden={activeTab !== 'api-logs'}
+        className={activeTab === 'api-logs' ? 'block' : 'hidden'}
+      >
         <ApiLogsSettings />
       </div>
-      <div className={activeTab === 'about' ? 'block' : 'hidden'}>
+      <div
+        id="settings-panel-about"
+        role="tabpanel"
+        aria-labelledby="settings-tab-about"
+        hidden={activeTab !== 'about'}
+        className={activeTab === 'about' ? 'block' : 'hidden'}
+      >
         <AboutSettings />
       </div>
     </div>

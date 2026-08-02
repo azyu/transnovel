@@ -35,6 +35,7 @@ function App() {
           role="tabpanel"
           aria-labelledby="tab-translation"
           aria-hidden={currentTab !== 'translation'}
+          inert={currentTab !== 'translation'}
           className={`absolute inset-0 transition-opacity duration-300 ${
             currentTab === 'translation' ? 'opacity-100 z-10 visible' : 'opacity-0 z-0 invisible pointer-events-none'
           }`}
@@ -46,6 +47,7 @@ function App() {
           role="tabpanel"
           aria-labelledby="tab-series"
           aria-hidden={currentTab !== 'series'}
+          inert={currentTab !== 'series'}
           className={`absolute inset-0 transition-opacity duration-300 ${
             currentTab === 'series' ? 'opacity-100 z-10 overflow-y-auto visible' : 'opacity-0 z-0 invisible pointer-events-none'
           }`}
@@ -57,6 +59,7 @@ function App() {
           role="tabpanel"
           aria-labelledby="tab-settings"
           aria-hidden={currentTab !== 'settings'}
+          inert={currentTab !== 'settings'}
           className={`absolute inset-0 transition-opacity duration-300 ${
             currentTab === 'settings' ? 'opacity-100 z-10 overflow-y-auto visible' : 'opacity-0 z-0 invisible pointer-events-none'
           }`}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useId } from 'react';
+import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../common/Button';
-import { Input } from '../common/Input';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useUIStore } from '../../stores/uiStore';
 import { useTranslationStore } from '../../stores/translationStore';
@@ -14,6 +14,8 @@ interface UrlInputProps {
   parseOnly?: boolean;
 }
 
+type UrlOption = UrlHistoryItem & { isFreeform?: boolean };
+
 export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', parseOnly = false }) => {
   const theme = useUIStore((s) => s.theme);
   const language = useUIStore((s) => s.language);
@@ -25,8 +27,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const { parseAndTranslate, parseChapter, loading } = useTranslation();
   const [localUrl, setLocalUrl] = useState(currentUrl);
   const [history, setHistory] = useState<UrlHistoryItem[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [isEditingFreeform, setIsEditingFreeform] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const isDark = theme === 'dark';
@@ -39,6 +40,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
 
   useEffect(() => {
     setLocalUrl(currentUrl);
+    setIsEditingFreeform(false);
   }, [currentUrl]);
 
   useEffect(() => {
@@ -53,16 +55,6 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   }, [chapter, currentUrl, historyKey]);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
     const handleFocusShortcut = () => {
       if (loading || isTranslating) {
         return;
@@ -70,36 +62,38 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
 
       inputRef.current?.focus();
       inputRef.current?.select();
-      if (history.length > 0) {
-        setShowDropdown(true);
-      }
     };
 
     window.addEventListener(FOCUS_TRANSLATION_URL_INPUT_EVENT, handleFocusShortcut);
     return () => window.removeEventListener(FOCUS_TRANSLATION_URL_INPUT_EVENT, handleFocusShortcut);
   }, [history.length, isTranslating, loading]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!localUrl || isTranslating) return;
-    setShowDropdown(false);
-    setUrl(localUrl);
+  const submitUrl = async (url = localUrl) => {
+    if (!url || isTranslating) return;
+    setUrl(url);
     if (parseOnly) {
-      await parseChapter(localUrl);
+      await parseChapter(url);
     } else {
-      await parseAndTranslate(localUrl);
+      await parseAndTranslate(url);
     }
   };
 
-  const handleSelectHistory = (url: string) => {
-    setLocalUrl(url);
-    setShowDropdown(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submitUrl();
   };
+
+  const selectedOption: UrlOption | null =
+    history.find((item) => item.url === localUrl)
+    ?? (localUrl ? { url: localUrl, isFreeform: true } : null);
+  const freeformOption = selectedOption?.isFreeform ? selectedOption : null;
+  const hideHistoryOptions = isEditingFreeform && freeformOption !== null;
+
 
   return (
     <div className={`p-6 rounded-xl border shadow-lg ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
       <form onSubmit={handleSubmit} className="flex gap-4 items-end">
-        <div className="flex-1 relative" ref={containerRef}>
+        <div className="flex-1 relative">
           <div className="mb-1.5 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
             <label htmlFor={inputId} className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               {localeMessages.translation.urlInput.label}
@@ -120,43 +114,71 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
               ))}
             </div>
           </div>
-          <Input
-            ref={inputRef}
-            id={inputId}
-            value={localUrl}
-            onChange={(e) => setLocalUrl(e.target.value)}
-            onFocus={() => history.length > 0 && setShowDropdown(true)}
-            placeholder={localeMessages.common.placeholders.url}
+          <Combobox
+            value={selectedOption}
+            by="url"
+            onChange={(option: UrlOption | null) => {
+              if (!option) return;
+              setIsEditingFreeform(false);
+
+              setLocalUrl(option.url);
+              if (option.isFreeform) void submitUrl(option.url);
+            }}
             disabled={loading || isTranslating}
-          />
-          {showDropdown && history.length > 0 && (
-            <div className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-              {history.map((item, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelectHistory(item.url)}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`truncate flex-1 min-w-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      {item.url}
+            immediate
+          >
+            <ComboboxInput
+              ref={inputRef}
+              id={inputId}
+              displayValue={(option: UrlOption | null) => option?.url ?? ''}
+              onChange={(e) => {
+                setLocalUrl(e.target.value);
+                setIsEditingFreeform(true);
+              }}
+              placeholder={localeMessages.common.placeholders.url}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+            />
+            {(history.length > 0 || freeformOption) && (
+              <ComboboxOptions
+                modal={false}
+                className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden focus:outline-none ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}
+              >
+                {freeformOption && (
+                  <ComboboxOption
+                    value={freeformOption}
+                    className={({ focus }) => `w-full px-3 py-2 text-left text-sm transition-colors ${focus ? isDark ? 'bg-slate-700' : 'bg-slate-100' : ''}`}
+                  >
+                    <span className={`block truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      {freeformOption.url}
                     </span>
-                    {item.novelTitle && (
-                      <>
-                        <span className={`text-xs shrink-0 max-w-[180px] truncate text-right ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                          {item.novelTitle}
-                        </span>
-                        <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                          {item.chapterNumber ? localeMessages.translation.urlInput.historyChapterLabel(item.chapterNumber) : ''}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  </ComboboxOption>
+                )}
+                {!hideHistoryOptions && history.map((item) => (
+                  <ComboboxOption
+                    key={item.url}
+                    value={item}
+                    className={({ focus }) => `w-full px-3 py-2 text-left text-sm transition-colors ${focus ? isDark ? 'bg-slate-700' : 'bg-slate-100' : ''}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`truncate flex-1 min-w-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {item.url}
+                      </span>
+                      {item.novelTitle && (
+                        <>
+                          <span className={`text-xs shrink-0 max-w-[180px] truncate text-right ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {item.novelTitle}
+                          </span>
+                          <span className={`text-xs shrink-0 w-10 text-right ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {item.chapterNumber ? localeMessages.translation.urlInput.historyChapterLabel(item.chapterNumber) : ''}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </ComboboxOption>
+                ))}
+              </ComboboxOptions>
+            )}
+          </Combobox>
         </div>
         <Button type="submit" isLoading={loading} disabled={!localUrl || isTranslating}>
           {localeMessages.common.actions.load}

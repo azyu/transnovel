@@ -38,7 +38,7 @@ describe('SettingsPanel', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    useUIStore.setState({ theme: 'dark' });
+    useUIStore.setState({ theme: 'dark', language: 'ko' });
     originalSettingsMessages = messages.settings;
   });
 
@@ -95,5 +95,57 @@ describe('SettingsPanel', () => {
       'API Logs',
       'About',
     ]);
+  });
+
+  it('exposes a localized tablist with roving focus, relationships, and arrow activation', async () => {
+    await act(async () => {
+      root.render(<SettingsPanel />);
+    });
+
+    const tablist = container.querySelector('[role="tablist"]');
+    const tabs = Array.from(container.querySelectorAll('[role="tab"]')) as HTMLButtonElement[];
+
+    expect(tablist).toHaveAttribute('aria-label', '설정 탭');
+    expect(tabs).toHaveLength(6);
+    expect(tabs[0]).toHaveAttribute('id', 'settings-tab-llm');
+    expect(tabs[0]).toHaveAttribute('aria-controls', 'settings-panel-llm');
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[0]).toHaveAttribute('tabindex', '0');
+    expect(tabs[1]).toHaveAttribute('tabindex', '-1');
+    let selectedAtFocus: string | null = null;
+    tabs[1].addEventListener('focus', () => {
+      selectedAtFocus = tabs[1].getAttribute('aria-selected');
+    });
+
+    const activePanel = container.querySelector('#settings-panel-llm');
+    const inactivePanel = container.querySelector('#settings-panel-translation');
+    expect(activePanel).toHaveAttribute('role', 'tabpanel');
+    expect(activePanel).toHaveAttribute('aria-labelledby', 'settings-tab-llm');
+    expect(activePanel).not.toHaveAttribute('hidden');
+    expect(inactivePanel).toHaveAttribute('hidden');
+
+    act(() => {
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+    });
+
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[1]).toHaveAttribute('tabindex', '0');
+    expect(document.activeElement).toBe(tabs[1]);
+    expect(selectedAtFocus).toBe('true');
+    expect(container.querySelector('#settings-panel-translation')).not.toHaveAttribute('hidden');
+
+    act(() => {
+      tabs[1].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'End' }));
+    });
+
+    expect(tabs[5]).toHaveAttribute('aria-selected', 'true');
+    expect(document.activeElement).toBe(tabs[5]);
+
+    act(() => {
+      tabs[5].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+    });
+
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    expect(document.activeElement).toBe(tabs[0]);
   });
 });

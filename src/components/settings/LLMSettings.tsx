@@ -339,7 +339,7 @@ export const LLMSettings: React.FC = () => {
       <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between">
           <div>
-            <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{llmMessages.streaming.title}</h3>
+            <h3 id="llm-streaming-heading" className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{llmMessages.streaming.title}</h3>
             <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {llmMessages.streaming.description}
             </p>
@@ -348,9 +348,10 @@ export const LLMSettings: React.FC = () => {
             type="button"
             role="switch"
             aria-checked={useStreaming}
+            aria-labelledby="llm-streaming-heading"
             disabled={isLocked}
             onClick={() => setUseStreaming(!useStreaming)}
-            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
               useStreaming ? 'bg-blue-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
             }`}
           >

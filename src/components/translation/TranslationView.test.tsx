@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranslationView } from './TranslationView';
+import { Toast } from '../common/Toast';
 import { messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useSeriesStore } from '../../stores/seriesStore';
@@ -119,6 +120,7 @@ describe('TranslationView', () => {
       watchlistLoaded: true,
       watchlistError: null,
       watchlistBadgeCount: 0,
+      batchProgress: null,
     });
 
     useTranslationStore.setState({
@@ -286,5 +288,185 @@ describe('TranslationView', () => {
     expect(layout?.className).not.toContain('md:grid-cols-2');
     expect(container.textContent).toContain('2화');
     expect(container.textContent).toContain('번역 제목');
+  });
+
+  it('announces translation start once and exposes visible progress values without paragraph live regions', async () => {
+    useTranslationStore.setState({
+      isTranslating: true,
+      translatedCount: 1,
+      paragraphIds: ['p-1', 'p-2'],
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    const status = container.querySelector('[role="status"]');
+    const progress = container.querySelector('[role="progressbar"]');
+    expect(status?.textContent).toContain('번역 중');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(progress).toHaveAttribute('aria-label', '번역 진행률');
+    expect(progress).toHaveAttribute('aria-valuenow', '1');
+    expect(progress).toHaveAttribute('aria-valuemax', '2');
+    expect(container.querySelectorAll('[aria-live]').length).toBe(1);
+  });
+
+  it('defers batch announcement ownership to the global header status', async () => {
+    useTranslationStore.setState({
+      isTranslating: true,
+      translatedCount: 1,
+      paragraphIds: ['p-1', 'p-2'],
+    });
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 1,
+        total_chapters: 2,
+        chapter_title: '제1화',
+        status: 'translating',
+      },
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    const actionLabels = Array.from(container.querySelectorAll('button')).map((button) => button.textContent);
+    expect(actionLabels).toContain(messages.translation.translation.stop);
+    expect(actionLabels).not.toContain(messages.translation.navigation.prevChapter);
+    expect(actionLabels).not.toContain(messages.translation.navigation.nextChapter);
+  });
+
+  it('keeps batch stopping announcements owned by the global header', async () => {
+    let resolveStop!: () => void;
+    const stopPromise = new Promise<void>((resolve) => {
+      resolveStop = resolve;
+    });
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') return getSettingsResponse;
+      if (command === 'stop_translation') {
+        await stopPromise;
+        return null;
+      }
+      return null;
+    });
+    useTranslationStore.setState({ isTranslating: true });
+    useSeriesStore.setState({
+      batchProgress: {
+        current_chapter: 1,
+        total_chapters: 2,
+        chapter_title: '제1화',
+        status: 'translating',
+      },
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    const stopButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === messages.translation.translation.stop,
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      stopButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(stopButton).toHaveAttribute('aria-busy', 'true');
+    expect(container.querySelector('[role="status"]')).toBeNull();
+
+    await act(async () => {
+      resolveStop();
+      await stopPromise;
+    });
+  });
+
+  it('keeps translation progress indeterminate until paragraph IDs are available', async () => {
+    useTranslationStore.setState({
+      isTranslating: true,
+      translatedCount: 0,
+      paragraphIds: [],
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    const progress = container.querySelector('[role="progressbar"]');
+    expect(progress).not.toHaveAttribute('aria-valuenow');
+    expect(progress).not.toHaveAttribute('aria-valuemax');
+  });
+
+  it('keeps a polite stopping announcement until the stop command clears translation state', async () => {
+    let resolveStop!: () => void;
+    const stopPromise = new Promise<void>((resolve) => {
+      resolveStop = resolve;
+    });
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') return getSettingsResponse;
+      if (command === 'stop_translation') {
+        await stopPromise;
+        return null;
+      }
+      return null;
+    });
+    useTranslationStore.setState({ isTranslating: true });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+    });
+
+    const stopButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('번역 중지'),
+    ) as HTMLButtonElement;
+    expect(stopButton).toBeTruthy();
+
+    await act(async () => {
+      stopButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(stopButton).toHaveAttribute('aria-busy', 'true');
+    expect(stopButton).toBeDisabled();
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('중지');
+
+    await act(async () => {
+      resolveStop();
+      await stopPromise;
+      useTranslationStore.setState({ isTranslating: false });
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('leaves terminal success and failure announcements to exactly one global toast', async () => {
+    useTranslationStore.setState({ isTranslating: false });
+    useUIStore.setState({
+      toast: { message: '번역 완료', type: 'success' },
+    });
+
+    await act(async () => {
+      root.render(
+        <>
+          <TranslationView />
+          <Toast />
+        </>,
+      );
+    });
+
+    expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(document.body.querySelector('[role="status"]')?.textContent).toContain('번역 완료');
+
+    act(() => {
+      useUIStore.setState({
+        toast: { message: '번역 실패', detail: '제공자 오류', type: 'error' },
+      });
+    });
+
+    expect(document.body.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(0);
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('제공자 오류');
   });
 });

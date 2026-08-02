@@ -35,12 +35,15 @@ export const seriesMessages = {
   batchTranslation: {
     dialogLabel: 'Batch translation progress',
     status: {
+      pending: 'Pending',
       paused: 'Paused',
       error: 'Error',
       completed: 'Completed',
+      stopped: 'Stopped',
       translating: 'Translating...',
     },
     title: (statusText: string) => `Batch translation ${statusText}`,
+    failedChapters: (count: number) => `${count} chapters failed to translate.`,
     progressLabel: 'Progress',
     chapterProgress: (current: number, total: number) => `${current} / ${total} chapters`,
     percentComplete: (percentage: number) => `${percentage}% complete`,

@@ -300,6 +300,30 @@ describe('LLMSettings', () => {
     expect(streamingToggle).not.toBeDisabled();
   });
 
+  it('names the streaming switch from its visible heading and exposes a focus-visible ring', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') {
+        return unlockedSettings;
+      }
+
+      return undefined;
+    });
+
+    await act(async () => {
+      root.render(<LLMSettings />);
+      await Promise.resolve();
+    });
+
+    const streamingHeading = Array.from(container.querySelectorAll('h3')).find((heading) =>
+      heading.textContent?.includes('스트리밍 모드'),
+    );
+    const streamingToggle = container.querySelector('button[role="switch"]');
+
+    expect(streamingHeading).toHaveAttribute('id', 'llm-streaming-heading');
+    expect(streamingToggle).toHaveAttribute('aria-labelledby', 'llm-streaming-heading');
+    expect(streamingToggle?.className).toContain('focus-visible:ring-2');
+  });
+
   it('propagates the managed lock into the modal surfaces after load', async () => {
     let resolveSettings!: (value: typeof managedSettings) => void;
     const settingsPromise = new Promise<typeof managedSettings>((resolve) => {
