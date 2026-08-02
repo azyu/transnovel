@@ -213,4 +213,57 @@ describe('UrlInput', () => {
     expect(input.value).toBe('https://new.example.com/free-form');
     expect(input).toHaveAttribute('aria-expanded', 'false');
   });
+  it('blocks translation while configuration is unavailable, explains why, and unblocks live', async () => {
+    const blockedReasonId = 'translation-llm-config-status';
+
+    await act(async () => {
+      root.render(
+        <>
+          <UrlInput
+            historyKey="test_url_history"
+            translationEnabled={false}
+            submissionBlockedReasonId={blockedReasonId}
+          />
+          <p id={blockedReasonId}>LLM settings are being checked.</p>
+        </>
+      );
+    });
+
+    const input = container.querySelector('input') as HTMLInputElement;
+    const loadButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === '불러오기',
+    ) as HTMLButtonElement;
+    const form = container.querySelector('form');
+
+    expect(input).not.toBeDisabled();
+    expect(input).toHaveAttribute('aria-describedby', blockedReasonId);
+    expect(loadButton).toBeDisabled();
+    expect(loadButton).toHaveAttribute('aria-describedby', blockedReasonId);
+
+    await act(async () => {
+      form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+    expect(parseAndTranslateMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.render(
+        <>
+          <UrlInput historyKey="test_url_history" translationEnabled />
+        </>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector(`#${blockedReasonId}`)).toBeNull();
+    expect(input).not.toHaveAttribute('aria-describedby');
+    expect(loadButton).not.toBeDisabled();
+    expect(loadButton).not.toHaveAttribute('aria-describedby');
+
+    await act(async () => {
+      form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+    expect(parseAndTranslateMock).toHaveBeenCalledWith('https://example.com/novel/1');
+  });
 });

@@ -63,6 +63,8 @@ export const translationMessages = {
   llmConfig: {
     requiredTitle: 'LLM setup required',
     requiredDescription: 'Register a provider and select a model first.',
+    openSettings: 'Open LLM settings',
+    checking: 'Checking LLM settings...',
   },
   saveModal: {
     title: 'Save translation',

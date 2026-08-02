@@ -14,11 +14,28 @@ const baseSettings = [
   { key: 'llm_providers', value: JSON.stringify([{ id: 'provider-1' }]) },
 ];
 
-let getSettingsResponse: { key: string; value: string }[] = baseSettings;
+let urlInputProps:
+  | { translationEnabled?: boolean; submissionBlockedReasonId?: string }
+  | null = null;
 let characterDictionaryModalProps:
   | { title: string; description: string; saveLabel: string }
   | null = null;
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+const flushAsync = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
+let getSettingsResponse: { key: string; value: string }[] = baseSettings;
 const invokeMock = vi.fn(async (command: string) => {
   if (command === 'get_settings') {
     return getSettingsResponse;
@@ -36,7 +53,10 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }));
 
 vi.mock('./UrlInput', () => ({
-  UrlInput: () => <div data-testid="url-input" />,
+  UrlInput: (props: { translationEnabled?: boolean; submissionBlockedReasonId?: string }) => {
+    urlInputProps = props;
+    return <div data-testid="url-input" />;
+  },
 }));
 
 vi.mock('./ParagraphList', () => ({
@@ -78,6 +98,7 @@ vi.mock('../../hooks/useTranslation', () => ({
 }));
 
 describe('TranslationView', () => {
+
   let container: HTMLDivElement;
   let root: Root;
   let originalNavigationMessages: unknown;
@@ -88,7 +109,15 @@ describe('TranslationView', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     characterDictionaryModalProps = null;
+    urlInputProps = null;
     getSettingsResponse = baseSettings;
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'get_settings') {
+        return getSettingsResponse;
+      }
+
+      return null;
+    });
     originalNavigationMessages = (messages.translation as { navigation?: unknown }).navigation;
     originalDictionaryMessages = (messages.translation as { dictionary?: unknown }).dictionary;
 
@@ -468,5 +497,121 @@ describe('TranslationView', () => {
     expect(document.body.querySelectorAll('[role="alert"]')).toHaveLength(1);
     expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(0);
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('제공자 오류');
+  });
+  it('offers LLM settings recovery when configuration is missing', async () => {
+    getSettingsResponse = [];
+
+    await act(async () => {
+      root.render(<TranslationView />);
+      await flushAsync();
+    });
+
+    const status = container.querySelector('#translation-llm-config-status');
+    const recoveryButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === messages.translation.llmConfig.openSettings,
+    );
+
+    expect(status).toHaveAttribute('role', 'status');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(status?.textContent).toContain(messages.translation.llmConfig.requiredDescription);
+    expect(recoveryButton).toBeTruthy();
+    expect(urlInputProps).toMatchObject({
+      translationEnabled: false,
+      submissionBlockedReasonId: 'translation-llm-config-status',
+    });
+
+    await act(async () => {
+      (recoveryButton as HTMLButtonElement).click();
+    });
+    expect(useUIStore.getState().currentTab).toBe('settings');
+  });
+
+  it('blocks translation while settings changes are being rechecked', async () => {
+    const pendingSettings = createDeferred<{ key: string; value: string }[]>();
+    let settingsRequestCount = 0;
+    invokeMock.mockImplementation((command: string) => {
+      if (command !== 'get_settings') {
+        return Promise.resolve(null);
+      }
+
+      settingsRequestCount += 1;
+      return settingsRequestCount <= 2 ? Promise.resolve(baseSettings) : pendingSettings.promise;
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+      await flushAsync();
+    });
+    expect(settingsRequestCount).toBe(2);
+    expect(urlInputProps).toMatchObject({ translationEnabled: true });
+
+    await act(async () => {
+      window.dispatchEvent(new Event('settings-changed'));
+      await flushAsync();
+    });
+    expect(settingsRequestCount).toBe(3);
+    expect(urlInputProps).toMatchObject({
+      translationEnabled: false,
+      submissionBlockedReasonId: 'translation-llm-config-status',
+    });
+    expect(container.querySelector('#translation-llm-config-status')?.textContent).toContain(
+      messages.translation.llmConfig.checking,
+    );
+
+    await act(async () => {
+      pendingSettings.resolve([]);
+      await pendingSettings.promise;
+      await flushAsync();
+    });
+    expect(urlInputProps).toMatchObject({ translationEnabled: false });
+    expect(container.querySelector('#translation-llm-config-status')?.textContent).toContain(
+      messages.translation.llmConfig.requiredDescription,
+    );
+  });
+  it('keeps a newer valid settings result after an older missing result resolves', async () => {
+    const firstSettingsRequest = createDeferred<{ key: string; value: string }[]>();
+    const secondSettingsRequest = createDeferred<{ key: string; value: string }[]>();
+    let settingsRequestCount = 0;
+    invokeMock.mockImplementation((command: string) => {
+      if (command !== 'get_settings') {
+        return Promise.resolve(null);
+      }
+
+      settingsRequestCount += 1;
+      if (settingsRequestCount === 1) {
+        return Promise.resolve(baseSettings);
+      }
+
+      return settingsRequestCount === 2 ? firstSettingsRequest.promise : secondSettingsRequest.promise;
+    });
+
+    await act(async () => {
+      root.render(<TranslationView />);
+      await flushAsync();
+    });
+    expect(settingsRequestCount).toBe(2);
+    expect(urlInputProps?.translationEnabled).toBe(false);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('settings-changed'));
+      await flushAsync();
+    });
+    expect(settingsRequestCount).toBe(3);
+
+    await act(async () => {
+      secondSettingsRequest.resolve(baseSettings);
+      await secondSettingsRequest.promise;
+      await flushAsync();
+    });
+    expect(container.querySelector('#translation-llm-config-status')).toBeNull();
+    expect(urlInputProps).toMatchObject({ translationEnabled: true });
+
+    await act(async () => {
+      firstSettingsRequest.resolve([]);
+      await firstSettingsRequest.promise;
+      await flushAsync();
+    });
+    expect(container.querySelector('#translation-llm-config-status')).toBeNull();
+    expect(urlInputProps).toMatchObject({ translationEnabled: true });
   });
 });
