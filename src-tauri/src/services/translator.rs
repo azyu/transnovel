@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
@@ -19,6 +20,10 @@ use crate::services::cache::{
     cache_translations, get_cached_translations, translation_context_fingerprint,
     TranslationCacheContext, TranslationContextFingerprintInput,
 };
+use crate::services::chapter_persistence::{
+    persist_translations, TranslationCompletion, TranslationPersistenceContext, TranslationWrite,
+    TranslationWriteMode,
+};
 use crate::services::character_dictionary::{
     format_character_dictionary_note, get_novel_character_dictionary, CharacterDictionaryEntry,
 };
@@ -27,6 +32,112 @@ use crate::services::gemini::GeminiClient;
 use crate::services::openai_compatible::OpenAICompatibleClient;
 use crate::services::paragraph::{encode_paragraph_id, TranslationChunk};
 use crate::services::substitution::SubstitutionService;
+
+fn build_translation_writes(
+    paragraphs: &[String],
+    results: &[String],
+    has_subtitle: bool,
+    original_indices: Option<&[usize]>,
+) -> (TranslationWriteMode, Vec<TranslationWrite>) {
+    let body_offset = if has_subtitle { 2 } else { 1 };
+
+    if let Some(indices) = original_indices {
+        let writes = indices
+            .iter()
+            .copied()
+            .zip(paragraphs)
+            .filter(|(original_index, _)| *original_index >= body_offset)
+            .map(|(original_index, original_text)| {
+                let body_index = original_index - body_offset;
+                results
+                    .get(original_index)
+                    .filter(|translation| !translation.is_empty())
+                    .map_or_else(
+                        || TranslationWrite::failed(body_index, original_text),
+                        |translation| {
+                            TranslationWrite::success(body_index, original_text, translation)
+                        },
+                    )
+            })
+            .collect();
+        return (TranslationWriteMode::Retry, writes);
+    }
+
+    let writes = paragraphs
+        .iter()
+        .enumerate()
+        .skip(body_offset)
+        .map(|(original_index, original_text)| {
+            let body_index = original_index - body_offset;
+            results
+                .get(original_index)
+                .filter(|translation| !translation.is_empty())
+                .map_or_else(
+                    || TranslationWrite::failed(body_index, original_text),
+                    |translation| TranslationWrite::success(body_index, original_text, translation),
+                )
+        })
+        .collect();
+    (
+        TranslationWriteMode::Full {
+            body_length: paragraphs.len().saturating_sub(body_offset),
+        },
+        writes,
+    )
+}
+
+pub struct StreamingTranslationRequest<'a> {
+    pub site: &'a str,
+    pub novel_id: &'a str,
+    pub paragraphs: &'a [String],
+    pub has_subtitle: bool,
+    pub note: Option<&'a str>,
+    pub original_indices: Option<Vec<usize>>,
+    pub chapter_number: Option<u32>,
+    pub content_hash: Option<&'a str>,
+    pub canonical_result_length: Option<usize>,
+}
+
+struct StreamingPersistenceContext<'a> {
+    site: &'a str,
+    novel_id: &'a str,
+    chapter_number: Option<u32>,
+    content_hash: Option<&'a str>,
+    paragraphs: &'a [String],
+    results: &'a [String],
+    has_subtitle: bool,
+    original_indices: Option<&'a [usize]>,
+    model_used: &'a str,
+    completion: TranslationCompletion,
+}
+
+async fn persist_streaming_results(context: StreamingPersistenceContext<'_>) -> Result<(), String> {
+    let Some(chapter_number) = context.chapter_number else {
+        return Ok(());
+    };
+    let content_hash = context
+        .content_hash
+        .ok_or_else(|| "챕터 원문 버전이 없어 번역 결과를 저장할 수 없습니다.".to_string())?;
+    let (mode, writes) = build_translation_writes(
+        context.paragraphs,
+        context.results,
+        context.has_subtitle,
+        context.original_indices,
+    );
+    persist_translations(
+        TranslationPersistenceContext {
+            site: context.site,
+            novel_id: context.novel_id,
+            chapter_number,
+            expected_content_hash: content_hash,
+            model_used: context.model_used,
+            completion: context.completion,
+        },
+        mode,
+        &writes,
+    )
+    .await
+}
 
 #[derive(Clone, Serialize)]
 pub struct DebugCacheEvent {
@@ -255,20 +366,23 @@ impl TranslatorService {
         .collect::<String>();
         let client = match settings.provider_type.as_str() {
             "gemini" => {
-                let key = settings.api_key
-                    .ok_or("Gemini API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
+                let key = settings.api_key.ok_or(
+                    "Gemini API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.",
+                )?;
                 ApiClient::Gemini(GeminiClient::new(vec![key], settings.model.clone()))
             }
             "openrouter" => {
-                let key = settings.api_key
-                    .ok_or("OpenRouter API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
+                let key = settings.api_key.ok_or(
+                    "OpenRouter API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.",
+                )?;
                 ApiClient::OpenAICompatible(OpenAICompatibleClient::new_openrouter(
                     key,
                     settings.model.clone(),
                 ))
             }
             "anthropic" | "openai" | "custom" => {
-                let key = settings.api_key
+                let key = settings
+                    .api_key
                     .ok_or("API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.")?;
                 ApiClient::OpenAICompatible(OpenAICompatibleClient::new_with_base_url(
                     key,
@@ -279,13 +393,17 @@ impl TranslatorService {
                 ))
             }
             "openai-oauth" => {
-                let provider_id = settings.provider_id
+                let provider_id = settings
+                    .provider_id
                     .ok_or("OpenAI OAuth 프로바이더를 찾을 수 없습니다.")?;
-                let fresh_token = crate::services::openai_oauth::ensure_valid_token(&provider_id).await?;
+                let fresh_token =
+                    crate::services::openai_oauth::ensure_valid_token(&provider_id).await?;
                 ApiClient::Codex(CodexClient::new(fresh_token, settings.model.clone()))
             }
             _ => {
-                return Err("사용할 모델이 설정되지 않았습니다. 설정에서 모델을 추가해주세요.".to_string());
+                return Err(
+                    "사용할 모델이 설정되지 않았습니다. 설정에서 모델을 추가해주세요.".to_string(),
+                );
             }
         };
         Ok(Self {
@@ -332,8 +450,8 @@ impl TranslatorService {
         );
         let prompt = self.system_prompt.replace("{{note}}", &full_note);
         let (provider, model) = self.provider_identity();
-        let context_fingerprint = translation_context_fingerprint(
-            TranslationContextFingerprintInput {
+        let context_fingerprint =
+            translation_context_fingerprint(TranslationContextFingerprintInput {
                 provider,
                 model,
                 system_prompt: &self.system_prompt,
@@ -342,14 +460,12 @@ impl TranslatorService {
                 additional_note,
                 substitutions: &self.substitutions,
                 has_subtitle,
-            },
-        );
+            });
         (
             prompt,
             TranslationCacheContext::new(site, novel_id, &context_fingerprint),
         )
     }
-
 
     pub async fn translate_paragraphs(
         &mut self,
@@ -386,22 +502,53 @@ impl TranslatorService {
 
         if !uncached_paragraphs.is_empty() {
             let translated = match &mut self.client {
-                ApiClient::Gemini(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
-                ApiClient::OpenAICompatible(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
-                ApiClient::Codex(client) => client.translate(&uncached_paragraphs, &uncached_indices, has_subtitle, &prompt).await?,
+                ApiClient::Gemini(client) => {
+                    client
+                        .translate(
+                            &uncached_paragraphs,
+                            &uncached_indices,
+                            has_subtitle,
+                            &prompt,
+                        )
+                        .await?
+                }
+                ApiClient::OpenAICompatible(client) => {
+                    client
+                        .translate(
+                            &uncached_paragraphs,
+                            &uncached_indices,
+                            has_subtitle,
+                            &prompt,
+                        )
+                        .await?
+                }
+                ApiClient::Codex(client) => {
+                    client
+                        .translate(
+                            &uncached_paragraphs,
+                            &uncached_indices,
+                            has_subtitle,
+                            &prompt,
+                        )
+                        .await?
+                }
             };
-            
+
             let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
-            
+
             let mut pairs: Vec<(String, String)> = Vec::new();
             for (i, trans) in uncached_indices.iter().zip(postprocessed.iter()) {
                 results[*i] = trans.clone();
-                pairs.push((uncached_paragraphs[uncached_indices.iter().position(|x| x == i).unwrap()].clone(), trans.clone()));
+                pairs.push((
+                    uncached_paragraphs[uncached_indices.iter().position(|x| x == i).unwrap()]
+                        .clone(),
+                    trans.clone(),
+                ));
             }
-            
+
             cache_translations(&cache_context, &pairs).await.ok();
         }
-        
+
         Ok(results)
     }
 
@@ -428,17 +575,22 @@ impl TranslatorService {
         Ok(translated.join("\n"))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn translate_paragraphs_streaming<R: tauri::Runtime>(
         &mut self,
-        site: &str,
-        novel_id: &str,
-        paragraphs: &[String],
-        has_subtitle: bool,
-        note: Option<&str>,
-        original_indices: Option<Vec<usize>>,
+        request: StreamingTranslationRequest<'_>,
         app_handle: &AppHandle<R>,
     ) -> Result<Vec<String>, String> {
+        let StreamingTranslationRequest {
+            site,
+            novel_id,
+            paragraphs,
+            has_subtitle,
+            note,
+            original_indices,
+            chapter_number,
+            content_hash: chapter_content_hash,
+            canonical_result_length,
+        } = request;
         if paragraphs.is_empty() {
             return Ok(vec![]);
         }
@@ -448,64 +600,80 @@ impl TranslatorService {
             .build_prompt_and_context(site, novel_id, note, has_subtitle)
             .await;
 
+        let persistence_indices = original_indices.clone();
         // If original_indices provided (retry mode), skip cache and use provided indices
-        let (uncached_indices, uncached_paragraphs, mut results) = if let Some(indices) = original_indices {
-            // Retry mode: no cache check, use provided indices directly
-            let uncached: Vec<String> = preprocessed.clone();
-            let result_len = indices.iter().copied().max().map_or(0, |max_idx| max_idx + 1);
-            let results: Vec<String> = vec![String::new(); result_len];
-            (indices, uncached, results)
-        } else {
-            // Normal mode: check cache
-            let cached = get_cached_translations(&cache_context, &preprocessed)
-                .await
-                .unwrap_or_else(|_| vec![None; preprocessed.len()]);
-
-            let mut uncached_indices: Vec<usize> = Vec::new();
-            let mut uncached_paragraphs: Vec<String> = Vec::new();
-
-            for (i, (p, c)) in preprocessed.iter().zip(cached.iter()).enumerate() {
-                let original_preview: String = p.chars().take(30).collect();
-                let _ = app_handle.emit(
-                    "debug-cache",
-                    DebugCacheEvent {
-                        paragraph_id: encode_paragraph_id(i, has_subtitle),
-                        cache_hit: c.is_some(),
-                        original_preview,
-                    },
-                );
-                
-                if c.is_none() && !p.trim().is_empty() {
-                    uncached_indices.push(i);
-                    uncached_paragraphs.push(p.clone());
+        let (uncached_indices, uncached_paragraphs, mut results) =
+            if let Some(indices) = original_indices {
+                if indices.len() != preprocessed.len() {
+                    return Err("재시도 문단과 원본 색인의 개수가 일치하지 않습니다.".to_string());
                 }
-            }
+                let result_len = canonical_result_length
+                    .ok_or_else(|| "재시도 결과 범위를 확인할 수 없습니다.".to_string())?;
+                let mut seen = HashSet::with_capacity(indices.len());
+                if indices
+                    .iter()
+                    .any(|index| *index >= result_len || !seen.insert(*index))
+                {
+                    return Err("재시도 원본 색인이 유효하지 않습니다.".to_string());
+                }
+                let uncached = preprocessed.clone();
+                let results = vec![String::new(); result_len];
+                (indices, uncached, results)
+            } else {
+                // Normal mode: check cache
+                let cached = get_cached_translations(&cache_context, &preprocessed)
+                    .await
+                    .unwrap_or_else(|_| vec![None; preprocessed.len()]);
 
-            let results: Vec<String> = cached.iter().map(|c| c.clone().unwrap_or_default()).collect();
+                let mut uncached_indices: Vec<usize> = Vec::new();
+                let mut uncached_paragraphs: Vec<String> = Vec::new();
 
-            for (i, cached_text) in cached.iter().enumerate() {
-                if let Some(text) = cached_text {
-                    let postprocessed = self.substitution.apply_to_paragraphs(std::slice::from_ref(text));
+                for (i, (p, c)) in preprocessed.iter().zip(cached.iter()).enumerate() {
+                    let original_preview: String = p.chars().take(30).collect();
                     let _ = app_handle.emit(
-                        "translation-chunk",
-                        TranslationChunk {
+                        "debug-cache",
+                        DebugCacheEvent {
                             paragraph_id: encode_paragraph_id(i, has_subtitle),
-                            text: postprocessed.into_iter().next().unwrap_or_default(),
-                            is_complete: true,
+                            cache_hit: c.is_some(),
+                            original_preview,
                         },
                     );
-                }
-            }
 
-            (uncached_indices, uncached_paragraphs, results)
-        };
+                    if c.is_none() && !p.trim().is_empty() {
+                        uncached_indices.push(i);
+                        uncached_paragraphs.push(p.clone());
+                    }
+                }
+
+                let results: Vec<String> = cached
+                    .iter()
+                    .map(|c| c.clone().unwrap_or_default())
+                    .collect();
+
+                for (i, cached_text) in cached.iter().enumerate() {
+                    if let Some(text) = cached_text {
+                        let postprocessed = self
+                            .substitution
+                            .apply_to_paragraphs(std::slice::from_ref(text));
+                        let _ = app_handle.emit(
+                            "translation-chunk",
+                            TranslationChunk {
+                                paragraph_id: encode_paragraph_id(i, has_subtitle),
+                                text: postprocessed.into_iter().next().unwrap_or_default(),
+                                is_complete: true,
+                            },
+                        );
+                    }
+                }
+
+                (uncached_indices, uncached_paragraphs, results)
+            };
 
         if !uncached_paragraphs.is_empty() {
-
             // Dynamic chunk sizing: send all at once if small enough
             const MAX_SINGLE_BATCH_CHARS: usize = 50_000; // ~50KB threshold
             const FALLBACK_CHUNK_SIZE: usize = 50;
-            
+
             let total_chars: usize = uncached_paragraphs.iter().map(|p| p.len()).sum();
             let chunk_size = if total_chars <= MAX_SINGLE_BATCH_CHARS {
                 uncached_paragraphs.len() // Send all at once
@@ -516,7 +684,7 @@ impl TranslatorService {
             let mut failed_indices: Vec<usize> = Vec::new();
             let mut stopped = false;
             let mut total_usage = TokenUsage::default();
-            
+
             for chunk_idx in 0..chunk_count {
                 let start = chunk_idx * chunk_size;
                 let end = std::cmp::min(start + chunk_size, uncached_paragraphs.len());
@@ -525,7 +693,7 @@ impl TranslatorService {
                     stopped = true;
                     break;
                 }
-                
+
                 let chunk_paragraphs = &uncached_paragraphs[start..end];
                 let chunk_indices = &uncached_indices[start..end];
 
@@ -547,79 +715,81 @@ impl TranslatorService {
                         &mut attempt_context,
                         |context| {
                             Box::pin(async move {
-                                let maybe_translate_result: Result<Option<TranslateAttemptResult>, String> =
-                                    if context.service.use_streaming {
+                                let maybe_translate_result: Result<
+                                    Option<TranslateAttemptResult>,
+                                    String,
+                                > = if context.service.use_streaming {
+                                    match &mut context.service.client {
+                                        ApiClient::Gemini(client) => {
+                                            run_until_stop(client.translate_streaming(
+                                                context.cache_context,
+                                                context.chunk_paragraphs,
+                                                context.chunk_indices,
+                                                context.has_subtitle,
+                                                context.prompt,
+                                                context.app_handle,
+                                            ))
+                                            .await
+                                        }
+                                        ApiClient::OpenAICompatible(client) => {
+                                            run_until_stop(client.translate_streaming(
+                                                context.cache_context,
+                                                context.chunk_paragraphs,
+                                                context.chunk_indices,
+                                                context.has_subtitle,
+                                                context.prompt,
+                                                context.app_handle,
+                                            ))
+                                            .await
+                                        }
+                                        ApiClient::Codex(client) => {
+                                            run_until_stop(client.translate_streaming(
+                                                context.cache_context,
+                                                context.chunk_paragraphs,
+                                                context.chunk_indices,
+                                                context.has_subtitle,
+                                                context.prompt,
+                                                context.app_handle,
+                                            ))
+                                            .await
+                                        }
+                                    }
+                                } else {
+                                    let result: Result<Option<Vec<String>>, String> =
                                         match &mut context.service.client {
                                             ApiClient::Gemini(client) => {
-                                                run_until_stop(client.translate_streaming(
-                                                    context.cache_context,
+                                                run_until_stop(client.translate(
                                                     context.chunk_paragraphs,
                                                     context.chunk_indices,
                                                     context.has_subtitle,
                                                     context.prompt,
-                                                    context.app_handle,
                                                 ))
                                                 .await
                                             }
                                             ApiClient::OpenAICompatible(client) => {
-                                                run_until_stop(client.translate_streaming(
-                                                    context.cache_context,
+                                                run_until_stop(client.translate(
                                                     context.chunk_paragraphs,
                                                     context.chunk_indices,
                                                     context.has_subtitle,
                                                     context.prompt,
-                                                    context.app_handle,
                                                 ))
                                                 .await
                                             }
                                             ApiClient::Codex(client) => {
-                                                run_until_stop(client.translate_streaming(
-                                                    context.cache_context,
+                                                run_until_stop(client.translate(
                                                     context.chunk_paragraphs,
                                                     context.chunk_indices,
                                                     context.has_subtitle,
                                                     context.prompt,
-                                                    context.app_handle,
                                                 ))
                                                 .await
                                             }
-                                        }
-                                    } else {
-                                        let result: Result<Option<Vec<String>>, String> =
-                                            match &mut context.service.client {
-                                                ApiClient::Gemini(client) => {
-                                                    run_until_stop(client.translate(
-                                                        context.chunk_paragraphs,
-                                                        context.chunk_indices,
-                                                        context.has_subtitle,
-                                                        context.prompt,
-                                                    ))
-                                                    .await
-                                                }
-                                                ApiClient::OpenAICompatible(client) => {
-                                                    run_until_stop(client.translate(
-                                                        context.chunk_paragraphs,
-                                                        context.chunk_indices,
-                                                        context.has_subtitle,
-                                                        context.prompt,
-                                                    ))
-                                                    .await
-                                                }
-                                                ApiClient::Codex(client) => {
-                                                    run_until_stop(client.translate(
-                                                        context.chunk_paragraphs,
-                                                        context.chunk_indices,
-                                                        context.has_subtitle,
-                                                        context.prompt,
-                                                    ))
-                                                    .await
-                                                }
-                                            };
+                                        };
 
-                                        result.map(|maybe_translated| {
-                                            maybe_translated.map(|translated| (translated, None))
-                                        })
-                                    };
+                                    result.map(|maybe_translated| {
+                                        maybe_translated.map(|translated| (translated, None))
+                                    })
+                                };
 
                                 maybe_translate_result
                             })
@@ -650,23 +820,24 @@ impl TranslatorService {
                     Err(error) => Err(error),
                 };
 
-                    match translate_result {
-                        Ok((translated, usage)) => {
-                            if let Some(u) = usage {
-                                total_usage.input_tokens += u.input_tokens;
-                                total_usage.output_tokens += u.output_tokens;
-                            }
-                            let postprocessed: Vec<String> = self.substitution.apply_to_paragraphs(&translated);
-                            let mut chunk_failed_indices: Vec<usize> = Vec::new();
-                            let mut pairs: Vec<(String, String)> = Vec::new();
+                match translate_result {
+                    Ok((translated, usage)) => {
+                        if let Some(u) = usage {
+                            total_usage.input_tokens += u.input_tokens;
+                            total_usage.output_tokens += u.output_tokens;
+                        }
+                        let postprocessed: Vec<String> =
+                            self.substitution.apply_to_paragraphs(&translated);
+                        let mut chunk_failed_indices: Vec<usize> = Vec::new();
+                        let mut pairs: Vec<(String, String)> = Vec::new();
 
-                            if postprocessed.len() < chunk_indices.len() {
-                                let missing_count = chunk_indices.len() - postprocessed.len();
-                                eprintln!(
+                        if postprocessed.len() < chunk_indices.len() {
+                            let missing_count = chunk_indices.len() - postprocessed.len();
+                            eprintln!(
                                     "[Translator] Output truncated: expected {} paragraphs, got {} ({} missing)",
                                     chunk_indices.len(), postprocessed.len(), missing_count
                                 );
-                                let _ = app_handle.emit("debug-api", serde_json::json!({
+                            let _ = app_handle.emit("debug-api", serde_json::json!({
                                     "type": "warning",
                                     "provider": "translator",
                                     "status": 0,
@@ -675,64 +846,70 @@ impl TranslatorService {
                                         chunk_indices.len(), postprocessed.len(), missing_count
                                     )
                                 }));
-                            }
+                        }
 
-                            for (local_idx, &orig_idx) in chunk_indices.iter().enumerate() {
-                                if local_idx < postprocessed.len() {
-                                    let trans = &postprocessed[local_idx];
-                                    
-                                    if trans.is_empty() && !chunk_paragraphs[local_idx].is_empty() {
-                                        chunk_failed_indices.push(orig_idx);
-                                        eprintln!(
+                        for (local_idx, &orig_idx) in chunk_indices.iter().enumerate() {
+                            if local_idx < postprocessed.len() {
+                                let trans = &postprocessed[local_idx];
+
+                                if trans.is_empty() && !chunk_paragraphs[local_idx].is_empty() {
+                                    chunk_failed_indices.push(orig_idx);
+                                    eprintln!(
                                             "[Translator] Empty result for paragraph {} (stream likely interrupted)",
                                             encode_paragraph_id(orig_idx, has_subtitle)
                                         );
-                                    } else if !trans.is_empty() {
-                                        results[orig_idx] = trans.clone();
-                                        pairs.push((chunk_paragraphs[local_idx].clone(), trans.clone()));
-                                        
-                                        if !self.use_streaming {
-                                            let _ = app_handle.emit(
-                                                "translation-chunk",
-                                                TranslationChunk {
-                                                    paragraph_id: encode_paragraph_id(orig_idx, has_subtitle),
-                                                    text: trans.clone(),
-                                                    is_complete: true,
-                                                },
-                                            );
-                                        }
+                                } else if !trans.is_empty() {
+                                    results[orig_idx] = trans.clone();
+                                    pairs
+                                        .push((chunk_paragraphs[local_idx].clone(), trans.clone()));
+
+                                    if !self.use_streaming {
+                                        let _ = app_handle.emit(
+                                            "translation-chunk",
+                                            TranslationChunk {
+                                                paragraph_id: encode_paragraph_id(
+                                                    orig_idx,
+                                                    has_subtitle,
+                                                ),
+                                                text: trans.clone(),
+                                                is_complete: true,
+                                            },
+                                        );
                                     }
-                                } else {
-                                    chunk_failed_indices.push(orig_idx);
                                 }
+                            } else {
+                                chunk_failed_indices.push(orig_idx);
                             }
-
-                            if !pairs.is_empty() {
-                                cache_translations(&cache_context, &pairs).await.ok();
-                            }
-
-                            if !chunk_failed_indices.is_empty() {
-                                failed_indices.extend(chunk_failed_indices);
-                            }
-                            success = true;
                         }
-                        Err(e) => {
-                            last_error = Some(e);
+
+                        if !pairs.is_empty() {
+                            cache_translations(&cache_context, &pairs).await.ok();
                         }
+
+                        if !chunk_failed_indices.is_empty() {
+                            failed_indices.extend(chunk_failed_indices);
+                        }
+                        success = true;
                     }
+                    Err(e) => {
+                        last_error = Some(e);
+                    }
+                }
 
                 if stopped {
                     break;
                 }
 
                 if !success {
-                    let error_msg = last_error.clone().unwrap_or_else(|| "Unknown error".to_string());
+                    let error_msg = last_error
+                        .clone()
+                        .unwrap_or_else(|| "Unknown error".to_string());
                     eprintln!("[Translator] Chunk {} failed: {}", chunk_idx + 1, error_msg);
                     failed_indices.extend(chunk_indices.iter().cloned());
-                    
-                    let (error_type, title, message) = if error_msg.contains("input_tokens=0") 
+
+                    let (error_type, title, message) = if error_msg.contains("input_tokens=0")
                         || error_msg.contains("\"input_tokens\": 0")
-                        || error_msg.contains("input_tokens\": 0") 
+                        || error_msg.contains("input_tokens\": 0")
                     {
                         (
                             "content_filtered",
@@ -740,73 +917,138 @@ impl TranslatorService {
                             "AI 제공자의 정책에 의해 해당 내용이 차단되었습니다. 다른 모델을 시도해보세요.".to_string()
                         )
                     } else if error_msg.contains("API 오류") {
-                        (
-                            "api_error",
-                            "API 오류",
-                            error_msg.clone()
-                        )
+                        ("api_error", "API 오류", error_msg.clone())
                     } else {
-                        (
-                            "unknown",
-                            "번역 오류",
-                            error_msg.clone()
-                        )
+                        ("unknown", "번역 오류", error_msg.clone())
                     };
-                    
-                    let request_preview: String = chunk_paragraphs.iter()
+
+                    let request_preview: String = chunk_paragraphs
+                        .iter()
                         .take(3)
                         .map(|p| {
                             let preview: String = p.chars().take(50).collect();
-                            if p.len() > 50 { format!("{}...", preview) } else { preview }
+                            if p.len() > 50 {
+                                format!("{}...", preview)
+                            } else {
+                                preview
+                            }
                         })
                         .collect::<Vec<_>>()
                         .join(" | ");
-                    
-                    let _ = app_handle.emit("translation-error", serde_json::json!({
-                        "error_type": error_type,
-                        "title": title,
-                        "message": message,
-                        "request_preview": request_preview,
-                        "response_preview": error_msg
-                    }));
+
+                    let _ = app_handle.emit(
+                        "translation-error",
+                        serde_json::json!({
+                            "error_type": error_type,
+                            "title": title,
+                            "message": message,
+                            "request_preview": request_preview,
+                            "response_preview": error_msg
+                        }),
+                    );
                 }
             }
 
+            let stopped = stopped || should_stop_translation();
             if stopped {
-                let _ = app_handle.emit("translation-complete", serde_json::json!({
-                    "success": false,
-                    "total": paragraphs.len(),
-                    "failed_count": 0,
-                    "input_tokens": total_usage.input_tokens,
-                    "output_tokens": total_usage.output_tokens,
-                    "stopped": true
-                }));
+                let model_used = self.provider_identity().1.to_string();
+                persist_streaming_results(StreamingPersistenceContext {
+                    site,
+                    novel_id,
+                    chapter_number,
+                    content_hash: chapter_content_hash,
+                    paragraphs,
+                    results: &results,
+                    has_subtitle,
+                    original_indices: persistence_indices.as_deref(),
+                    model_used: &model_used,
+                    completion: TranslationCompletion::Clear,
+                })
+                .await?;
+                let _ = app_handle.emit(
+                    "translation-complete",
+                    serde_json::json!({
+                        "success": false,
+                        "total": paragraphs.len(),
+                        "failed_count": 0,
+                        "input_tokens": total_usage.input_tokens,
+                        "output_tokens": total_usage.output_tokens,
+                        "stopped": true
+                    }),
+                );
                 return Ok(results);
             }
 
             if !failed_indices.is_empty() {
-                let _ = app_handle.emit("translation-failed-paragraphs", serde_json::json!({
-                    "failed_indices": failed_indices,
-                    "total": paragraphs.len()
-                }));
+                let _ = app_handle.emit(
+                    "translation-failed-paragraphs",
+                    serde_json::json!({
+                        "failed_indices": failed_indices,
+                        "total": paragraphs.len()
+                    }),
+                );
             }
-            
+
+            let model_used = self.provider_identity().1.to_string();
+            persist_streaming_results(StreamingPersistenceContext {
+                site,
+                novel_id,
+                chapter_number,
+                content_hash: chapter_content_hash,
+                paragraphs,
+                results: &results,
+                has_subtitle,
+                original_indices: persistence_indices.as_deref(),
+                model_used: &model_used,
+                completion: if failed_indices.is_empty() {
+                    TranslationCompletion::MarkIfComplete
+                } else {
+                    TranslationCompletion::Clear
+                },
+            })
+            .await?;
             let all_success = failed_indices.is_empty();
-            let _ = app_handle.emit("translation-complete", serde_json::json!({
-                "success": all_success,
-                "total": paragraphs.len(),
-                "failed_count": failed_indices.len(),
-                "input_tokens": total_usage.input_tokens,
-                "output_tokens": total_usage.output_tokens
-            }));
+            let _ = app_handle.emit(
+                "translation-complete",
+                serde_json::json!({
+                    "success": all_success,
+                    "total": paragraphs.len(),
+                    "failed_count": failed_indices.len(),
+                    "input_tokens": total_usage.input_tokens,
+                    "output_tokens": total_usage.output_tokens
+                }),
+            );
         } else {
-            let _ = app_handle.emit("translation-complete", serde_json::json!({
-                "success": true,
-                "total": paragraphs.len(),
-                "failed_count": 0,
-                "input_tokens": 0,
-                "output_tokens": 0
-            }));
+            let stopped = should_stop_translation();
+            let model_used = self.provider_identity().1.to_string();
+            persist_streaming_results(StreamingPersistenceContext {
+                site,
+                novel_id,
+                chapter_number,
+                content_hash: chapter_content_hash,
+                paragraphs,
+                results: &results,
+                has_subtitle,
+                original_indices: persistence_indices.as_deref(),
+                model_used: &model_used,
+                completion: if stopped {
+                    TranslationCompletion::Clear
+                } else {
+                    TranslationCompletion::MarkIfComplete
+                },
+            })
+            .await?;
+            let _ = app_handle.emit(
+                "translation-complete",
+                serde_json::json!({
+                    "success": !stopped,
+                    "total": paragraphs.len(),
+                    "failed_count": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "stopped": stopped
+                }),
+            );
         }
 
         Ok(results)
@@ -822,6 +1064,10 @@ impl TranslatorService {
             translated: vec![],
             model_used: "gemini-2.0-flash".to_string(),
         })
+    }
+
+    pub fn model_name(&self) -> &str {
+        self.provider_identity().1
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -887,9 +1133,12 @@ fn build_translator_settings_from_records(
         .find(|model| model.id == active_model_id)
         .ok_or_else(|| "활성 모델을 찾을 수 없습니다. 설정을 다시 확인해주세요.".to_string())?;
 
-    let provider = providers.iter().find(|provider| provider.id == active_model.provider_id).ok_or_else(|| {
-        "활성 모델의 프로바이더를 찾을 수 없습니다. 설정을 다시 확인해주세요.".to_string()
-    })?;
+    let provider = providers
+        .iter()
+        .find(|provider| provider.id == active_model.provider_id)
+        .ok_or_else(|| {
+            "활성 모델의 프로바이더를 찾을 수 없습니다. 설정을 다시 확인해주세요.".to_string()
+        })?;
 
     Ok(TranslatorSettings {
         system_prompt: get_setting("system_prompt")
@@ -1033,7 +1282,9 @@ fn sanitize_character_dictionary_candidates(
         .collect()
 }
 
-fn parse_character_dictionary_candidates(text: &str) -> Result<Vec<CharacterDictionaryEntry>, String> {
+fn parse_character_dictionary_candidates(
+    text: &str,
+) -> Result<Vec<CharacterDictionaryEntry>, String> {
     let normalized = text
         .trim()
         .trim_start_matches("```json")
@@ -1060,6 +1311,67 @@ mod tests {
     use super::*;
     use crate::commands::series::{reset_translation_control_flags, stop_translation};
     use crate::commands::settings::Setting;
+
+    #[test]
+    fn full_persistence_mapping_excludes_title_and_optional_subtitle() {
+        let with_subtitle = build_translation_writes(
+            &["제목", "부제", "본문 1", "본문 2"].map(str::to_string),
+            &["title", "subtitle", "body 1", "body 2"].map(str::to_string),
+            true,
+            None,
+        );
+        assert_eq!(
+            with_subtitle,
+            (
+                TranslationWriteMode::Full { body_length: 2 },
+                vec![
+                    TranslationWrite::success(0, "본문 1", "body 1"),
+                    TranslationWrite::success(1, "본문 2", "body 2"),
+                ],
+            )
+        );
+
+        let without_subtitle = build_translation_writes(
+            &["제목", "본문 1"].map(str::to_string),
+            &["title", "body 1"].map(str::to_string),
+            false,
+            None,
+        );
+        assert_eq!(
+            without_subtitle,
+            (
+                TranslationWriteMode::Full { body_length: 1 },
+                vec![TranslationWrite::success(0, "본문 1", "body 1")],
+            )
+        );
+    }
+
+    #[test]
+    fn retry_persistence_mapping_uses_original_indices_for_body_rows() {
+        let mapping = build_translation_writes(
+            &["제목", "원래 본문 2", "원래 본문 3"].map(str::to_string),
+            &[
+                "title translation".to_string(),
+                String::new(),
+                String::new(),
+                "body 2 translation".to_string(),
+                String::new(),
+            ],
+            true,
+            Some(&[0, 3, 4]),
+        );
+
+        assert_eq!(
+            mapping,
+            (
+                TranslationWriteMode::Retry,
+                vec![
+                    TranslationWrite::success(1, "원래 본문 2", "body 2 translation"),
+                    TranslationWrite::failed(2, "원래 본문 3"),
+                ],
+            )
+        );
+    }
 
     #[test]
     fn retry_transport_errors_are_retryable() {
@@ -1235,8 +1547,7 @@ mod tests {
             Ok(Some("should not run")),
         ];
         let mut waits = Vec::new();
-        let stop_requested =
-            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop_requested = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let stop_for_wait = std::sync::Arc::clone(&stop_requested);
         let stop_for_check = std::sync::Arc::clone(&stop_requested);
 
@@ -1340,8 +1651,11 @@ mod tests {
         )
         .unwrap();
 
-        assert!(prompt.contains("원문 표기 바로 옆에 후리가나/루비/요미가나가 명시된 항목만 추출합니다."));
-        assert!(prompt.contains("일반 명사, 직책명, 수식어, 기술명, 종족명, 일시적 표현은 제외합니다."));
+        assert!(prompt
+            .contains("원문 표기 바로 옆에 후리가나/루비/요미가나가 명시된 항목만 추출합니다."));
+        assert!(
+            prompt.contains("일반 명사, 직책명, 수식어, 기술명, 종족명, 일시적 표현은 제외합니다.")
+        );
     }
 
     #[test]

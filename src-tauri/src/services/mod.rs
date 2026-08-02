@@ -1,5 +1,6 @@
 pub mod api_logger;
 pub mod cache;
+pub mod chapter_persistence;
 pub mod character_dictionary;
 pub mod codex;
 pub mod gemini;

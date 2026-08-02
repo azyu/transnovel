@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use regex::Regex;
 use scraper::{Html, Selector};
 use serde_json::Value;
+use std::collections::HashSet;
 
 use super::{fetch_html, NovelParser, ParsedUrl};
 use crate::models::novel::{ChapterContent, ChapterInfo, SeriesInfo};
@@ -13,10 +14,8 @@ pub struct KakuyomuParser {
 impl KakuyomuParser {
     pub fn new() -> Self {
         Self {
-            url_pattern: Regex::new(
-                r"https?://kakuyomu\.jp/works/(\d+)(?:/episodes/(\d+))?/?",
-            )
-            .unwrap(),
+            url_pattern: Regex::new(r"https?://kakuyomu\.jp/works/(\d+)(?:/episodes/(\d+))?/?")
+                .unwrap(),
         }
     }
 
@@ -33,10 +32,9 @@ impl KakuyomuParser {
     }
 
     fn extract_next_data_json(html: &str) -> Result<Value, String> {
-        let pattern = Regex::new(
-            r#"<script id="__NEXT_DATA__" type="application/json">(.*?)</script>"#,
-        )
-        .map_err(|e| e.to_string())?;
+        let pattern =
+            Regex::new(r#"<script id="__NEXT_DATA__" type="application/json">(.*?)</script>"#)
+                .map_err(|e| e.to_string())?;
 
         let payload = pattern
             .captures(html)
@@ -93,60 +91,64 @@ impl KakuyomuParser {
             .filter(|value| !value.is_empty())
             .map(ToString::to_string);
 
+        let table_of_contents = work
+            .get("tableOfContentsV2")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "Kakuyomu 목차 데이터가 없습니다.".to_string())?;
         let mut chapters = Vec::new();
-        let mut chapter_number = 1u32;
+        let mut episode_ids = HashSet::new();
 
-        if let Some(table_of_contents) = work.get("tableOfContentsV2").and_then(Value::as_array) {
-            for chapter_entry in table_of_contents {
-                let chapter_ref = chapter_entry
+        for chapter_entry in table_of_contents {
+            let chapter_ref = chapter_entry
+                .as_object()
+                .and_then(|entry| entry.get("__ref"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| "Kakuyomu 목차 참조가 올바르지 않습니다.".to_string())?;
+            let episode_unions = apollo_state
+                .get(chapter_ref)
+                .and_then(Value::as_object)
+                .and_then(|entry| entry.get("episodeUnions"))
+                .and_then(Value::as_array)
+                .ok_or_else(|| "Kakuyomu 목차의 에피소드 목록을 확인할 수 없습니다.".to_string())?;
+
+            for episode_union in episode_unions {
+                let episode_ref = episode_union
                     .as_object()
                     .and_then(|entry| entry.get("__ref"))
-                    .and_then(Value::as_str);
-
-                let episode_unions = chapter_ref
-                    .and_then(|ref_key| apollo_state.get(ref_key))
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "Kakuyomu 에피소드 참조가 올바르지 않습니다.".to_string())?;
+                let episode = apollo_state
+                    .get(episode_ref)
                     .and_then(Value::as_object)
-                    .and_then(|entry| entry.get("episodeUnions"))
-                    .and_then(Value::as_array);
-
-                if let Some(episode_unions) = episode_unions {
-                    for episode_union in episode_unions {
-                        let episode_ref = episode_union
-                            .as_object()
-                            .and_then(|entry| entry.get("__ref"))
-                            .and_then(Value::as_str);
-                        let Some(episode_ref) = episode_ref else {
-                            continue;
-                        };
-
-                        let episode = apollo_state.get(episode_ref).and_then(Value::as_object);
-                        let Some(episode) = episode else {
-                            continue;
-                        };
-
-                        let episode_id = episode
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .filter(|value| !value.is_empty())
-                            .unwrap_or_else(|| episode_ref.trim_start_matches("Episode:"));
-
-                        let episode_title = episode
-                            .get("title")
-                            .and_then(Value::as_str)
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty())
-                            .map(ToString::to_string);
-
-                        chapters.push(ChapterInfo {
-                            number: chapter_number,
-                            url: format!("https://kakuyomu.jp/works/{novel_id}/episodes/{episode_id}"),
-                            title: episode_title,
-                            status: "pending".to_string(),
-                        });
-                        chapter_number += 1;
-                    }
+                    .ok_or_else(|| "Kakuyomu 에피소드 데이터를 확인할 수 없습니다.".to_string())?;
+                let episode_id = episode
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| episode_ref.trim_start_matches("Episode:"));
+                if episode_id.is_empty() || !episode_ids.insert(episode_id.to_string()) {
+                    return Err("Kakuyomu 목차에 중복되거나 빈 에피소드 ID가 있습니다.".to_string());
                 }
+
+                let episode_title = episode
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(ToString::to_string);
+                let chapter_number = u32::try_from(chapters.len() + 1)
+                    .map_err(|_| "Kakuyomu 챕터 수가 너무 많습니다.".to_string())?;
+                chapters.push(ChapterInfo {
+                    number: chapter_number,
+                    url: format!("https://kakuyomu.jp/works/{novel_id}/episodes/{episode_id}"),
+                    title: episode_title,
+                    status: "pending".to_string(),
+                });
             }
+        }
+
+        if chapters.is_empty() {
+            return Err("Kakuyomu 목차에 에피소드가 없습니다.".to_string());
         }
 
         Ok(SeriesInfo {
@@ -355,11 +357,9 @@ mod tests {
         });
 
         let apollo_state = KakuyomuParser::get_apollo_state(&next_data).expect("apollo state");
-        let series = KakuyomuParser::build_series_info_from_apollo_state(
-            "822139846571948770",
-            apollo_state,
-        )
-        .expect("series info");
+        let series =
+            KakuyomuParser::build_series_info_from_apollo_state("822139846571948770", apollo_state)
+                .expect("series info");
 
         assert_eq!(series.site, "kakuyomu");
         assert_eq!(series.title, "카쿠요무 작품");
@@ -371,5 +371,50 @@ mod tests {
             "https://kakuyomu.jp/works/822139846571948770/episodes/100"
         );
         assert_eq!(series.chapters[2].title.as_deref(), Some("셋째 화"));
+    }
+
+    #[test]
+    fn rejects_incomplete_apollo_episode_references() {
+        let apollo_state = serde_json::json!({
+            "Work:123": {
+                "title": "작품",
+                "tableOfContentsV2": [{ "__ref": "TableOfContentsChapter:1" }]
+            },
+            "TableOfContentsChapter:1": {
+                "episodeUnions": [{ "__ref": "Episode:missing" }]
+            }
+        });
+
+        let error = KakuyomuParser::build_series_info_from_apollo_state(
+            "123",
+            apollo_state.as_object().expect("apollo object"),
+        )
+        .expect_err("missing episode data must fail");
+        assert!(error.contains("에피소드 데이터"));
+    }
+
+    #[test]
+    fn rejects_duplicate_apollo_episode_ids() {
+        let apollo_state = serde_json::json!({
+            "Work:123": {
+                "title": "작품",
+                "tableOfContentsV2": [{ "__ref": "TableOfContentsChapter:1" }]
+            },
+            "TableOfContentsChapter:1": {
+                "episodeUnions": [
+                    { "__ref": "Episode:1" },
+                    { "__ref": "Episode:2" }
+                ]
+            },
+            "Episode:1": { "id": "same", "title": "첫 화" },
+            "Episode:2": { "id": "same", "title": "둘째 화" }
+        });
+
+        let error = KakuyomuParser::build_series_info_from_apollo_state(
+            "123",
+            apollo_state.as_object().expect("apollo object"),
+        )
+        .expect_err("duplicate episode ID must fail");
+        assert!(error.contains("중복"));
     }
 }

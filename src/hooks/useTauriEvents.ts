@@ -15,9 +15,23 @@ export const useTauriEvents = () => {
       setBatchProgress(event.payload);
     });
 
-    const unlistenComplete = listen<{ novel_id: string }>('batch-translation-complete', () => {
+    const unlistenComplete = listen<{
+      novel_id: string;
+      success: boolean;
+      failed_count: number;
+      stopped: boolean;
+    }>('batch-translation-complete', (event) => {
       setIsTranslating(false);
-      updateBatchProgress({ status: 'completed' });
+      if (event.payload.success) {
+        updateBatchProgress({ status: 'completed' });
+      } else if (event.payload.stopped) {
+        updateBatchProgress({ status: 'stopped', error_message: '번역이 중지되었습니다.' });
+      } else {
+        updateBatchProgress({
+          status: 'error',
+          error_message: `${event.payload.failed_count}개 챕터 번역에 실패했습니다.`,
+        });
+      }
     });
 
     const unlistenError = listen<{ message?: string; title?: string; error_type?: string }>('translation-error', (event) => {

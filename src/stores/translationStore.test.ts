@@ -24,6 +24,7 @@ describe('useTranslationStore', () => {
       setChapterContent({
         site: 'syosetu',
         novel_id: 'n123',
+        content_hash: 'test-content-hash',
         title: 'タイトル',
         subtitle: 'サブタイトル',
         paragraphs: [
@@ -48,6 +49,7 @@ describe('useTranslationStore', () => {
       setChapterContent({
         site: 'syosetu',
         novel_id: 'n123',
+        content_hash: 'test-content-hash',
         title: 'タイトル',
         subtitle: '',
         paragraphs: [{ id: 'p-1', original: 'テスト1' }],
@@ -70,6 +72,7 @@ describe('useTranslationStore', () => {
       setChapterContent({
         site: 'syosetu',
         novel_id: 'n123',
+        content_hash: 'test-content-hash',
         title: 'タイトル',
         subtitle: '',
         paragraphs: [
@@ -93,6 +96,7 @@ describe('useTranslationStore', () => {
       useTranslationStore.getState().setChapterContent({
         site: 'syosetu',
         novel_id: 'n123',
+        content_hash: 'test-content-hash',
         title: 'タイトル',
         subtitle: '',
         paragraphs: [
@@ -150,6 +154,7 @@ describe('useTranslationStore', () => {
       useTranslationStore.getState().setChapterContent({
         site: 'syosetu',
         novel_id: 'n123',
+        content_hash: 'test-content-hash',
         title: 'タイトル',
         subtitle: 'サブタイトル',
         paragraphs: [],
@@ -236,6 +241,7 @@ describe('useTranslationStore', () => {
       setChapterContent({
         site: 'syosetu',
         novel_id: 'n123',
+        content_hash: 'test-content-hash',
         title: 'タイトル',
         subtitle: 'サブタイトル',
         paragraphs: [
@@ -254,6 +260,7 @@ describe('useTranslationStore', () => {
       
       expect(content).not.toBeNull();
       expect(content?.novel_id).toBe('n123');
+      expect(content?.content_hash).toBe('test-content-hash');
       expect(content?.translatedTitle).toBe('번역 제목');
       expect(content?.translatedSubtitle).toBe('번역 부제목');
       expect(content?.paragraphs[0].translated).toBe('번역1');

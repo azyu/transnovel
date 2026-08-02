@@ -69,6 +69,7 @@ export interface ChapterContent {
   site: string;
   novel_id: string;
   chapter_number: number;
+  content_hash: string;
   title: string;
   subtitle: string;
   paragraphs: string[];
@@ -88,7 +89,7 @@ export interface TranslationProgress {
   current_chapter: number;
   total_chapters: number;
   chapter_title: string;
-  status: 'pending' | 'translating' | 'completed' | 'error' | 'paused';
+  status: 'pending' | 'translating' | 'completed' | 'error' | 'paused' | 'stopped';
   error_message?: string;
 }
 
