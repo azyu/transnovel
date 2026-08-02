@@ -34,12 +34,20 @@ export const useTauriEvents = () => {
       }
     });
 
-    const unlistenError = listen<{ message?: string; title?: string; error_type?: string }>('translation-error', (event) => {
-       console.error("Translation error:", event.payload.message);
-       updateBatchProgress({ 
-         status: 'error', 
-         error_message: event.payload.message ?? event.payload.title ?? 'Unknown error',
-       });
+    const unlistenError = listen<Partial<TranslationProgress> & {
+      message?: string;
+      title?: string;
+    }>('translation-error', (event) => {
+      const errorMessage =
+        event.payload.error_message
+        ?? event.payload.message
+        ?? event.payload.title
+        ?? 'Unknown error';
+      console.error('Translation error:', errorMessage);
+      updateBatchProgress({
+        status: 'error',
+        error_message: errorMessage,
+      });
     });
 
     const unlistenChapterCompleted = listen<{ chapter: number; novel_id: string }>('chapter-completed', (event) => {

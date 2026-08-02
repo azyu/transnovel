@@ -83,6 +83,11 @@ describe('App', () => {
     act(() => {
       translationContent.focus();
     });
+    const seriesTab = container.querySelector('#tab-series') as HTMLButtonElement;
+    let selectedAtFocus: string | null = null;
+    seriesTab.addEventListener('focus', () => {
+      selectedAtFocus = seriesTab.getAttribute('aria-selected');
+    });
 
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: '2', ctrlKey: true }));
@@ -91,6 +96,7 @@ describe('App', () => {
 
     expect(useUIStore.getState().currentTab).toBe('series');
     expect(document.activeElement).toBe(container.querySelector('#tab-series'));
+    expect(selectedAtFocus).toBe('true');
     expect(container.querySelector('#panel-translation')).toHaveAttribute('inert', '');
     expect(container.querySelector('[data-testid="translation-inner-focus"]')).toBeTruthy();
   });

@@ -148,6 +148,11 @@ describe('UrlInput', () => {
     expect(input).toHaveAttribute('role', 'combobox');
     expect(input).toHaveAttribute('aria-expanded', 'true');
     expect(container.querySelector('[role="listbox"]')).toBeTruthy();
+    const loadButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === '불러오기',
+    );
+    expect(loadButton).not.toHaveAttribute('inert');
+    expect(loadButton).not.toHaveAttribute('aria-hidden');
 
     await act(async () => {
       input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }));
@@ -186,6 +191,7 @@ describe('UrlInput', () => {
     expect(form).toBeTruthy();
     expect(parseAndTranslateMock).toHaveBeenCalledTimes(1);
     expect(parseAndTranslateMock).toHaveBeenCalledWith('https://new.example.com/free-form');
+    expect(input).toHaveAttribute('aria-expanded', 'false');
 
     await act(async () => {
       window.dispatchEvent(new Event(FOCUS_TRANSLATION_URL_INPUT_EVENT));

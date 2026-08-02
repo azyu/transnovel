@@ -35,6 +35,7 @@ describe('useTauriEvents batch outcomes', () => {
 
   beforeEach(() => {
     eventMocks.listeners.clear();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     useTranslationStore.setState({ isTranslating: true });
     useSeriesStore.setState({ batchProgress: activeProgress });
     container = document.createElement('div');
@@ -45,6 +46,7 @@ describe('useTauriEvents batch outcomes', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.restoreAllMocks();
   });
 
   it.each([
@@ -76,5 +78,29 @@ describe('useTauriEvents batch outcomes', () => {
     expect(useTranslationStore.getState().isTranslating).toBe(false);
     expect(useSeriesStore.getState().batchProgress?.status).toBe(status);
     expect(useSeriesStore.getState().batchProgress?.error_message).toBe(message);
+  });
+
+  it('preserves backend batch error detail for the header announcement', async () => {
+    await act(async () => {
+      root.render(<EventHarness />);
+      await Promise.resolve();
+    });
+
+    act(() => {
+      eventMocks.listeners.get('translation-error')?.({
+        payload: {
+          current_chapter: 2,
+          total_chapters: 4,
+          chapter_title: '제2화',
+          status: 'error',
+          error_message: 'provider quota exhausted',
+        },
+      });
+    });
+
+    expect(useSeriesStore.getState().batchProgress).toMatchObject({
+      status: 'error',
+      error_message: 'provider quota exhausted',
+    });
   });
 });

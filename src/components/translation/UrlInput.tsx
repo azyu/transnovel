@@ -14,6 +14,8 @@ interface UrlInputProps {
   parseOnly?: boolean;
 }
 
+type UrlOption = UrlHistoryItem & { isFreeform?: boolean };
+
 export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', parseOnly = false }) => {
   const theme = useUIStore((s) => s.theme);
   const language = useUIStore((s) => s.language);
@@ -26,7 +28,6 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
   const [localUrl, setLocalUrl] = useState(currentUrl);
   const [history, setHistory] = useState<UrlHistoryItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const historyNavigationRef = useRef(false);
   const inputId = useId();
   const isDark = theme === 'dark';
   const localeMessages = getMessages(language);
@@ -57,7 +58,6 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
         return;
       }
 
-      historyNavigationRef.current = false;
       inputRef.current?.focus();
       inputRef.current?.select();
     };
@@ -66,13 +66,13 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
     return () => window.removeEventListener(FOCUS_TRANSLATION_URL_INPUT_EVENT, handleFocusShortcut);
   }, [history.length, isTranslating, loading]);
 
-  const submitUrl = async () => {
-    if (!localUrl || isTranslating) return;
-    setUrl(localUrl);
+  const submitUrl = async (url = localUrl) => {
+    if (!url || isTranslating) return;
+    setUrl(url);
     if (parseOnly) {
-      await parseChapter(localUrl);
+      await parseChapter(url);
     } else {
-      await parseAndTranslate(localUrl);
+      await parseAndTranslate(url);
     }
   };
 
@@ -81,27 +81,11 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
     void submitUrl();
   };
 
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      historyNavigationRef.current = true;
-      return;
-    }
+  const selectedOption: UrlOption | null =
+    history.find((item) => item.url === localUrl)
+    ?? (localUrl ? { url: localUrl, isFreeform: true } : null);
+  const freeformOption = selectedOption?.isFreeform ? selectedOption : null;
 
-    if (e.key === 'Escape') {
-      historyNavigationRef.current = false;
-      return;
-    }
-
-    if (e.key !== 'Enter') return;
-
-    if (historyNavigationRef.current) {
-      historyNavigationRef.current = false;
-      return;
-    }
-
-    e.preventDefault();
-    void submitUrl();
-  };
 
   return (
     <div className={`p-6 rounded-xl border shadow-lg ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
@@ -128,10 +112,13 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             </div>
           </div>
           <Combobox
-            value={localUrl}
-            onChange={(url) => {
-              historyNavigationRef.current = false;
-              if (url !== null) setLocalUrl(url);
+            value={selectedOption}
+            by="url"
+            onChange={(option: UrlOption | null) => {
+              if (!option) return;
+
+              setLocalUrl(option.url);
+              if (option.isFreeform) void submitUrl(option.url);
             }}
             disabled={loading || isTranslating}
             immediate
@@ -139,18 +126,30 @@ export const UrlInput: React.FC<UrlInputProps> = ({ historyKey = 'url_history', 
             <ComboboxInput
               ref={inputRef}
               id={inputId}
-              displayValue={(url: string | null) => url ?? ''}
+              displayValue={(option: UrlOption | null) => option?.url ?? ''}
               onChange={(e) => setLocalUrl(e.target.value)}
-              onKeyDown={handleInputKeyDown}
               placeholder={localeMessages.common.placeholders.url}
               className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
             />
-            {history.length > 0 && (
-              <ComboboxOptions className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden focus:outline-none ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+            {(history.length > 0 || freeformOption) && (
+              <ComboboxOptions
+                modal={false}
+                className={`absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 overflow-hidden focus:outline-none ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}
+              >
+                {freeformOption && (
+                  <ComboboxOption
+                    value={freeformOption}
+                    className={({ focus }) => `w-full px-3 py-2 text-left text-sm transition-colors ${focus ? isDark ? 'bg-slate-700' : 'bg-slate-100' : ''}`}
+                  >
+                    <span className={`block truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      {freeformOption.url}
+                    </span>
+                  </ComboboxOption>
+                )}
                 {history.map((item) => (
                   <ComboboxOption
                     key={item.url}
-                    value={item.url}
+                    value={item}
                     className={({ focus }) => `w-full px-3 py-2 text-left text-sm transition-colors ${focus ? isDark ? 'bg-slate-700' : 'bg-slate-100' : ''}`}
                   >
                     <div className="flex items-center gap-3">
