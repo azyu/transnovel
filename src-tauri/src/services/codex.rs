@@ -212,7 +212,12 @@ impl CodexClient {
                 log_entry.error = Some(e.to_string());
                 let entry = log_entry;
                 let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-                return Err(format!("API 요청 실패: {}", e));
+                let prefix = if e.is_builder() || e.is_redirect() {
+                    "API 요청 구성 실패"
+                } else {
+                    "API 요청 실패"
+                };
+                return Err(format!("{}: {}", prefix, e));
             }
         };
 
@@ -381,7 +386,12 @@ impl CodexClient {
                 log_entry.error = Some(e.to_string());
                 let entry = log_entry;
                 let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-                return Err(format!("API 요청 실패: {}", e));
+                let prefix = if e.is_builder() || e.is_redirect() {
+                    "API 요청 구성 실패"
+                } else {
+                    "API 요청 실패"
+                };
+                return Err(format!("{}: {}", prefix, e));
             }
         };
 
@@ -506,7 +516,12 @@ impl CodexClient {
                 log_entry.error = Some(e.to_string());
                 let entry = log_entry;
                 let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
-                return Err(format!("API 요청 실패: {}", e));
+                let prefix = if e.is_builder() || e.is_redirect() {
+                    "API 요청 구성 실패"
+                } else {
+                    "API 요청 실패"
+                };
+                return Err(format!("{}: {}", prefix, e));
             }
         };
 
@@ -539,7 +554,17 @@ impl CodexClient {
         let mut final_usage: Option<TokenUsage> = None;
 
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| format!("스트림 읽기 실패: {}", e))?;
+            let chunk = match chunk {
+                Ok(chunk) => chunk,
+                Err(e) => {
+                    let prefix = if emitted_ids.is_empty() {
+                        "스트림 읽기 실패"
+                    } else {
+                        "부분 스트림 읽기 실패"
+                    };
+                    return Err(format!("{}: {}", prefix, e));
+                }
+            };
             let chunk_str = String::from_utf8_lossy(&chunk);
             buffer.push_str(&chunk_str);
 

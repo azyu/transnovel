@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
@@ -80,6 +81,84 @@ const DEFAULT_SYSTEM_PROMPT: &str = r#"# 절대 규칙 (위반 시 출력 무효
 
 {{note}}"#;
 
+const MAX_TRANSLATION_ATTEMPTS: u32 = 3;
+const API_REQUEST_ERROR_PREFIX: &str = "API 요청 실패:";
+const RESPONSE_READ_ERROR_PREFIX: &str = "응답 읽기 실패:";
+const STREAM_READ_ERROR_PREFIX: &str = "스트림 읽기 실패:";
+const API_ERROR_PREFIX: &str = "API 오류 (";
+
+fn parse_http_status(error: &str) -> Option<u16> {
+    let status = error
+        .strip_prefix(API_ERROR_PREFIX)?
+        .split_once(')')?
+        .0
+        .split_ascii_whitespace()
+        .next()?;
+    status.parse().ok()
+}
+
+fn is_retryable_provider_error(error: &str) -> bool {
+    error.starts_with(API_REQUEST_ERROR_PREFIX)
+        || error.starts_with(RESPONSE_READ_ERROR_PREFIX)
+        || error.starts_with(STREAM_READ_ERROR_PREFIX)
+        || matches!(parse_http_status(error), Some(408 | 429 | 500..=599))
+}
+
+fn retry_delay_for_error(error: &str, failed_attempt: u32) -> Option<Duration> {
+    if !is_retryable_provider_error(error) {
+        return None;
+    }
+
+    match failed_attempt {
+        1 => Some(Duration::from_secs(2)),
+        2 => Some(Duration::from_secs(4)),
+        _ => None,
+    }
+}
+
+type RetryAttemptFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<Option<T>, String>> + Send + 'a>>;
+type RetryWaitFuture = Pin<Box<dyn Future<Output = bool> + Send>>;
+
+async fn execute_with_retries<C, T, A, W, S>(
+    context: &mut C,
+    mut attempt: A,
+    mut wait: W,
+    mut is_stopped: S,
+) -> Result<Option<T>, String>
+where
+    C: Send,
+    T: Send,
+    A: Send,
+    W: Send,
+    S: Send,
+    for<'a> A: FnMut(&'a mut C) -> RetryAttemptFuture<'a, T>,
+    W: FnMut(Duration) -> RetryWaitFuture,
+    S: FnMut() -> bool,
+{
+    for failed_attempt in 1..=MAX_TRANSLATION_ATTEMPTS {
+        if is_stopped() {
+            return Ok(None);
+        }
+
+        match attempt(context).await {
+            Ok(Some(result)) => return Ok(Some(result)),
+            Ok(None) => return Ok(None),
+            Err(error) => {
+                let Some(delay) = retry_delay_for_error(&error, failed_attempt) else {
+                    return Err(error);
+                };
+
+                if is_stopped() || !wait(delay).await {
+                    return Ok(None);
+                }
+            }
+        }
+    }
+
+    unreachable!("retry executor exhausted without an outcome")
+}
+
 async fn run_until_stop<F, T>(future: F) -> Result<Option<T>, String>
 where
     F: Future<Output = Result<T, String>>,
@@ -112,6 +191,16 @@ pub struct TranslatorService {
     substitutions: String,
     substitution: SubstitutionService,
     use_streaming: bool,
+}
+
+struct TranslationChunkAttemptContext<'a, R: tauri::Runtime> {
+    service: &'a mut TranslatorService,
+    cache_context: &'a TranslationCacheContext,
+    chunk_paragraphs: &'a [String],
+    chunk_indices: &'a [usize],
+    has_subtitle: bool,
+    prompt: &'a str,
+    app_handle: &'a AppHandle<R>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -416,7 +505,6 @@ impl TranslatorService {
             // Dynamic chunk sizing: send all at once if small enough
             const MAX_SINGLE_BATCH_CHARS: usize = 50_000; // ~50KB threshold
             const FALLBACK_CHUNK_SIZE: usize = 50;
-            const MAX_RETRIES: u32 = 1;
             
             let total_chars: usize = uncached_paragraphs.iter().map(|p| p.len()).sum();
             let chunk_size = if total_chars <= MAX_SINGLE_BATCH_CHARS {
@@ -444,96 +532,123 @@ impl TranslatorService {
                 let mut last_error: Option<String> = None;
                 let mut success = false;
 
-                for retry in 0..MAX_RETRIES {
-                    if should_stop_translation() {
+                let retry_result = {
+                    let mut attempt_context = TranslationChunkAttemptContext {
+                        service: self,
+                        cache_context: &cache_context,
+                        chunk_paragraphs,
+                        chunk_indices,
+                        has_subtitle,
+                        prompt: &prompt,
+                        app_handle,
+                    };
+
+                    execute_with_retries(
+                        &mut attempt_context,
+                        |context| {
+                            Box::pin(async move {
+                                let maybe_translate_result: Result<Option<TranslateAttemptResult>, String> =
+                                    if context.service.use_streaming {
+                                        match &mut context.service.client {
+                                            ApiClient::Gemini(client) => {
+                                                run_until_stop(client.translate_streaming(
+                                                    context.cache_context,
+                                                    context.chunk_paragraphs,
+                                                    context.chunk_indices,
+                                                    context.has_subtitle,
+                                                    context.prompt,
+                                                    context.app_handle,
+                                                ))
+                                                .await
+                                            }
+                                            ApiClient::OpenAICompatible(client) => {
+                                                run_until_stop(client.translate_streaming(
+                                                    context.cache_context,
+                                                    context.chunk_paragraphs,
+                                                    context.chunk_indices,
+                                                    context.has_subtitle,
+                                                    context.prompt,
+                                                    context.app_handle,
+                                                ))
+                                                .await
+                                            }
+                                            ApiClient::Codex(client) => {
+                                                run_until_stop(client.translate_streaming(
+                                                    context.cache_context,
+                                                    context.chunk_paragraphs,
+                                                    context.chunk_indices,
+                                                    context.has_subtitle,
+                                                    context.prompt,
+                                                    context.app_handle,
+                                                ))
+                                                .await
+                                            }
+                                        }
+                                    } else {
+                                        let result: Result<Option<Vec<String>>, String> =
+                                            match &mut context.service.client {
+                                                ApiClient::Gemini(client) => {
+                                                    run_until_stop(client.translate(
+                                                        context.chunk_paragraphs,
+                                                        context.chunk_indices,
+                                                        context.has_subtitle,
+                                                        context.prompt,
+                                                    ))
+                                                    .await
+                                                }
+                                                ApiClient::OpenAICompatible(client) => {
+                                                    run_until_stop(client.translate(
+                                                        context.chunk_paragraphs,
+                                                        context.chunk_indices,
+                                                        context.has_subtitle,
+                                                        context.prompt,
+                                                    ))
+                                                    .await
+                                                }
+                                                ApiClient::Codex(client) => {
+                                                    run_until_stop(client.translate(
+                                                        context.chunk_paragraphs,
+                                                        context.chunk_indices,
+                                                        context.has_subtitle,
+                                                        context.prompt,
+                                                    ))
+                                                    .await
+                                                }
+                                            };
+
+                                        result.map(|maybe_translated| {
+                                            maybe_translated.map(|translated| (translated, None))
+                                        })
+                                    };
+
+                                maybe_translate_result
+                            })
+                        },
+                        |delay| {
+                            Box::pin(async move {
+                                matches!(
+                                    run_until_stop(async {
+                                        tokio::time::sleep(delay).await;
+                                        Ok::<(), String>(())
+                                    })
+                                    .await,
+                                    Ok(Some(()))
+                                )
+                            })
+                        },
+                        should_stop_translation,
+                    )
+                    .await
+                };
+
+                let translate_result = match retry_result {
+                    Ok(Some(result)) => Ok(result),
+                    Ok(None) => {
                         stopped = true;
                         break;
                     }
-
-                    if retry > 0 {
-                        let delay_secs = 2u64.pow(retry);
-                        tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
-                        eprintln!("[Translator] Chunk {} retry {}/{}", chunk_idx + 1, retry, MAX_RETRIES - 1);
-                    }
-
-                    let maybe_translate_result: Result<Option<TranslateAttemptResult>, String> = if self.use_streaming {
-                        match &mut self.client {
-                            ApiClient::Gemini(client) => {
-                                run_until_stop(client.translate_streaming(
-                                    &cache_context,
-                                    chunk_paragraphs,
-                                    chunk_indices,
-                                    has_subtitle,
-                                    &prompt,
-                                    app_handle,
-                                ))
-                                .await
-                            }
-                            ApiClient::OpenAICompatible(client) => {
-                                run_until_stop(client.translate_streaming(
-                                    &cache_context,
-                                    chunk_paragraphs,
-                                    chunk_indices,
-                                    has_subtitle,
-                                    &prompt,
-                                    app_handle,
-                                ))
-                                .await
-                            }
-                            ApiClient::Codex(client) => {
-                                run_until_stop(client.translate_streaming(
-                                    &cache_context,
-                                    chunk_paragraphs,
-                                    chunk_indices,
-                                    has_subtitle,
-                                    &prompt,
-                                    app_handle,
-                                ))
-                                .await
-                            }
-                        }
-                    } else {
-                        let result: Result<Option<Vec<String>>, String> = match &mut self.client {
-                            ApiClient::Gemini(client) => {
-                                run_until_stop(client.translate(
-                                    chunk_paragraphs,
-                                    chunk_indices,
-                                    has_subtitle,
-                                    &prompt,
-                                ))
-                                .await
-                            }
-                            ApiClient::OpenAICompatible(client) => {
-                                run_until_stop(client.translate(
-                                    chunk_paragraphs,
-                                    chunk_indices,
-                                    has_subtitle,
-                                    &prompt,
-                                ))
-                                .await
-                            }
-                            ApiClient::Codex(client) => {
-                                run_until_stop(client.translate(
-                                    chunk_paragraphs,
-                                    chunk_indices,
-                                    has_subtitle,
-                                    &prompt,
-                                ))
-                                .await
-                            }
-                        };
-                        
-                        result.map(|maybe_translated| maybe_translated.map(|translated| (translated, None)))
-                    };
-
-                    let translate_result = match maybe_translate_result {
-                        Ok(Some(result)) => Ok(result),
-                        Ok(None) => {
-                            stopped = true;
-                            break;
-                        }
-                        Err(error) => Err(error),
-                    };
+                    Err(error) => Err(error),
+                };
 
                     match translate_result {
                         Ok((translated, usage)) => {
@@ -600,13 +715,11 @@ impl TranslatorService {
                                 failed_indices.extend(chunk_failed_indices);
                             }
                             success = true;
-                            break;
                         }
                         Err(e) => {
                             last_error = Some(e);
                         }
                     }
-                }
 
                 if stopped {
                     break;
@@ -947,6 +1060,207 @@ mod tests {
     use super::*;
     use crate::commands::series::{reset_translation_control_flags, stop_translation};
     use crate::commands::settings::Setting;
+
+    #[test]
+    fn retry_transport_errors_are_retryable() {
+        for error in [
+            "API 요청 실패: 연결이 끊겼습니다",
+            "응답 읽기 실패: 본문을 읽을 수 없습니다",
+            "스트림 읽기 실패: 스트림이 끊겼습니다",
+        ] {
+            assert!(is_retryable_provider_error(error));
+            assert_eq!(
+                retry_delay_for_error(error, 1),
+                Some(Duration::from_secs(2))
+            );
+        }
+    }
+
+    #[test]
+    fn retry_http_statuses_are_retryable() {
+        for error in [
+            "API 오류 (408 Request Timeout): 요청 시간 초과",
+            "API 오류 (429 Too Many Requests): 요청 제한",
+            "API 오류 (500 Internal Server Error): 서버 오류",
+            "API 오류 (503 Service Unavailable): 서비스 이용 불가",
+            "API 오류 (599): 서버 오류",
+        ] {
+            assert!(is_retryable_provider_error(error));
+            assert_eq!(
+                retry_delay_for_error(error, 1),
+                Some(Duration::from_secs(2))
+            );
+        }
+    }
+
+    #[test]
+    fn retry_terminal_errors_are_not_retryable() {
+        for error in [
+            "API 오류 (400 Bad Request): 잘못된 요청",
+            "API 오류 (401 Unauthorized): 인증 실패",
+            "API 오류 (403 Forbidden): 권한 없음",
+            "응답 파싱 실패: 잘못된 형식",
+            "Gemini 오류: 콘텐츠 필터링",
+            "API 요청 구성 실패: 잘못된 URL",
+            "부분 스트림 읽기 실패: 이미 일부 문단이 전송되었습니다",
+            "응답에서 텍스트를 찾을 수 없습니다.",
+        ] {
+            assert!(!is_retryable_provider_error(error));
+            assert_eq!(retry_delay_for_error(error, 1), None);
+        }
+    }
+
+    #[test]
+    fn retry_schedule_uses_two_and_four_second_delays() {
+        let error = "API 요청 실패: 일시적 네트워크 오류";
+
+        assert_eq!(
+            retry_delay_for_error(error, 1),
+            Some(Duration::from_secs(2))
+        );
+        assert_eq!(
+            retry_delay_for_error(error, 2),
+            Some(Duration::from_secs(4))
+        );
+        assert_eq!(retry_delay_for_error(error, 3), None);
+    }
+
+    #[test]
+    fn retry_terminal_error_never_receives_delay() {
+        assert_eq!(
+            retry_delay_for_error("API 오류 (400 Bad Request): 잘못된 요청", 1),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_executor_retries_transient_failures_then_succeeds() {
+        let mut context = ();
+        let mut calls = 0;
+        let mut outcomes: Vec<Result<Option<&'static str>, String>> = vec![
+            Err("API 요청 실패: temporary failure 1".to_string()),
+            Err("API 요청 실패: temporary failure 2".to_string()),
+            Ok(Some("success")),
+        ];
+        let mut waits = Vec::new();
+
+        let result = execute_with_retries(
+            &mut context,
+            |_context| {
+                calls += 1;
+                let outcome = outcomes.remove(0);
+                Box::pin(async move { outcome })
+            },
+            |delay| {
+                waits.push(delay);
+                Box::pin(async { true })
+            },
+            || false,
+        )
+        .await;
+
+        assert_eq!(result, Ok(Some("success")));
+        assert_eq!(calls, 3);
+        assert_eq!(waits, vec![Duration::from_secs(2), Duration::from_secs(4)]);
+    }
+
+    #[tokio::test]
+    async fn retry_executor_terminal_failure_stops_without_waiting() {
+        let mut context = ();
+        let mut calls = 0;
+        let mut outcomes: Vec<Result<Option<&'static str>, String>> =
+            vec![Err("terminal failure".to_string())];
+        let mut waits = Vec::new();
+
+        let result = execute_with_retries(
+            &mut context,
+            |_context| {
+                calls += 1;
+                let outcome = outcomes.remove(0);
+                Box::pin(async move { outcome })
+            },
+            |delay| {
+                waits.push(delay);
+                Box::pin(async { true })
+            },
+            || false,
+        )
+        .await;
+
+        assert_eq!(result, Err("terminal failure".to_string()));
+        assert_eq!(calls, 1);
+        assert!(waits.is_empty());
+    }
+
+    #[tokio::test]
+    async fn retry_executor_exhaustion_returns_last_error_verbatim() {
+        let mut context = ();
+        let mut calls = 0;
+        let mut outcomes: Vec<Result<Option<&'static str>, String>> = vec![
+            Err("API 요청 실패: temporary failure 1".to_string()),
+            Err("API 요청 실패: temporary failure 2".to_string()),
+            Err("API 요청 실패: final provider error".to_string()),
+        ];
+        let mut waits = Vec::new();
+
+        let result = execute_with_retries(
+            &mut context,
+            |_context| {
+                calls += 1;
+                let outcome = outcomes.remove(0);
+                Box::pin(async move { outcome })
+            },
+            |delay| {
+                waits.push(delay);
+                Box::pin(async { true })
+            },
+            || false,
+        )
+        .await;
+
+        assert_eq!(
+            result,
+            Err("API 요청 실패: final provider error".to_string())
+        );
+        assert_eq!(calls, 3);
+        assert_eq!(waits, vec![Duration::from_secs(2), Duration::from_secs(4)]);
+    }
+
+    #[tokio::test]
+    async fn retry_executor_stop_during_backoff_prevents_next_attempt() {
+        let mut context = ();
+        let mut calls = 0;
+        let mut outcomes: Vec<Result<Option<&'static str>, String>> = vec![
+            Err("API 요청 실패: temporary failure".to_string()),
+            Ok(Some("should not run")),
+        ];
+        let mut waits = Vec::new();
+        let stop_requested =
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop_for_wait = std::sync::Arc::clone(&stop_requested);
+        let stop_for_check = std::sync::Arc::clone(&stop_requested);
+
+        let result = execute_with_retries(
+            &mut context,
+            |_context| {
+                calls += 1;
+                let outcome = outcomes.remove(0);
+                Box::pin(async move { outcome })
+            },
+            |delay| {
+                waits.push(delay);
+                stop_for_wait.store(true, std::sync::atomic::Ordering::SeqCst);
+                Box::pin(async { false })
+            },
+            move || stop_for_check.load(std::sync::atomic::Ordering::SeqCst),
+        )
+        .await;
+
+        assert_eq!(result, Ok(None));
+        assert_eq!(calls, 1);
+        assert_eq!(waits, vec![Duration::from_secs(2)]);
+        assert!(stop_requested.load(std::sync::atomic::Ordering::SeqCst));
+    }
 
     #[test]
     fn test_compose_note_joins_sections() {
