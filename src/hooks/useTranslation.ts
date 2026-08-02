@@ -300,6 +300,7 @@ export const useTranslation = () => {
         novel_id: content.novel_id,
         novel_title: content.novel_title,
         chapter_number: content.chapter_number,
+        content_hash: content.content_hash,
         title: content.title,
         subtitle: content.subtitle,
         paragraphs: content.paragraphs.map((p, index) => ({
@@ -378,6 +379,7 @@ export const useTranslation = () => {
         novel_id: content.novel_id,
         novel_title: content.novel_title,
         chapter_number: content.chapter_number,
+        content_hash: content.content_hash,
         title: content.title,
         subtitle: content.subtitle,
         paragraphs,
@@ -489,15 +491,10 @@ export const useTranslation = () => {
         
         if (content.chapter_number > 0 && success) {
           try {
-            await invoke('mark_chapter_complete', {
+            const completedChapters = await invoke<number[]>('get_completed_chapters', {
               site: content.site,
               novelId: content.novel_id,
-              chapterNumber: content.chapter_number,
-              paragraphCount: content.paragraphs.length,
             });
-            addDebugLog('info', `Chapter ${content.chapter_number} marked as completed`);
-            
-            const completedChapters = await invoke<number[]>('get_completed_chapters', { site: content.site, novelId: content.novel_id });
             const currentChapterList = useSeriesStore.getState().chapterList;
             if (currentChapterList.length > 0) {
               const updatedChapters = currentChapterList.map((ch: Chapter) => ({
@@ -507,7 +504,7 @@ export const useTranslation = () => {
               setChapterList(updatedChapters);
             }
           } catch (err) {
-            addDebugLog('warn', `Failed to mark chapter complete: ${err}`);
+            addDebugLog('error', `Failed to refresh completed chapters: ${err}`);
           }
 
           try {
@@ -555,10 +552,14 @@ export const useTranslation = () => {
 
       try {
         await invoke('translate_paragraphs_streaming', {
-          site: content.site,
-          novelId: content.novel_id,
-          paragraphs: allTexts,
-          hasSubtitle,
+          request: {
+            site: content.site,
+            novelId: content.novel_id,
+            chapterNumber: content.chapter_number,
+            contentHash: content.content_hash,
+            paragraphs: allTexts,
+            hasSubtitle,
+          },
         });
       } catch (err) {
         addDebugLog('error', `Translation error: ${err}`);
@@ -631,7 +632,9 @@ export const useTranslation = () => {
     });
     
     try {
-      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', { site, novelId, paragraphs, hasSubtitle, note });
+      const result = await invoke<{ translated: string[] }>('translate_paragraphs_streaming', {
+        request: { site, novelId, paragraphs, hasSubtitle, note },
+      });
       return result.translated;
     } catch (err) {
       unlistenChunk();
@@ -798,11 +801,15 @@ await invoke('start_batch_translation', {
 
     try {
       await invoke('translate_paragraphs_streaming', {
-        site: chapterContent.site,
-        novelId: chapterContent.novel_id,
-        paragraphs: retryTexts,
-        hasSubtitle,
-        originalIndices: failedOriginalIndices,
+        request: {
+          site: chapterContent.site,
+          novelId: chapterContent.novel_id,
+          chapterNumber: chapterContent.chapter_number,
+          contentHash: chapterContent.content_hash,
+          paragraphs: retryTexts,
+          hasSubtitle,
+          originalIndices: failedOriginalIndices,
+        },
       });
     } catch (err) {
       unlistenChunk();

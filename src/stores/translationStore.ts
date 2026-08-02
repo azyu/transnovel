@@ -12,6 +12,7 @@ interface ChapterMeta {
   novelId: string;
   novelTitle: string | null;
   chapterNumber: number;
+  contentHash: string;
   title: string;
   subtitle: string;
   prevUrl: string | null;
@@ -46,6 +47,7 @@ interface TranslationState {
     novel_id: string;
     novel_title?: string | null;
     chapter_number?: number;
+    content_hash: string;
     title: string;
     subtitle: string;
     paragraphs: Paragraph[];
@@ -65,6 +67,7 @@ interface TranslationState {
     novel_id: string;
     novel_title: string | null;
     chapter_number: number;
+    content_hash: string;
     title: string;
     subtitle: string;
     translatedTitle?: string;
@@ -127,6 +130,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
         novelId: content.novel_id,
         novelTitle: content.novel_title ?? null,
         chapterNumber: content.chapter_number ?? 0,
+        contentHash: content.content_hash,
         title: content.title,
         subtitle: content.subtitle,
         prevUrl: content.prev_url,
@@ -197,6 +201,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
       novel_id: state.chapter.novelId,
       novel_title: state.chapter.novelTitle,
       chapter_number: state.chapter.chapterNumber,
+      content_hash: state.chapter.contentHash,
       title: state.chapter.title,
       subtitle: state.chapter.subtitle,
       translatedTitle: state.translatedTitle,

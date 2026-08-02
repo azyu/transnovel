@@ -13,11 +13,11 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 ```
 
 **Data flow for a single chapter translation:**
-1. Frontend `invoke('parse_chapter', { url })` → Parser scrapes HTML → Returns paragraphs
-2. Frontend `invoke('translate_paragraphs_streaming', { ... })` → TranslatorService
+1. Frontend `invoke('parse_chapter', { url })` → Parser scrapes HTML → Chapter content and a SHA-256 revision of title, subtitle, and raw body are upserted in SQLite
+2. Frontend `invoke('translate_paragraphs_streaming', { request })` with the source revision → TranslatorService
 3. TranslatorService: Substitution(Pre) → Cache Check → 작품별 고유명사 사전 주입 → LLM API Call → Substitution(Post) → Cache Save
-4. Rust `app.emit("translation-chunk", ...)` streams results back in real-time
-5. Frontend `listen("translation-chunk")` updates UI paragraph-by-paragraph
+4. Successful body translations and the completion marker are transactionally persisted against the same source revision
+5. Rust `app.emit("translation-chunk", ...)` streams results back in real-time; the frontend updates paragraphs incrementally
 
 ## 2. Tech Stack
 
@@ -133,7 +133,7 @@ App.tsx                              # Tab-based routing via uiStore.currentTab
 | `NovelMetadata` | `site, novel_id, title, author, total_chapters` | Series info |
 | `Chapter` | `number, title, url, status?` | Chapter list |
 | `Paragraph` | `id, original, translated?` | Translation unit |
-| `ChapterContent` | `site, novel_id, chapter_number, title, subtitle, paragraphs, prev_url, next_url, novel_title` | Parsed chapter |
+| `ChapterContent` | `site, novel_id, chapter_number, content_hash, title, subtitle, paragraphs, prev_url, next_url, novel_title` | Parsed chapter |
 | `TranslationChunk` | `paragraph_id, text, is_complete` | Streaming event payload |
 | `ApiKey` | `id, key_type, api_key, is_active` | API key management |
 | `TranslationProgress` | `current_chapter, total_chapters, chapter_title, status, error_message?` | Batch progress |
@@ -152,13 +152,14 @@ src-tauri/src/
 │   ├── mod.rs
 │   ├── translation.rs  # translate_chapter, translate_text, translate_paragraphs, translate_paragraphs_streaming
 │   ├── parser.rs       # parse_url, parse_chapter, get_chapter_content, get_chapter_list, get_series_info
-│   ├── series.rs       # start_batch_translation, pause/resume/stop, mark_chapter_complete, get_completed_chapters
+│   ├── series.rs       # start_batch_translation, pause/resume/stop, get_completed_chapters
 │   ├── export.rs       # export_novel, save_chapter, save_chapter_with_dialog
 │   ├── settings.rs     # get/set_setting, API key CRUD, fetch_*_models, cache stats, reset
 │   └── api_logs.rs     # get_api_logs, get_api_log_detail, get_api_logs_count, clear_api_logs
 ├── services/           # Business logic
 │   ├── mod.rs
 │   ├── translator.rs   # TranslatorService: provider switching, pipeline orchestration
+│   ├── chapter_persistence.rs # Transactional chapter/translation upserts and reads
 │   ├── gemini.rs       # GeminiClient: Google Generative AI API (REST + SSE streaming)
 │   ├── openai_compatible.rs   # OpenAICompatibleClient: OpenAI-compatible API (REST + SSE streaming)
 │   ├── cache.rs        # SHA256 cache: get_cached_translations, cache_translations (batched tx)
@@ -180,18 +181,25 @@ src-tauri/src/
     ├── mod.rs           # init_db(), get_pool() (OnceLock<Pool<Sqlite>>), run_migrations()
     ├── schema.rs        # SCHEMA_VERSION constant
     └── migrations/
-        ├── 001_initial.sql           # Core tables: novels, chapters, translations, translation_cache, api_keys, settings, completed_chapters
-        ├── 002_api_logs.sql          # api_logs table
-        └── 003_api_logs_provider.sql # ALTER TABLE api_logs ADD provider column
+        ├── 001_initial.sql                    # Core application tables
+        ├── 002_api_logs.sql                   # api_logs table
+        ├── 003_api_logs_provider.sql          # api_logs provider column
+        ├── 004_novel_character_dictionary.sql # Per-novel character dictionary
+        ├── 005_watchlist.sql                  # Watchlist tables
+        ├── 006_watchlist_site_scope.sql       # Site-scoped watchlist identities
+        ├── 007_cache_identity.sql             # Site/context-scoped cache identities
+        ├── 008_completed_chapter_site.sql     # Site-scoped completion identities
+        └── 009_chapter_content_hash.sql        # Source revision guard for translations
 ```
 
-### 4.2 Registered Tauri Commands (43 total)
+### 4.2 Registered Tauri Commands
 ```
 commands::translation::  translate_chapter, translate_text, translate_paragraphs, translate_paragraphs_streaming
 commands::character_dictionary:: get_novel_character_dictionary, save_novel_character_dictionary, extract_character_dictionary_candidates
 commands::parser::       parse_url, parse_chapter, get_chapter_content, get_chapter_list, get_series_info
+commands::chapter_persistence:: get_persisted_chapter
 commands::series::       start_batch_translation, pause_translation, resume_translation, stop_translation,
-                         get_translation_progress, mark_chapter_complete, get_completed_chapters
+                         get_translation_progress, get_completed_chapters
 commands::export::       export_novel, save_chapter, save_chapter_with_dialog
 commands::settings::     get_settings, set_setting, get_api_keys, add_api_key, remove_api_key,
                          open_url,
@@ -228,17 +236,20 @@ TranslatorService::new()
   → create SubstitutionService from config
 
 translate_paragraphs_streaming()
-  1. substitution.apply_to_paragraphs(input)           # Pre-process
-  2. get_cached_translations(novel_id, preprocessed)     # Cache lookup
-  3. emit("debug-cache") for each paragraph              # Debug events
-  4. emit("translation-chunk") for cache hits             # Send cached results immediately
+  1. substitution.apply_to_paragraphs(input)             # Pre-process
+  2. get_cached_translations(novel_id, preprocessed)      # Cache lookup
+  3. emit("debug-cache") for each paragraph               # Debug events
+  4. emit("translation-chunk") for cache hits              # Send cached results immediately
   5. For uncached: chunk by 50KB threshold
      a. client.translate_streaming() → SSE stream
      b. paragraph.rs parses <p id="..."> tags from stream
      c. emit("translation-chunk") per completed paragraph
-     d. substitution.apply_to_paragraphs(output)         # Post-process
-     e. cache_translations(novel_id, pairs)               # Save to cache
-  6. emit("translation-complete") or emit("translation-failed-paragraphs")
+     d. substitution.apply_to_paragraphs(output)          # Post-process
+     e. cache_translations(novel_id, pairs)                # Save to cache
+  6. persist_translations() validates the parsed chapter source revision and canonical
+     paragraph identity, then transactionally writes successful body paragraphs and
+     updates the completion marker in SQLite
+  7. emit("translation-complete") or emit("translation-failed-paragraphs")
 ```
 
 ### 4.5 API Providers
@@ -291,9 +302,10 @@ pattern/replacement     # One rule per line
 
 ### 4.9 Batch Translation
 - **Control:** `AtomicBool` statics (`IS_PAUSED`, `SHOULD_STOP`) for thread-safe pause/stop
-- **Skip completed:** Reads `completed_chapters` table, skips already-translated chapters
+- **Skip completed:** Reads `completed_chapters`; a marker is created only by the same transaction that persists a complete chapter translation
 - **Events:** `translation-progress`, `chapter-completed`, `batch-translation-complete`, `translation-error`
-- **Limitation:** Kakuyomu batch not supported (chapter URLs not sequential)
+- **Terminal outcome:** `batch-translation-complete` reports success, failure count, and stopped state instead of treating every exit as successful
+- **Limitation:** Kakuyomu batch is rejected because episode IDs do not provide a reliable sequential URL mapping
 
 ### 4.10 Export
 | Format | Implementation | Output |
@@ -312,7 +324,7 @@ pattern/replacement     # One rule per line
 novels (id, site, novel_id, title, author, total_chapters, created_at, updated_at)
   UNIQUE(site, novel_id)
 
-chapters (id, novel_id FK→novels, chapter_number, chapter_url, title, subtitle, original_content, status, created_at)
+chapters (id, novel_id FK→novels, chapter_number, chapter_url, title, subtitle, original_content, content_hash, status, created_at)
   UNIQUE(novel_id, chapter_number)
 
 translations (id, chapter_id FK→chapters, paragraph_index, original_text, translated_text, model_used, created_at)
@@ -360,7 +372,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 | `translation-error` | `{error_type, title, message, request_preview?, response_preview?}` | `translator.rs` | Error with context |
 | `translation-progress` | `TranslationProgress` | `series.rs` | Batch: current chapter progress |
 | `chapter-completed` | `{chapter, novel_id}` | `series.rs` | Batch: one chapter done |
-| `batch-translation-complete` | `novel_id` | `series.rs` | Batch: all chapters done |
+| `batch-translation-complete` | `{novel_id, success, failed_count, stopped}` | `series.rs` | Batch terminal outcome |
 | `debug-cache` | `{paragraph_id, cache_hit, original_preview}` | `translator.rs` | Cache hit/miss debug |
 | `debug-api` | `{type, provider, model?, status?, body}` | streaming clients | API request/response debug |
 
@@ -408,7 +420,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 ### Not Implemented
 - Auto-retry on API failure (manual retry only, MAX_RETRIES=1)
 - API key rotation (single key per provider)
-- `novels`, `chapters`, `translations` tables exist but are unused (cache-only flow)
+- Persisted chapter history/hydration UI (backend read command only)
 
 ## 9. Key Patterns & Conventions
 
@@ -419,8 +431,8 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 
 ### State Flow
 - **Settings:** Stored in SQLite `settings` table as key-value pairs. Loaded fresh on each `TranslatorService::new()`
-- **Translation state:** In-memory only (Zustand). Not persisted between sessions except via cache
-- **Completion tracking:** `completed_chapters` table survives restarts
+- **Translation state:** Active UI state remains in Zustand. Parser output and successful body translations are also stored in SQLite through `chapters` and `translations`; the file-backed translation cache remains separate.
+- **Completion tracking:** `completed_chapters` survives restarts. Re-parsing changed source content invalidates that chapter's saved translations and completion marker.
 
 ### Code Style
 - **Korean** error messages and UI text throughout

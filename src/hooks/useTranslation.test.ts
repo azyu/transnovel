@@ -167,6 +167,7 @@ describe('createCharacterDictionaryReviewContent', () => {
       site: 'syosetu',
       novel_id: 'n1234',
       chapter_number: 7,
+      content_hash: 'test-content-hash',
       title: '原題',
       subtitle: '副題',
       paragraphs: ['一段落', '二段落'],

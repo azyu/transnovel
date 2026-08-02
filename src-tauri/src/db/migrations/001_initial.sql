@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS chapters (
     title TEXT,
     subtitle TEXT,
     original_content TEXT,
+    content_hash TEXT,
     status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE,
