@@ -407,7 +407,7 @@ export const TranslationView: React.FC = () => {
           </div>
           {hasPrimaryActions && (
             <div className="min-w-0 flex flex-wrap items-center justify-end gap-2 lg:gap-4">
-              {isTranslating ? (
+              {isTranslating && !batchProgress ? (
                 <>
                   <div
                     role="progressbar"

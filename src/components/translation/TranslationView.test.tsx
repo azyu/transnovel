@@ -331,6 +331,7 @@ describe('TranslationView', () => {
     });
 
     expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
   });
 
   it('keeps translation progress indeterminate until paragraph IDs are available', async () => {

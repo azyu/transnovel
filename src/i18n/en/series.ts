@@ -43,6 +43,7 @@ export const seriesMessages = {
       translating: 'Translating...',
     },
     title: (statusText: string) => `Batch translation ${statusText}`,
+    failedChapters: (count: number) => `${count} chapters failed to translate.`,
     progressLabel: 'Progress',
     chapterProgress: (current: number, total: number) => `${current} / ${total} chapters`,
     percentComplete: (percentage: number) => `${percentage}% complete`,

@@ -41,6 +41,7 @@ export const seriesMessages = {
       translating: '번역 중...',
     },
     title: (statusText: string) => `일괄 번역 ${statusText}`,
+    failedChapters: (count: number) => `${count}개 챕터 번역에 실패했습니다.`,
     progressLabel: '진행률',
     chapterProgress: (current: number, total: number) => `${current} / ${total} 화`,
     percentComplete: (percentage: number) => `${percentage}% 완료`,

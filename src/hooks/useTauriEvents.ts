@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { getMessages } from '../i18n';
 import { useTranslationStore } from '../stores/translationStore';
 import { useSeriesStore } from '../stores/seriesStore';
+import { useUIStore } from '../stores/uiStore';
 import type { TranslationProgress } from '../types';
 
 export const useTauriEvents = () => {
@@ -9,6 +11,7 @@ export const useTauriEvents = () => {
   const setBatchProgress = useSeriesStore((s) => s.setBatchProgress);
   const updateBatchProgress = useSeriesStore((s) => s.updateBatchProgress);
   const updateChapterStatus = useSeriesStore((s) => s.updateChapterStatus);
+  const language = useUIStore((s) => s.language);
 
   useEffect(() => {
     const unlistenProgress = listen<TranslationProgress>('translation-progress', (event) => {
@@ -29,7 +32,7 @@ export const useTauriEvents = () => {
       } else {
         updateBatchProgress({
           status: 'error',
-          error_message: `${event.payload.failed_count}개 챕터 번역에 실패했습니다.`,
+          error_message: getMessages(language).series.batchTranslation.failedChapters(event.payload.failed_count),
         });
       }
     });
@@ -60,5 +63,5 @@ export const useTauriEvents = () => {
       unlistenError.then((f) => f());
       unlistenChapterCompleted.then((f) => f());
     };
-  }, [setBatchProgress, updateBatchProgress, setIsTranslating, updateChapterStatus]);
+  }, [language, setBatchProgress, updateBatchProgress, setIsTranslating, updateChapterStatus]);
 };
