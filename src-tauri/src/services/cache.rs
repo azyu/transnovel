@@ -69,15 +69,7 @@ pub fn translation_context_fingerprint(
     hex::encode(hasher.finalize())
 }
 
-pub async fn cache_translation(
-    context: &TranslationCacheContext,
-    original: &str,
-    translated: &str,
-) -> Result<(), String> {
-    let pool = get_pool()?;
-    cache_translation_with_pool(pool, context, original, translated).await
-}
-
+#[cfg(test)]
 pub async fn cache_translation_with_pool(
     pool: &Pool<Sqlite>,
     context: &TranslationCacheContext,
@@ -94,10 +86,9 @@ pub async fn cache_translation_with_pool(
         "INSERT INTO translation_cache
             (text_hash, site, novel_id, context_fingerprint, normalized_source,
              original_text, translated_text, hit_count, last_used_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
          ON CONFLICT(text_hash) DO UPDATE SET
            translated_text = excluded.translated_text,
-           hit_count = translation_cache.hit_count + 1,
            last_used_at = CURRENT_TIMESTAMP",
     )
     .bind(&hash)
@@ -216,10 +207,9 @@ pub async fn cache_translations_with_pool(
             "INSERT INTO translation_cache
                 (text_hash, site, novel_id, context_fingerprint, normalized_source,
                  original_text, translated_text, hit_count, last_used_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
              ON CONFLICT(text_hash) DO UPDATE SET
                translated_text = excluded.translated_text,
-               hit_count = translation_cache.hit_count + 1,
                last_used_at = CURRENT_TIMESTAMP",
         )
         .bind(&hash)
@@ -339,6 +329,76 @@ mod tests {
                 vec![Some(translated.to_string())]
             );
         }
+    }
+
+    #[tokio::test]
+    async fn batch_cache_writes_preserve_read_hit_count() {
+        let pool = setup_test_pool().await;
+        let cache_context = context("syosetu", "novel-1", "model-a");
+        let originals = vec!["source".to_string()];
+
+        cache_translations_with_pool(
+            &pool,
+            &cache_context,
+            &[("source".to_string(), "first translation".to_string())],
+        )
+        .await
+        .expect("insert cache row");
+
+        let inserted = sqlx::query(
+            "SELECT COUNT(*) AS row_count, translated_text, hit_count FROM translation_cache",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read inserted cache row");
+        assert_eq!(inserted.get::<i64, _>("row_count"), 1);
+        assert_eq!(
+            inserted.get::<String, _>("translated_text"),
+            "first translation"
+        );
+        assert_eq!(inserted.get::<i64, _>("hit_count"), 0);
+
+        assert_eq!(
+            get_cached_translations_with_pool(&pool, &cache_context, &originals)
+                .await
+                .expect("first cache read"),
+            vec![Some("first translation".to_string())]
+        );
+
+        cache_translations_with_pool(
+            &pool,
+            &cache_context,
+            &[("source".to_string(), "latest translation".to_string())],
+        )
+        .await
+        .expect("upsert cache row");
+
+        let upserted = sqlx::query(
+            "SELECT COUNT(*) AS row_count, translated_text, hit_count FROM translation_cache",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read upserted cache row");
+        assert_eq!(upserted.get::<i64, _>("row_count"), 1);
+        assert_eq!(
+            upserted.get::<String, _>("translated_text"),
+            "latest translation"
+        );
+        assert_eq!(upserted.get::<i64, _>("hit_count"), 1);
+        assert_eq!(
+            get_cached_translations_with_pool(&pool, &cache_context, &originals)
+                .await
+                .expect("second cache read"),
+            vec![Some("latest translation".to_string())]
+        );
+
+        let hit_count = sqlx::query_scalar::<_, i64>(
+            "SELECT hit_count FROM translation_cache WHERE original_text = 'source'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read hit count");
+        assert_eq!(hit_count, 2);
     }
 
     #[test]

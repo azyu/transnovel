@@ -7,12 +7,11 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use super::api_logger;
-use super::cache::{cache_translation, TranslationCacheContext};
 use super::paragraph::{
-    decode_paragraph_id, encode_paragraph_id, extract_completed_paragraphs,
-    parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
+    encode_paragraph_id, extract_completed_paragraphs, parse_translated_paragraphs,
+    parse_translated_paragraphs_by_indices,
 };
-use super::translator::TokenUsage;
+use super::translator::{StreamingCacheWriter, TokenUsage};
 use crate::models::api_log::ApiLogEntry;
 
 const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
@@ -421,11 +420,11 @@ impl OpenAICompatibleClient {
 
     pub async fn translate_streaming<R: tauri::Runtime>(
         &self,
-        cache_context: &TranslationCacheContext,
         paragraphs: &[String],
         original_indices: &[usize],
         has_subtitle: bool,
         system_prompt: &str,
+        cache_writer: &mut StreamingCacheWriter,
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
         let url = self.build_url();
@@ -561,24 +560,7 @@ impl OpenAICompatibleClient {
                                         for chunk in chunks {
                                             if !emitted_ids.contains(&chunk.paragraph_id) {
                                                 emitted_ids.insert(chunk.paragraph_id.clone());
-
-                                                if let Some(orig_idx) =
-                                                    decode_paragraph_id(&chunk.paragraph_id, has_subtitle)
-                                                {
-                                                    if let Some(pos) =
-                                                        original_indices.iter().position(|&x| x == orig_idx)
-                                                    {
-                                                        if pos < paragraphs.len() {
-                                                            let _ = cache_translation(
-                                                                cache_context,
-                                                                &paragraphs[pos],
-                                                                &chunk.text,
-                                                            )
-                                                            .await;
-                                                        }
-                                                    }
-                                                }
-
+                                                cache_writer.cache_completed_chunk(&chunk).await;
                                                 let _ = app_handle.emit("translation-chunk", chunk);
                                             }
                                         }
