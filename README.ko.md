@@ -44,7 +44,6 @@ TransNovel은 일본 웹소설 URL만 붙여 넣으면 작품을 불러오고, �
 | --- | --- |
 | macOS | `.dmg` |
 | Windows | `.exe`, `.msi` |
-| Linux | `.AppImage`, `.deb` |
 
 > [!TIP]
 > 일반 사용자라면 소스 실행보다 릴리즈 설치본을 사용하는 편이 간단합니다.
@@ -96,7 +95,7 @@ models:
 | 사이트 | 주소 | 현재 상태 |
 | --- | --- | --- |
 | Syosetu | `ncode.syosetu.com` | 챕터/시리즈 번역 지원 |
-| Hameln | `syosetu.org` | 챕터/시리즈 번역 지원 |
+| Hameln | `syosetu.org` | 개별 `.htm`/`.html` 챕터 URL 지원 |
 | Kakuyomu | `kakuyomu.jp` | 개별 화 번역 지원 |
 | Nocturne | `novel18.syosetu.com` | 챕터/시리즈 번역 지원 |
 
@@ -106,7 +105,7 @@ models:
 | --- | --- | --- |
 | Gemini | API 키 | Google Gemini 계열 |
 | OpenRouter | API 키 | 다양한 모델을 한 곳에서 사용 |
-| Anthropic | API 키 | OpenAI 호환 방식으로 연결 |
+| Anthropic | 직접 API 키 미지원 | 네이티브 전송 미구현. OpenRouter 또는 OpenAI 호환 프록시를 연결한 Custom 제공자를 사용하세요. |
 | OpenAI | API 키 | OpenAI 호환 방식으로 연결 |
 | OpenAI (Codex) | ChatGPT 로그인 | Codex Backend API 사용 |
 | Custom | API 키 + Base URL | OpenAI 호환 서버 직접 연결 |
@@ -115,13 +114,14 @@ models:
 
 - EPUB 내보내기는 아직 지원하지 않습니다.
 - 관심작품 등록은 현재 Syosetu, Nocturne, Kakuyomu 작품 페이지에서 지원합니다.
+- Anthropic 프리셋은 네이티브 전송이 구현되지 않아 직접 Anthropic API 키로 동작하지 않습니다.
 
 > [!IMPORTANT]
 > 번역 품질과 속도, 비용은 선택한 모델과 프롬프트 설정에 따라 크게 달라집니다. 같은 작품이라도 제공자를 바꾸면 결과가 꽤 달라질 수 있습니다.
 
 ## 소스에서 직접 실행하기
 
-현재 저장소 기준으로는 소스에서 직접 실행하는 방식이 기본입니다.
+로컬 개발이나 코드 수정이 필요하면 소스에서 직접 실행할 수 있습니다.
 
 ### 준비 사항
 

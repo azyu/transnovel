@@ -44,7 +44,6 @@ The easiest way to use TransNovel is to download a release build for your platfo
 | --- | --- |
 | macOS | `.dmg` |
 | Windows | `.exe`, `.msi` |
-| Linux | `.AppImage`, `.deb` |
 
 > [!TIP]
 > If you just want to use the app, start with a release build instead of running from source.
@@ -96,7 +95,7 @@ models:
 | Site | Domain | Current Status |
 | --- | --- | --- |
 | Syosetu | `ncode.syosetu.com` | Chapter and series translation supported |
-| Hameln | `syosetu.org` | Chapter and series translation supported |
+| Hameln | `syosetu.org` | Individual `.htm`/`.html` chapter URL required |
 | Kakuyomu | `kakuyomu.jp` | Single-episode translation supported |
 | Nocturne | `novel18.syosetu.com` | Chapter and series translation supported |
 
@@ -106,7 +105,7 @@ models:
 | --- | --- | --- |
 | Gemini | API key | Google Gemini models |
 | OpenRouter | API key | Access multiple model families in one place |
-| Anthropic | API key | Connected through an OpenAI-compatible path |
+| Anthropic | Direct API key unsupported | Native transport is not implemented. Use OpenRouter or a Custom provider backed by an OpenAI-compatible proxy. |
 | OpenAI | API key | Connected through an OpenAI-compatible path |
 | OpenAI (Codex) | ChatGPT sign-in | Uses the Codex Backend API |
 | Custom | API key + base URL | Connect your own OpenAI-compatible server |
@@ -115,6 +114,7 @@ models:
 
 - EPUB export is not available yet.
 - Watchlist registration currently supports Syosetu, Nocturne, and Kakuyomu work pages.
+- The Anthropic preset does not work with direct Anthropic API keys because native transport is not implemented.
 
 > [!IMPORTANT]
 > Translation quality, speed, and cost depend heavily on the provider, model, and prompt you choose. The same novel can feel noticeably different when you switch models.

@@ -1,7 +1,7 @@
 # TransNovel Rename Design
 
 Date: 2026-03-18
-Status: Approved for implementation
+Status: Implemented in `4096b31`.
 
 ## Goal
 

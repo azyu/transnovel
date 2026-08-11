@@ -1,5 +1,7 @@
 # YAML LLM Config Override Implementation Plan
 
+Status: Implemented in `a042de4`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add platform-specific external YAML config for API-key-based LLM provider/model overrides, keep the existing DB-backed settings contract as the fallback, and lock the full LLM settings UI when the file exists.

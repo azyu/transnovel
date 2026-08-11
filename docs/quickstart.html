@@ -113,15 +113,15 @@
         <section id="before-you-start" class="doc-section" data-animate>
           <p class="section-eyebrow">Step 0</p>
           <h2>준비물</h2>
-          <p>TransNovel 자체는 무료 오픈소스 앱입니다. 실제 번역에는 Gemini API 키가 필요합니다.</p>
+          <p>TransNovel 자체는 무료 오픈소스 앱입니다. 이 가이드는 첫 설정 경로로 Gemini를 권장하지만, 번역에 Gemini가 필수는 아닙니다.</p>
           <div class="doc-callout">
             처음 테스트할 때는 짧은 챕터 하나로 모델, 비용, 번역 톤을 확인한 뒤 긴 챕터를 번역하세요.
           </div>
           <ul>
             <li>macOS Apple Silicon 또는 Windows x64/ARM64 환경</li>
-            <li>Google 계정</li>
-            <li>Google AI Studio에서 발급한 Gemini API 키</li>
-            <li>번역할 지원 사이트의 챕터 URL</li>
+            <li>Gemini 권장 경로를 따를 경우 Google 계정</li>
+            <li>Gemini 권장 경로를 따를 경우 Google AI Studio에서 발급한 API 키</li>
+            <li>번역할 지원 사이트의 작품 또는 개별 화 URL</li>
           </ul>
         </section>
 
@@ -181,9 +181,19 @@
                   <td>여러 모델을 한 제공자로 테스트하기 쉽습니다.</td>
                 </tr>
                 <tr>
-                  <td>OpenAI / Anthropic / Custom</td>
+                  <td>OpenAI</td>
+                  <td>API key, model</td>
+                  <td>미리 설정된 엔드포인트와 OpenAI-compatible Chat Completions 형식을 사용합니다.</td>
+                </tr>
+                <tr>
+                  <td>Anthropic</td>
+                  <td>직접 API key는 현재 지원하지 않음</td>
+                  <td>네이티브 전송이 구현되지 않았습니다. OpenRouter 또는 OpenAI-compatible 프록시를 연결한 Custom 제공자를 사용하세요.</td>
+                </tr>
+                <tr>
+                  <td>Custom</td>
                   <td>API key, base URL, model</td>
-                  <td>OpenAI-compatible Chat Completions 형식을 사용합니다.</td>
+                  <td>사용자가 지정한 OpenAI-compatible 엔드포인트를 사용합니다.</td>
                 </tr>
                 <tr>
                   <td>OpenAI Codex</td>
@@ -208,7 +218,7 @@
           </ol>
           <div class="doc-card">
             <h3>지원 URL</h3>
-            <p>현재 Syosetu, Hameln, Kakuyomu, Nocturne을 지원합니다. Kakuyomu는 개별 화 번역 중심으로 사용하는 편이 안정적입니다.</p>
+            <p>Syosetu와 Nocturne은 작품 또는 개별 챕터 URL을 사용할 수 있습니다. Hameln은 <code>.htm</code> 또는 <code>.html</code>로 끝나는 개별 챕터 URL이 필요하고, Kakuyomu는 개별 에피소드 URL을 사용하세요.</p>
           </div>
         </section>
 
@@ -235,7 +245,7 @@
           </details>
           <details>
             <summary>URL을 넣어도 파싱되지 않습니다</summary>
-            <div class="faq-body">지원 사이트의 작품 목록 URL이 아니라 개별 챕터 URL인지 확인하세요. 사이트 레이아웃 변경으로 파서가 깨졌다면 GitHub Issues에 URL과 오류 메시지를 남겨 주세요.</div>
+            <div class="faq-body">Syosetu와 Nocturne은 작품 또는 개별 챕터 URL을 사용할 수 있습니다. Hameln은 <code>.htm</code> 또는 <code>.html</code>로 끝나는 개별 챕터 URL이 필요합니다. Kakuyomu는 개별 에피소드 URL을 사용하세요. 사이트 레이아웃 변경으로 파서가 깨졌다면 GitHub Issues에 URL과 오류 메시지를 남겨 주세요.</div>
           </details>
           <details>
             <summary>Nocturne 페이지가 열리지 않습니다</summary>

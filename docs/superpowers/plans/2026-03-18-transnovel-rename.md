@@ -1,5 +1,7 @@
 # TransNovel Rename Implementation Plan
 
+Status: Implemented in `4096b31`.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rename the project from `AI Novel Translator` / `ai-novel-translator` to `TransNovel` / `transnovel` across user-visible surfaces and core project metadata without changing behavior.

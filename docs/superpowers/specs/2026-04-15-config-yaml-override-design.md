@@ -1,7 +1,7 @@
 # Config YAML Override Design
 
 Date: 2026-04-15
-Status: Approved for implementation
+Status: Implemented in `a042de4`.
 
 ## Goal
 

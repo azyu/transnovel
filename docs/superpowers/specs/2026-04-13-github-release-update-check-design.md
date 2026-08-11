@@ -1,7 +1,7 @@
 # GitHub Release Update Check Design
 
 Date: 2026-04-13
-Status: Approved for implementation
+Status: Implemented in `47735cb`.
 
 ## Goal
 

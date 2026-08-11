@@ -1,5 +1,7 @@
 # GitHub Release Update Check Implementation Plan
 
+Status: Implemented in `47735cb`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a user-triggered update check in the About settings view that compares the installed version with the latest stable GitHub Release and opens the release page when an update exists.

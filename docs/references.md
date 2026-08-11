@@ -1,6 +1,6 @@
 # TransNovel - Technical Reference
 
-**Generated:** 2026-02-20 | **Commit:** 7ead666 (main) | **253 commits**
+**Updated:** 2026-07-13 | **Working tree based on:** `afa5b6d`
 
 ## 1. Architecture Overview
 
@@ -54,7 +54,7 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 | tauri-plugin-http | CSP-aware HTTP requests |
 | tauri-plugin-dialog | Native file save dialogs |
 | tauri-plugin-log | Structured logging |
-| tauri-plugin-sql | SQLite (used for plugin init, actual queries via sqlx) |
+| tauri-plugin-sql | Dependency retained; runtime DB initialization and queries use sqlx directly |
 
 ## 3. Frontend Architecture
 
@@ -68,9 +68,7 @@ App.tsx                              # Tab-based routing via uiStore.currentTab
 │       ├── ParagraphList.tsx        # Parallel text display (original ↔ translated)
 │       └── SaveModal.tsx            # Export dialog (TXT/HTML, with/without original)
 ├── [tabpanel: series]
-│   └── SeriesManager.tsx            # Batch translation entry
-│       ├── ChapterList.tsx          # Chapter list with completion status
-│       └── BatchTranslationModal.tsx # Real-time batch progress
+│   └── SeriesManager.tsx            # Current watchlist surface (internal tab id remains `series`)
 ├── [tabpanel: settings]
 │   └── SettingsPanel.tsx            # Tabbed settings container
 │       ├── LLMSettings.tsx          # Provider + Model management
@@ -107,8 +105,8 @@ App.tsx                              # Tab-based routing via uiStore.currentTab
 | Store | File | State | Purpose |
 |-------|------|-------|---------|
 | `useTranslationStore` | `translationStore.ts` | `chapter`, `paragraphById`, `translatedCount`, `isTranslating`, `failedParagraphIndices` | Current chapter state, paragraph-level translation tracking |
-| `useSeriesStore` | `seriesStore.ts` | `novelMetadata`, `chapterList`, `batchProgress` | Series/batch translation state |
-| `useUIStore` | `uiStore.ts` | `currentTab`, `theme`, `toast`, `viewConfigVersion` | App-wide UI state |
+| `useSeriesStore` | `seriesStore.ts` | `novelMetadata`, `chapterList`, `batchProgress`, `watchlistItems`, `watchlistEpisodes`, `watchlistBadgeCount` | Watchlist state plus retained series/batch state |
+| `useUIStore` | `uiStore.ts` | `currentTab`, `theme`, `language`, `toast`, `viewConfigVersion` | App-wide UI state, including locale selection |
 | `useApiLogStore` | `apiLogStore.ts` | `logs`, `totalCount`, `currentPage`, `filter` | API log pagination + filtering |
 | `useDebugStore` | `debugStore.ts` | `debugMode`, `debugLogs` | In-memory debug log stream (buffered, max 500 entries) |
 
@@ -118,6 +116,7 @@ App.tsx                              # Tab-based routing via uiStore.currentTab
 | `useTranslation` | `useTranslation.ts` | **Primary logic hub.** Wraps all Tauri invocations (parse, translate, batch, retry, export, 작품별 고유명사 사전). Sets up event listeners for streaming. |
 | `useTauriEvents` | `useTauriEvents.ts` | Global background event listeners (batch progress, chapter-completed) |
 | `useKeyboardShortcuts` | `useKeyboardShortcuts.ts` | App-wide keyboard shortcuts |
+| `useWatchlist` | `useWatchlist.ts` | Loads, refreshes, registers, selects, and marks episodes viewed through watchlist commands |
 | `useViewSettings` | `useViewSettings.ts` | Loads font/spacing settings from backend, computes CSS values |
 
 ### 3.5 Frontend → Backend Communication
@@ -154,17 +153,16 @@ src-tauri/src/
 │   ├── parser.rs       # parse_url, parse_chapter, get_chapter_content, get_chapter_list, get_series_info
 │   ├── series.rs       # start_batch_translation, pause/resume/stop, mark_chapter_complete, get_completed_chapters
 │   ├── export.rs       # export_novel, save_chapter, save_chapter_with_dialog
-│   ├── settings.rs     # get/set_setting, API key CRUD, fetch_*_models, cache stats, reset
+│   ├── settings.rs     # settings/API keys, update check, model fetch, OAuth, cache stats, reset
+│   ├── watchlist.rs    # add/list/refresh watchlist items, list episodes, mark viewed
 │   └── api_logs.rs     # get_api_logs, get_api_log_detail, get_api_logs_count, clear_api_logs
 ├── services/           # Business logic
 │   ├── mod.rs
-│   ├── translator.rs   # TranslatorService: provider switching, pipeline orchestration
-│   ├── gemini.rs       # GeminiClient: Google Generative AI API (REST + SSE streaming)
-│   ├── openai_compatible.rs   # OpenAICompatibleClient: OpenAI-compatible API (REST + SSE streaming)
-│   ├── cache.rs        # SHA256 cache: get_cached_translations, cache_translations (batched tx)
-│   ├── paragraph.rs    # Semantic ID encoding (title/subtitle/p-N), HTML response parsing
-│   ├── substitution.rs # Regex-based pre/post text substitution
-│   └── api_logger.rs   # API request/response logging to SQLite
+│   ├── api_logger.rs, cache.rs, character_dictionary.rs
+│   ├── codex.rs, gemini.rs, openai_compatible.rs, openai_oauth.rs
+│   ├── llm_config.rs, novel_metadata.rs
+│   ├── paragraph.rs, substitution.rs, translator.rs
+│   └── watchlist.rs    # 13 service modules in total
 ├── parsers/            # Site scrapers (async_trait NovelParser)
 │   ├── mod.rs          # ParsedUrl::from_url(), get_parser_for_url(), fetch_html()
 │   ├── syosetu.rs      # ncode.syosetu.com
@@ -182,10 +180,13 @@ src-tauri/src/
     └── migrations/
         ├── 001_initial.sql           # Core tables: novels, chapters, translations, translation_cache, api_keys, settings, completed_chapters
         ├── 002_api_logs.sql          # api_logs table
-        └── 003_api_logs_provider.sql # ALTER TABLE api_logs ADD provider column
+        ├── 003_api_logs_provider.sql # Conditional compatibility migration: add api_logs.provider when absent
+        ├── 004_novel_character_dictionary.sql # Per-novel character dictionary
+        ├── 005_watchlist.sql         # watchlist_items, watchlist_episodes, viewed_episodes
+        └── 006_watchlist_site_scope.sql # Conditional compatibility migration: rebuild episode/viewed keys with site scope
 ```
 
-### 4.2 Registered Tauri Commands (43 total)
+### 4.2 Registered Tauri Commands (50 total)
 ```
 commands::translation::  translate_chapter, translate_text, translate_paragraphs, translate_paragraphs_streaming
 commands::character_dictionary:: get_novel_character_dictionary, save_novel_character_dictionary, extract_character_dictionary_candidates
@@ -194,11 +195,17 @@ commands::series::       start_batch_translation, pause_translation, resume_tran
                          get_translation_progress, mark_chapter_complete, get_completed_chapters
 commands::export::       export_novel, save_chapter, save_chapter_with_dialog
 commands::settings::     get_settings, set_setting, get_api_keys, add_api_key, remove_api_key,
-                         open_url,
-                         fetch_gemini_models, fetch_openrouter_models,
+                         open_url, fetch_latest_release_info,
+                         fetch_gemini_models, fetch_openrouter_models, fetch_openai_compatible_models,
+                         start_openai_oauth, check_openai_oauth_status, refresh_openai_token,
+                         fetch_openai_oauth_models,
                          get_cache_stats, get_cache_stats_detailed, clear_cache, clear_cache_by_novel, reset_all
+commands::watchlist::    add_watchlist_item, list_watchlist_items, refresh_watchlist,
+                         get_watchlist_episodes, mark_episode_viewed
 commands::api_logs::     get_api_logs, get_api_log_detail, get_api_logs_count, clear_api_logs
 ```
+
+The current `series` tab mounts `SeriesManager` as the watchlist surface. Legacy batch components (`LegacySeriesManager`, `ChapterList`, and `BatchTranslationModal`) remain in the source tree, but `App.tsx` does not mount them as the current tab surface.
 
 ### 4.3 Parser Trait
 ```rust
@@ -214,7 +221,7 @@ pub trait NovelParser: Send + Sync {
 | Site | Parser | Domain | Notes |
 |------|--------|--------|-------|
 | Syosetu | `syosetu.rs` | `ncode.syosetu.com` | Most common, used as reference pattern |
-| Hameln | `hameln.rs` | `syosetu.org` | Similar to Syosetu |
+| Hameln | `hameln.rs` | `syosetu.org` | Requires an individual chapter URL ending in `.htm` or `.html` |
 | Kakuyomu | `kakuyomu.rs` | `kakuyomu.jp` | JS-rendered; parses embedded `__NEXT_DATA__` JSON |
 | Nocturne | `nocturne.rs` | `novel18.syosetu.com` | 18+ site; sends `over18=yes` cookie |
 
@@ -223,8 +230,8 @@ pub trait NovelParser: Send + Sync {
 ### 4.4 TranslatorService Pipeline
 ```
 TranslatorService::new()
-  → load_settings() → read providers/models from settings table
-  → create ApiClient enum (Gemini | OpenAICompatible)
+  → load_settings() → read effective providers/models from SQLite or config.yaml override
+  → create ApiClient enum (Gemini | OpenAICompatible | Codex)
   → create SubstitutionService from config
 
 translate_paragraphs_streaming()
@@ -246,11 +253,12 @@ translate_paragraphs_streaming()
 |----------|-----------|------|-----------|----------|
 | Gemini | Google Generative AI | `x-goog-api-key` header | SSE (`?alt=sse`) | `generativelanguage.googleapis.com/v1beta` |
 | OpenRouter | OpenAI Chat Completions | `Bearer` token | SSE (`stream: true`) | `openrouter.ai/api/v1` |
+| OpenAI | OpenAI Chat Completions | `Bearer` token | SSE | Preset OpenAI base URL |
+| Anthropic | OpenAI Chat Completions (current, incompatible transport) | `Bearer` token | SSE | Preset points to `api.anthropic.com`; direct Anthropic keys do not work |
 | Custom | OpenAI Chat Completions | `Bearer` token | SSE | User-configured base URL |
+| OpenAI OAuth | Codex Responses | OAuth bearer token | SSE | Codex Backend API |
 
-**Provider switching:** Uses `ApiClient` enum. `provider_type` field from settings determines which variant.
-
-**Also supports `anthropic`, `openai`, `custom` provider types** — these all route through `OpenAICompatibleClient::new_with_base_url()`.
+**Provider switching:** `gemini` routes to `GeminiClient`; `openrouter` routes to `OpenAICompatibleClient::new_openrouter()`; `anthropic`, `openai`, and `custom` route to `OpenAICompatibleClient::new_with_base_url()`; `openai-oauth` refreshes its token through `openai_oauth` and routes to `CodexClient`. The current `anthropic` preset is not native Anthropic support: it combines `https://api.anthropic.com` with OpenAI `/v1/chat/completions` requests and `Bearer` auth. Until native transport exists, use OpenRouter or a Custom provider backed by an OpenAI-compatible proxy.
 
 ### 4.6 Paragraph ID Encoding
 The system uses semantic IDs to track paragraph identity through the translation pipeline:
@@ -307,7 +315,7 @@ pattern/replacement     # One rule per line
 
 ## 5. Database Schema
 
-### Tables (7 total)
+### Tables (12 effective tables)
 ```sql
 novels (id, site, novel_id, title, author, total_chapters, created_at, updated_at)
   UNIQUE(site, novel_id)
@@ -327,7 +335,20 @@ settings (key PK, value, updated_at)
 completed_chapters (novel_id + chapter_number PK, paragraph_count, completed_at)
 
 api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, protocol, input_tokens, output_tokens, request_body, response_body, error)
+
+novel_character_dictionary (site + novel_id PK, entries_json, updated_at)
+
+watchlist_items (id, site, work_url, novel_id, title, author, last_known_chapter, check status/timestamps)
+  UNIQUE(site, novel_id)
+
+watchlist_episodes (id, site, novel_id, chapter_number, chapter_url, title, is_new, timestamps)
+  UNIQUE(site, novel_id, chapter_number)
+
+viewed_episodes (id, site, novel_id, chapter_number, viewed_at)
+  UNIQUE(site, novel_id, chapter_number)
 ```
+
+Migration 006 creates temporary `_new` tables while rebuilding site-scoped keys; those are not additional effective tables.
 
 ### Settings Keys (key-value store)
 | Key | Type | Default | Description |
@@ -346,7 +367,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 
 ### Migration Strategy
 - **No sqlx::migrate!** — Uses `include_str!()` + manual `sqlx::query().execute()` per migration
-- **Schema evolution:** `run_migrations()` checks columns via `pragma_table_info()` before ALTER TABLE
+- **Schema evolution:** migrations 003 and 006 run conditionally after `pragma_table_info()` compatibility checks
 - **Connection:** `OnceLock<Pool<Sqlite>>` singleton, 5 max connections
 
 ## 6. Tauri Events (Backend → Frontend)
@@ -369,7 +390,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 - **Identifier:** `com.azyu.noveltr`
 - **Window:** 1200x800 (min 800x600), centered, resizable
 - **CSP:** `self`, `generativelanguage.googleapis.com`, `localhost:8080`
-- **Targets:** All platforms (macOS, Windows, Linux)
+- **Bundle config:** Tauri targets all platforms; the current release workflow publishes macOS and Windows artifacts only
 - **iOS:** Initialized (`tauri ios init` done)
 
 ### TypeScript Config
@@ -386,7 +407,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 
 ### Done
 - 4 site parsers (Syosetu, Hameln, Kakuyomu, Nocturne)
-- 3 API providers (Gemini, OpenRouter via shared OpenAICompatible transport) + custom/anthropic/openai routing
+- 6 provider types routed through 3 clients: Gemini, OpenRouter, Anthropic, OpenAI, Custom, and OpenAI OAuth/Codex
 - SSE streaming translation with real-time UI updates
 - Per-novel SHA256 translation cache
 - Batch translation with pause/stop/resume controls
@@ -401,13 +422,15 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 - Chapter completion tracking
 - View settings (font size, weight, spacing)
 - Failed paragraph retry mechanism
+- Watchlist surface with add/list/refresh/episode-viewed commands
 - iOS project initialized
 
 ### Not Implemented
 - EPUB export (returns error)
 - Auto-retry on API failure (manual retry only, MAX_RETRIES=1)
-- API key rotation (single key per provider)
-- `novels`, `chapters`, `translations` tables exist but are unused (cache-only flow)
+- Native Anthropic transport; direct Anthropic API keys do not work with the current preset
+- Multiple-key failover is not wired to settings. `GeminiClient` can rotate through a key vector internally, but current translator settings supply one key.
+- `novels` stores parsed metadata and is read for per-novel cache statistics. `chapters` and `translations` are not yet connected to runtime persistence.
 
 ## 9. Key Patterns & Conventions
 

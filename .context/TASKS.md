@@ -4,6 +4,7 @@
 
 | 상태 | 등록일 | 작업내용 | 담당 agent |
 |---|---|---|---|
+| `[x]` | 2026-07-12 | #27 제품 문서·tracker·UI i18n 정합성 복구 | Claude |
 | `[x]` | 2026-04-26 | Quick Start Gemini API 키 발급 흐름 보강 | Codex |
 | `[x]` | 2026-04-26 | GitHub Pages 메인 문구와 지원 사이트 표시 정리 | Codex |
 | `[x]` | 2026-04-26 | GitHub Pages Quick Start 문서 추가 | Codex |
@@ -14,11 +15,6 @@
 | `[x]` | 2026-04-24 | Codex OAuth provider 모델 목록을 Codex catalog API로 조회 | Codex |
 | `[x]` | 2026-04-24 | 빈 줄 기준 원문 문단 그룹 유지 | Codex |
 | `[x]` | 2026-04-21 | #25 설정 화면 KO/EN 전환 누락 정리 | Codex |
-| `[~]` | 2026-03-16 | Frontend UI accessibility and workspace refresh | Codex |
-| `[ ]` | 2026-03-18 | EPUB 내보내기 구현 | - |
-| `[ ]` | 2026-03-18 | API 실패 시 자동 재시도 (MAX_RETRIES > 1) | - |
-| `[ ]` | 2026-03-18 | API 키 순환 기능 | - |
-| `[ ]` | 2026-03-18 | novels/chapters/translations 테이블 활용 | - |
 | `[x]` | 2026-04-18 | #19 Series/Translation 잔여 하드코딩 문자열 및 legacy 모달 i18n 정리 | Codex |
 | `[x]` | 2026-04-18 | #18 LLM 설정 및 제공자/모델 모달 i18n 정리 | Codex |
 | `[x]` | 2026-04-18 | #17 번역 설정·고급 설정·API 로그 화면 i18n 정리 | Codex |

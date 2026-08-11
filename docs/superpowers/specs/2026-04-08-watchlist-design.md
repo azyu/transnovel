@@ -1,7 +1,7 @@
 # Watchlist Prototype Design
 
 Date: 2026-04-08
-Status: Draft for review
+Status: Implemented; the original Syosetu-only scope was later expanded. See the [current README](../../../README.md) for supported sites.
 
 ## Goal
 
