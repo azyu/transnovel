@@ -8,8 +8,12 @@ import { useUIStore } from '../../stores/uiStore';
 import { getUrlHistory } from '../../utils/urlHistory';
 import { FOCUS_TRANSLATION_URL_INPUT_EVENT } from '../../utils/tabShortcuts';
 
+const { invokeMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(async () => null),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async () => null),
+  invoke: invokeMock,
 }));
 
 vi.mock('../../hooks/useTranslation', () => ({
@@ -108,5 +112,24 @@ describe('UrlInput', () => {
     expect(container.textContent).toContain('Novel URL');
     expect(container.textContent).toContain('Supported sites');
     expect(container.textContent).toContain('Load');
+  });
+
+  it('opens the supported Syosetu URL from its site button', async () => {
+    await act(async () => {
+      root.render(<UrlInput historyKey="test_url_history" />);
+    });
+
+    const syosetuButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent?.trim() === 'ncode.syosetu.com',
+    );
+    expect(syosetuButton).toBeTruthy();
+
+    act(() => {
+      syosetuButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('open_url', {
+      url: 'https://ncode.syosetu.com',
+    });
   });
 });

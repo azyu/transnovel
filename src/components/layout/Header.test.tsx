@@ -90,16 +90,76 @@ describe('Header', () => {
     expect(container.textContent).toContain('번역 (Ctrl+1)');
   });
 
-  it('renders main tab labels in English when the UI language is English', async () => {
-    useUIStore.setState({ language: 'en' });
+  it.each([
+    {
+      language: 'ko' as const,
+      tabLabels: ['번역', '관심작품', '설정'],
+      mainTabsLabel: '메인 탭',
+      lightModeLabel: '라이트 모드로 전환',
+      darkModeLabel: '다크 모드로 전환',
+      otherLightModeLabel: 'Switch to light mode',
+      otherDarkModeLabel: 'Switch to dark mode',
+      languageSelectorLabel: '언어 선택',
+      selectedLanguageLabel: '한국어',
+      otherLanguageLabel: '영어',
+      otherMainTabsLabel: 'Main tabs',
+    },
+    {
+      language: 'en' as const,
+      tabLabels: ['Translation', 'Watchlist', 'Settings'],
+      mainTabsLabel: 'Main tabs',
+      lightModeLabel: 'Switch to light mode',
+      darkModeLabel: 'Switch to dark mode',
+      otherLightModeLabel: '라이트 모드로 전환',
+      otherDarkModeLabel: '다크 모드로 전환',
+      languageSelectorLabel: 'Language',
+      selectedLanguageLabel: 'English',
+      otherLanguageLabel: 'Korean',
+      otherMainTabsLabel: '메인 탭',
+    },
+  ])('renders labels and selected language state in $language', async ({
+    language,
+    tabLabels,
+    mainTabsLabel,
+    lightModeLabel,
+    darkModeLabel,
+    otherLightModeLabel,
+    otherDarkModeLabel,
+    languageSelectorLabel,
+    selectedLanguageLabel,
+    otherLanguageLabel,
+    otherMainTabsLabel,
+  }) => {
+    useUIStore.setState({ language });
 
     await act(async () => {
       root.render(<Header />);
     });
 
-    expect(container.textContent).toContain('Translation');
-    expect(container.textContent).toContain('Watchlist');
-    expect(container.textContent).toContain('Settings');
+    tabLabels.forEach((tabLabel) => {
+      expect(container.textContent).toContain(tabLabel);
+    });
+    expect(container.querySelector(`nav[aria-label="${mainTabsLabel}"]`)).toBeTruthy();
+    expect(container.querySelector(`nav[aria-label="${otherMainTabsLabel}"]`)).toBeFalsy();
+    expect(container.querySelector(`button[aria-label="${lightModeLabel}"]`)).toBeTruthy();
+    expect(container.querySelector(`button[aria-label="${otherLightModeLabel}"]`)).toBeFalsy();
+    expect(
+      container.querySelector(`button[aria-label="${selectedLanguageLabel}"]`)?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(
+      container.querySelector(`button[aria-label="${otherLanguageLabel}"]`)?.getAttribute('aria-pressed'),
+    ).toBe('false');
+    expect(
+      container.querySelector(`[role="group"][aria-label="${languageSelectorLabel}"]`),
+    ).toBeTruthy();
+
+    act(() => {
+      useUIStore.setState({ theme: 'light' });
+    });
+
+    expect(container.querySelector(`button[aria-label="${darkModeLabel}"]`)).toBeTruthy();
+    expect(container.querySelector(`button[aria-label="${lightModeLabel}"]`)).toBeFalsy();
+    expect(container.querySelector(`button[aria-label="${otherDarkModeLabel}"]`)).toBeFalsy();
   });
 
   it('persists the selected language when switching from Korean to English', async () => {

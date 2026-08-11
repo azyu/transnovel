@@ -1,6 +1,7 @@
 import React from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { Fragment } from 'react';
+import { getMessages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 
 interface ModalProps {
@@ -13,6 +14,8 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer }) => {
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const language = useUIStore((state) => state.language);
+  const commonMessages = getMessages(language).common;
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -48,7 +51,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                   <button
                     type="button"
                     onClick={onClose}
-                    aria-label="닫기"
+                    aria-label={commonMessages.accessibility.close}
                     className={`rounded-lg p-1 transition-colors ${isDark ? 'text-slate-400 hover:bg-slate-700 hover:text-white' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
                   >
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

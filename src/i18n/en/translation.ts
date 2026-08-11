@@ -43,7 +43,7 @@ export const translationMessages = {
     label: 'Novel URL',
     supportedSites: 'Supported sites',
     supportedSiteLinks: [
-      { name: 'syosetu.com', url: 'https://syosetu.com' },
+      { name: 'ncode.syosetu.com', url: 'https://ncode.syosetu.com' },
       { name: 'novel18.syosetu.com', url: 'https://novel18.syosetu.com' },
       { name: 'syosetu.org (Hameln)', url: 'https://syosetu.org' },
       { name: 'kakuyomu.jp', url: 'https://kakuyomu.jp' },

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getMessages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 
 interface ProviderConfig {
@@ -19,6 +20,8 @@ export const StatusBar: React.FC = () => {
   const [modelName, setModelName] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const isDark = useUIStore((state) => state.theme) === 'dark';
+  const language = useUIStore((state) => state.language);
+  const statusMessages = getMessages(language).common.statusBar;
 
   const loadStatus = useCallback(async () => {
     try {
@@ -79,25 +82,25 @@ export const StatusBar: React.FC = () => {
   return (
     <div className={`min-h-6 border-t px-4 pb-[env(safe-area-inset-bottom)] flex items-center justify-end gap-4 text-xs select-none ${isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
       <div className="flex items-center gap-2">
-        <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>제공자:</span>
+        <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>{statusMessages.provider}:</span>
         <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-          {providerName || '없음'}
+          {providerName || statusMessages.none}
         </span>
       </div>
       
       <div className={isDark ? 'text-slate-600' : 'text-slate-300'}>|</div>
       
       <div className="flex items-center gap-2">
-        <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>모델:</span>
+        <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>{statusMessages.model}:</span>
         <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-          {modelName || '미설정'}
+          {modelName || statusMessages.notConfigured}
         </span>
       </div>
       
       <div className={isDark ? 'text-slate-600' : 'text-slate-300'}>|</div>
       
       <div className={`font-medium ${isStreaming ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-slate-500' : 'text-slate-400')}`}>
-        {isStreaming ? 'Stream' : 'Batch'}
+        {isStreaming ? statusMessages.streaming : statusMessages.batch}
       </div>
     </div>
   );

@@ -52,7 +52,7 @@ export const Header: React.FC = () => {
 
       <nav
         role="tablist"
-        aria-label="메인 탭"
+        aria-label={messages.common.accessibility.mainTabs}
         className={`flex items-center p-1 rounded-xl ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'}`}
       >
         {tabs.map((tab) => (
@@ -118,6 +118,8 @@ export const Header: React.FC = () => {
           </div>
         )}
         <div
+          role="group"
+          aria-label={messages.common.accessibility.languageSelector}
           className={`inline-flex items-center rounded-lg p-1 ${
             isDark ? 'bg-slate-900/50' : 'bg-slate-100'
           }`}
@@ -127,6 +129,10 @@ export const Header: React.FC = () => {
               key={value}
               type="button"
               onClick={() => void setLanguage(value)}
+              aria-label={value === 'ko'
+                ? messages.common.accessibility.koreanLanguage
+                : messages.common.accessibility.englishLanguage}
+              aria-pressed={language === value}
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
                 language === value
                   ? 'bg-blue-600 text-white'
@@ -147,7 +153,9 @@ export const Header: React.FC = () => {
               ? 'bg-slate-700/50 text-slate-400 hover:text-white hover:bg-slate-700' 
               : 'bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200'
           }`}
-          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={isDark
+            ? messages.common.accessibility.switchToLightMode
+            : messages.common.accessibility.switchToDarkMode}
         >
           {isDark ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

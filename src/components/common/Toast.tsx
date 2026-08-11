@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { getMessages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 
 export const Toast: React.FC = () => {
-  const { toast, hideToast, theme } = useUIStore();
+  const { toast, hideToast, theme, language } = useUIStore();
   const isDark = theme === 'dark';
+  const commonMessages = getMessages(language).common;
 
   useEffect(() => {
     if (toast) {
@@ -81,7 +83,7 @@ export const Toast: React.FC = () => {
           <button
             type="button"
             onClick={hideToast}
-            aria-label="알림 닫기"
+            aria-label={commonMessages.accessibility.closeNotification}
             className={`flex-shrink-0 ${
               isError
                 ? isDark ? 'text-red-400 hover:text-red-200' : 'text-red-500 hover:text-red-700'
