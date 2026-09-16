@@ -53,23 +53,41 @@ export const UrlInput: React.FC<UrlInputProps> = ({
     }
   }, [submissionBlockedDescription]);
   useEffect(() => {
-    setHistory(getUrlHistory(historyKey));
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setHistory(getUrlHistory(historyKey));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [historyKey]);
 
   useEffect(() => {
-    setLocalUrl(currentUrl);
-    setIsEditingFreeform(false);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLocalUrl(currentUrl);
+      setIsEditingFreeform(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [currentUrl]);
 
   useEffect(() => {
-    if (chapter && currentUrl && chapter.sourceUrl === currentUrl) {
-      saveUrlHistory(historyKey, currentUrl, {
-        novelTitle: chapter.novelTitle ?? undefined,
-        chapterNumber: chapter.chapterNumber > 0 ? chapter.chapterNumber : undefined,
-        title: chapter.title,
-      });
-      setHistory(getUrlHistory(historyKey));
-    }
+    if (!chapter || !currentUrl || chapter.sourceUrl !== currentUrl) return;
+    saveUrlHistory(historyKey, currentUrl, {
+      novelTitle: chapter.novelTitle ?? undefined,
+      chapterNumber: chapter.chapterNumber > 0 ? chapter.chapterNumber : undefined,
+      title: chapter.title,
+    });
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setHistory(getUrlHistory(historyKey));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [chapter, currentUrl, historyKey]);
 
   useEffect(() => {

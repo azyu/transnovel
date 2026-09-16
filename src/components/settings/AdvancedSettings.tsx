@@ -58,7 +58,9 @@ export const AdvancedSettings: React.FC = () => {
   };
 
   useEffect(() => {
-    loadCacheStats();
+    queueMicrotask(() => {
+      void loadCacheStats();
+    });
   }, []);
 
   const handleClearCache = async (e: React.MouseEvent) => {

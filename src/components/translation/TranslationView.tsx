@@ -84,9 +84,14 @@ export const TranslationView: React.FC = () => {
   const progressValue = Math.min(Math.max(translatedCount, 0), paragraphIds.length);
 
   useEffect(() => {
-    if (!isTranslating) {
-      setIsStopping(false);
-    }
+    if (isTranslating) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setIsStopping(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isTranslating]);
 
   const checkApiConfig = useCallback(async () => {
@@ -199,10 +204,16 @@ export const TranslationView: React.FC = () => {
     if (!pendingCharacterDictionaryReview) {
       return;
     }
-
-    setDictionaryMode('review');
-    setDictionaryEntries(pendingCharacterDictionaryReview.entries);
-    setShowDictionaryModal(true);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setDictionaryMode('review');
+      setDictionaryEntries(pendingCharacterDictionaryReview.entries);
+      setShowDictionaryModal(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [pendingCharacterDictionaryReview]);
 
   const handleOpenDictionary = async () => {

@@ -66,25 +66,30 @@ export const ModelModal: React.FC<ModelModalProps> = ({
     || providerType === 'custom';
 
   useEffect(() => {
-    if (editingModel) {
-      setProviderId(editingModel.providerId);
-      setName(editingModel.name);
-      setModelId(editingModel.modelId);
-    } else {
-      setProviderId(providers[0]?.id || '');
-      setName('');
-      setModelId('');
-    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (editingModel) {
+        setProviderId(editingModel.providerId);
+        setName(editingModel.name);
+        setModelId(editingModel.modelId);
+      } else {
+        setProviderId(providers[0]?.id || '');
+        setName('');
+        setModelId('');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [editingModel, isOpen, providers]);
 
   useEffect(() => {
     providerIdRef.current = providerId;
-    if (!isEditing && providerId) {
-      setModelId('');
-    }
-  }, [providerId, isEditing]);
+  }, [providerId]);
 
   const fetchModels = useCallback(async () => {
+    setModels([]);
     if (isLocked) {
       setModels([]);
       setLoadingModels(false);
@@ -171,13 +176,17 @@ export const ModelModal: React.FC<ModelModalProps> = ({
         setLoadingModels(false);
       }
     }
-  }, [selectedProvider, providerType, preset?.apiKeyRequired, preset?.defaultBaseUrl, supportsModelDiscovery, isLocked]);
+  }, [selectedProvider, providerType, preset, supportsModelDiscovery, isLocked]);
 
   useEffect(() => {
-    if (isOpen && providerId && !isLocked) {
-      setModels([]);
-      fetchModels();
-    }
+    if (!isOpen || !providerId || isLocked) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchModels();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, providerId, fetchModels, isLocked]);
 
   const handleSave = async () => {
@@ -240,7 +249,10 @@ export const ModelModal: React.FC<ModelModalProps> = ({
             <select
               id={providerIdInputId}
               value={providerId}
-              onChange={(e) => setProviderId(e.target.value)}
+              onChange={(e) => {
+                setProviderId(e.target.value);
+                if (!isEditing) setModelId('');
+              }}
               disabled={isEditing || isLocked}
               className={`w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:border-blue-500 ${
                 isDark

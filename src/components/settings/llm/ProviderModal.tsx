@@ -51,49 +51,68 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
 
-    if (editingProvider) {
-      providerIdRef.current = editingProvider.id;
-      setProviderType(editingProvider.type);
-      setName(editingProvider.name);
-      setBaseUrl(editingProvider.baseUrl);
-      setApiKey(editingProvider.apiKey);
-      setOauthDone(editingProvider.type === 'openai-oauth' && !!editingProvider.apiKey);
-      if (editingProvider.type === 'openai-oauth' && editingProvider.apiKey) {
-        invoke<{ authenticated: boolean; email: string | null }>('check_openai_oauth_status', { providerId: editingProvider.id })
-          .then((r) => {
-            setOauthEmail(r.email ?? null);
-            setOauthStatusError(null);
-          })
-          .catch((error) => {
-            setOauthEmail(null);
-            setOauthStatusError(error instanceof Error ? error.message : String(error));
-          });
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      if (editingProvider) {
+        providerIdRef.current = editingProvider.id;
+        setProviderType(editingProvider.type);
+        setName(editingProvider.name);
+        setBaseUrl(editingProvider.baseUrl);
+        setApiKey(editingProvider.apiKey);
+        setOauthDone(editingProvider.type === 'openai-oauth' && !!editingProvider.apiKey);
+        if (editingProvider.type === 'openai-oauth' && editingProvider.apiKey) {
+          invoke<{ authenticated: boolean; email: string | null }>('check_openai_oauth_status', { providerId: editingProvider.id })
+            .then((r) => {
+              if (cancelled) return;
+              setOauthEmail(r.email ?? null);
+              setOauthStatusError(null);
+            })
+            .catch((error) => {
+              if (cancelled) return;
+              setOauthEmail(null);
+              setOauthStatusError(error instanceof Error ? error.message : String(error));
+            });
+        } else {
+          setOauthEmail(null);
+          setOauthStatusError(null);
+        }
       } else {
+        providerIdRef.current = crypto.randomUUID();
+        setProviderType('gemini');
+        setName('');
+        setBaseUrl(PROVIDER_PRESETS.gemini.defaultBaseUrl);
+        setApiKey('');
+        setOauthDone(false);
         setOauthEmail(null);
         setOauthStatusError(null);
       }
-    } else {
-      providerIdRef.current = crypto.randomUUID();
-      setProviderType('gemini');
-      setName('');
-      setBaseUrl(PROVIDER_PRESETS.gemini.defaultBaseUrl);
-      setApiKey('');
-      setOauthDone(false);
-      setOauthEmail(null);
-      setOauthStatusError(null);
-    }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [editingProvider, isOpen]);
 
   useEffect(() => {
-    if (!isEditing) {
+    if (isEditing) return;
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
       const newPreset = PROVIDER_PRESETS[providerType];
       setBaseUrl(newPreset.defaultBaseUrl);
       setName(llmMessages.providerTypes[providerType].label);
       setOauthDone(false);
       setOauthEmail(null);
       setOauthStatusError(null);
-    }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [providerType, isEditing, llmMessages.providerTypes]);
 
   const handleSave = async () => {
