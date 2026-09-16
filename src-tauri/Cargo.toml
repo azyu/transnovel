@@ -1,6 +1,6 @@
 [package]
 name = "transnovel"
-version = "0.1.5"
+version = "0.1.6"
 description = "AI-powered Japanese web novel translator"
 authors = ["TransNovel Team"]
 license = "MIT"
