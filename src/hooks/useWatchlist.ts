@@ -6,6 +6,17 @@ import type { WatchlistEpisode, WatchlistItem } from '../types';
 import { getMessages } from '../i18n';
 import { getWatchlistItemKey } from '../utils/watchlist';
 
+let watchlistMutationQueue: Promise<void> = Promise.resolve();
+
+const enqueueWatchlistMutation = <T>(operation: () => Promise<T>): Promise<T> => {
+  const next = watchlistMutationQueue.then(operation);
+  watchlistMutationQueue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+};
+
 type ApplyGuardOptions = {
   shouldApply?: () => boolean;
 };
@@ -18,7 +29,7 @@ export const loadWatchlistOnStartupFlow = async (
     setIsRefreshingWatchlist: (value: boolean) => void;
     setWatchlistError: (value: string | null) => void;
   },
-) => {
+) => enqueueWatchlistMutation(async () => {
   const { setWatchlistItems, setWatchlistLoaded, setIsRefreshingWatchlist, setWatchlistError } = actions;
 
   const items = await invokeFn<WatchlistItem[]>('list_watchlist_items');
@@ -36,7 +47,7 @@ export const loadWatchlistOnStartupFlow = async (
   } finally {
     setIsRefreshingWatchlist(false);
   }
-};
+});
 
 export const loadWatchlistEpisodesFlow = async (
   invokeFn: typeof invoke,
@@ -68,7 +79,7 @@ export const refreshWatchlistFlow = async (
     showError: (message: string, detail?: string) => void;
   },
   options?: ApplyGuardOptions,
-) => {
+) => enqueueWatchlistMutation(async () => {
   const { setWatchlistItems, setIsRefreshingWatchlist, setWatchlistError, showError } = actions;
 
   setIsRefreshingWatchlist(true);
@@ -90,10 +101,11 @@ export const refreshWatchlistFlow = async (
   } finally {
     setIsRefreshingWatchlist(false);
   }
-};
+});
 
 export const useWatchlist = () => {
   const setWatchlistItems = useSeriesStore((s) => s.setWatchlistItems);
+  const removeWatchlistItemFromStore = useSeriesStore((s) => s.removeWatchlistItem);
   const setSelectedWatchlistNovelId = useSeriesStore((s) => s.setSelectedWatchlistNovelId);
   const setWatchlistEpisodes = useSeriesStore((s) => s.setWatchlistEpisodes);
   const setIsRefreshingWatchlist = useSeriesStore((s) => s.setIsRefreshingWatchlist);
@@ -135,14 +147,23 @@ export const useWatchlist = () => {
     }
   }, [setIsRefreshingWatchlist, setWatchlistError, setWatchlistItems, showError]);
 
-  const addWatchlistItem = useCallback(async (url: string) => {
-    const item = await invoke<WatchlistItem>('add_watchlist_item', { url });
-    const items = await invoke<WatchlistItem[]>('list_watchlist_items');
-    setWatchlistItems(items);
-    setSelectedWatchlistNovelId(getWatchlistItemKey(item));
-    showToast(getMessages(language).series.addSuccess);
-    return item;
-  }, [language, setSelectedWatchlistNovelId, setWatchlistItems, showToast]);
+  const addWatchlistItem = useCallback(async (url: string) =>
+    enqueueWatchlistMutation(async () => {
+      const item = await invoke<WatchlistItem>('add_watchlist_item', { url });
+      const items = await invoke<WatchlistItem[]>('list_watchlist_items');
+      setWatchlistItems(items);
+      setSelectedWatchlistNovelId(getWatchlistItemKey(item));
+      showToast(getMessages(language).series.addSuccess);
+      return item;
+    }), [language, setSelectedWatchlistNovelId, setWatchlistItems, showToast]);
+
+  const removeWatchlistItem = useCallback(async (site: string, novelId: string) =>
+    enqueueWatchlistMutation(async () => {
+      await invoke('remove_watchlist_item', { site, novelId });
+      removeWatchlistItemFromStore(site, novelId);
+      showToast(getMessages(language).series.removeSuccess);
+    }), [language, removeWatchlistItemFromStore, showToast]);
+
 
   const loadWatchlistEpisodes = useCallback(async (
     site: string,
@@ -159,9 +180,9 @@ export const useWatchlist = () => {
       novelId,
       options,
     ), [setSelectedWatchlistNovelId, setWatchlistEpisodes]);
-
   return {
     addWatchlistItem,
+    removeWatchlistItem,
     loadWatchlistEpisodes,
     loadWatchlistOnStartup,
     refreshWatchlist,

@@ -1,4 +1,4 @@
-use sqlx::{Pool, Row, Sqlite};
+use sqlx::{sqlite::SqliteConnection, Connection, Pool, Row, Sqlite, Transaction};
 
 use crate::db::get_pool;
 use crate::models::novel::{SeriesInfo, WatchlistEpisode, WatchlistItem, WatchlistViewedUpdate};
@@ -52,6 +52,65 @@ pub async fn add_watchlist_item(url: &str) -> Result<WatchlistItem, String> {
 pub async fn list_watchlist_items() -> Result<Vec<WatchlistItem>, String> {
     let pool = get_pool()?;
     list_watchlist_items_with_pool(pool).await
+}
+async fn begin_watchlist_write_transaction(
+    connection: &mut SqliteConnection,
+) -> Result<Transaction<'_, Sqlite>, String> {
+    connection
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| error.to_string())
+}
+
+pub async fn remove_watchlist_item(site: &str, novel_id: &str) -> Result<(), String> {
+    let pool = get_pool()?;
+    remove_watchlist_item_with_pool(pool, site, novel_id).await
+}
+
+pub async fn remove_watchlist_item_with_pool(
+    pool: &Pool<Sqlite>,
+    site: &str,
+    novel_id: &str,
+) -> Result<(), String> {
+    let mut connection = pool.acquire().await.map_err(|error| error.to_string())?;
+    let mut transaction = begin_watchlist_write_transaction(&mut connection).await?;
+
+    let item_exists = sqlx::query("SELECT 1 FROM watchlist_items WHERE site = ? AND novel_id = ?")
+        .bind(site)
+        .bind(novel_id)
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|e| e.to_string())?
+    .is_some();
+
+    if !item_exists {
+        transaction.rollback().await.map_err(|e| e.to_string())?;
+        return Err("삭제할 관심작품을 찾을 수 없습니다.".to_string());
+    }
+
+    sqlx::query("DELETE FROM watchlist_episodes WHERE site = ? AND novel_id = ?")
+        .bind(site)
+        .bind(novel_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query("DELETE FROM viewed_episodes WHERE site = ? AND novel_id = ?")
+        .bind(site)
+        .bind(novel_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query("DELETE FROM watchlist_items WHERE site = ? AND novel_id = ?")
+        .bind(site)
+        .bind(novel_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    transaction.commit().await.map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub async fn refresh_watchlist_items() -> Result<Vec<WatchlistItem>, String> {
@@ -200,7 +259,11 @@ pub async fn refresh_watchlist_item_from_series(
         sqlx::query(
             "INSERT INTO watchlist_episodes (
                 site, novel_id, chapter_number, chapter_url, title, is_new, updated_at
-             ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+             )
+             SELECT ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+             WHERE EXISTS (
+                 SELECT 1 FROM watchlist_items WHERE site = ? AND novel_id = ?
+             )
              ON CONFLICT(site, novel_id, chapter_number) DO UPDATE SET
                 chapter_url = excluded.chapter_url,
                 title = excluded.title,
@@ -216,6 +279,8 @@ pub async fn refresh_watchlist_item_from_series(
         .bind(&chapter.url)
         .bind(chapter.title.as_deref())
         .bind(is_new)
+        .bind(&series.site)
+        .bind(novel_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -351,12 +416,17 @@ pub async fn mark_episode_viewed_with_pool(
 
     sqlx::query(
         "INSERT INTO viewed_episodes (site, novel_id, chapter_number, viewed_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         SELECT ?, ?, ?, CURRENT_TIMESTAMP
+         WHERE EXISTS (
+             SELECT 1 FROM watchlist_items WHERE site = ? AND novel_id = ?
+         )
          ON CONFLICT(site, novel_id, chapter_number) DO UPDATE SET viewed_at = CURRENT_TIMESTAMP",
     )
     .bind(site)
     .bind(novel_id)
     .bind(i64::from(chapter_number))
+    .bind(site)
+    .bind(novel_id)
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
@@ -397,11 +467,12 @@ pub async fn mark_episode_viewed_with_pool(
 #[cfg(test)]
 mod tests {
     use super::{
-        add_watchlist_item_from_series, find_watchlist_item, is_watchlist_supported_site,
-        list_watchlist_episode_rows, list_watchlist_items_with_pool, mark_episode_viewed_with_pool,
-        refresh_watchlist_item_from_series,
+        add_watchlist_item_from_series, begin_watchlist_write_transaction, find_watchlist_item,
+        is_watchlist_supported_site, list_watchlist_episode_rows, list_watchlist_items_with_pool,
+        mark_episode_viewed_with_pool, refresh_watchlist_item_from_series,
+        remove_watchlist_item_with_pool,
     };
-    use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
+    use sqlx::{sqlite::SqlitePoolOptions, Connection, Pool, Sqlite};
 
     use crate::models::novel::{ChapterInfo, SeriesInfo, WatchlistItem};
 
@@ -423,6 +494,191 @@ mod tests {
             .expect("apply watchlist migration");
 
         pool
+    }
+
+    #[tokio::test]
+    async fn remove_watchlist_item_removes_only_target_watchlist_state() {
+        let pool = setup_test_pool().await;
+        let syosetu_series = SeriesInfo {
+            site: "syosetu".into(),
+            novel_id: "n1000aa".into(),
+            title: "일반 작품".into(),
+            author: Some("작가".into()),
+            total_chapters: 1,
+            chapters: vec![ChapterInfo {
+                number: 1,
+                url: "https://ncode.syosetu.com/n1000aa/1/".into(),
+                title: Some("1화".into()),
+                status: "pending".into(),
+            }],
+        };
+        let nocturne_series = SeriesInfo {
+            site: "nocturne".into(),
+            novel_id: "n1000aa".into(),
+            title: "R18 작품".into(),
+            author: Some("작가".into()),
+            total_chapters: 1,
+            chapters: vec![ChapterInfo {
+                number: 1,
+                url: "https://novel18.syosetu.com/n1000aa/1/".into(),
+                title: Some("1화".into()),
+                status: "pending".into(),
+            }],
+        };
+
+        add_watchlist_item_from_series(
+            &pool,
+            "https://ncode.syosetu.com/n1000aa/",
+            &syosetu_series,
+        )
+        .await
+        .expect("seed syosetu watchlist item");
+        add_watchlist_item_from_series(
+            &pool,
+            "https://novel18.syosetu.com/n1000aa/",
+            &nocturne_series,
+        )
+        .await
+        .expect("seed nocturne watchlist item");
+
+        for site in ["syosetu", "nocturne"] {
+            sqlx::query(
+                "INSERT INTO viewed_episodes (site, novel_id, chapter_number)
+                 VALUES (?, ?, ?)",
+            )
+            .bind(site)
+            .bind("n1000aa")
+            .bind(1_i64)
+            .execute(&pool)
+            .await
+            .expect("seed viewed episode");
+        }
+
+        remove_watchlist_item_with_pool(&pool, "syosetu", "n1000aa")
+            .await
+            .expect("remove syosetu watchlist item");
+
+        mark_episode_viewed_with_pool(&pool, "syosetu", "n1000aa", 1)
+            .await
+            .expect("ignore viewed marker for removed item");
+
+        let items = list_watchlist_items_with_pool(&pool)
+            .await
+            .expect("list remaining watchlist items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].site, "nocturne");
+        refresh_watchlist_item_from_series(&pool, "n1000aa", &syosetu_series)
+            .await
+            .expect("refresh removed watchlist item");
+        assert!(list_watchlist_episode_rows(&pool, "syosetu", "n1000aa")
+            .await
+            .expect("list removed episodes")
+            .is_empty());
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM viewed_episodes WHERE site = ? AND novel_id = ?",
+            )
+            .bind("syosetu")
+            .bind("n1000aa")
+            .fetch_one(&pool)
+            .await
+            .expect("count removed viewed episodes"),
+            0
+        );
+        assert_eq!(
+            list_watchlist_episode_rows(&pool, "nocturne", "n1000aa")
+                .await
+                .expect("list remaining episodes")
+                .len(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM viewed_episodes WHERE site = ? AND novel_id = ?",
+            )
+            .bind("nocturne")
+            .bind("n1000aa")
+            .fetch_one(&pool)
+            .await
+            .expect("count remaining viewed episodes"),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_transaction_reserves_sqlite_writer_before_reading() {
+        let database_path = std::env::temp_dir().join(format!(
+            "transnovel-watchlist-race-{}.db",
+            uuid::Uuid::new_v4()
+        ));
+        let database_url = format!("sqlite:{}", database_path.display());
+        let pool = SqlitePoolOptions::new()
+            .max_connections(2)
+            .connect_with(
+                crate::db::sqlite_connect_options(&database_url)
+                    .expect("SQLite connect options"),
+            )
+            .await
+            .expect("create file-backed pool");
+        sqlx::query(include_str!("../db/migrations/001_initial.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply initial schema");
+        sqlx::query(include_str!("../db/migrations/005_watchlist.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply watchlist migration");
+        sqlx::query(
+            "INSERT INTO watchlist_items (site, work_url, novel_id, title)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind("syosetu")
+        .bind("https://ncode.syosetu.com/n1000aa/")
+        .bind("n1000aa")
+        .bind("작품")
+        .execute(&pool)
+        .await
+        .expect("seed watchlist item");
+
+        let mut removal_connection = pool.acquire().await.expect("removal connection");
+        let mut removal_transaction = begin_watchlist_write_transaction(&mut removal_connection)
+            .await
+            .expect("begin removal transaction");
+        sqlx::query("SELECT COUNT(*) FROM watchlist_items")
+            .fetch_one(&mut *removal_transaction)
+            .await
+            .expect("read inside removal transaction");
+
+        let mut competing_connection = pool.acquire().await.expect("competing connection");
+        sqlx::query("PRAGMA busy_timeout = 0")
+            .execute(&mut *competing_connection)
+            .await
+            .expect("disable waiting for competing writer");
+        let competing_error = competing_connection
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .expect_err("removal transaction must reserve the SQLite writer");
+        assert!(
+            competing_error.to_string().contains("database is locked"),
+            "unexpected competing writer error: {competing_error}"
+        );
+
+        removal_transaction
+            .rollback()
+            .await
+            .expect("rollback removal transaction");
+        let competing_transaction = competing_connection
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .expect("writer lock must be released after rollback");
+        competing_transaction
+            .rollback()
+            .await
+            .expect("rollback competing transaction");
+        drop(removal_connection);
+        drop(competing_connection);
+        pool.close().await;
+        let _ = std::fs::remove_file(database_path);
     }
 
     #[tokio::test]

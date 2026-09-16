@@ -151,6 +151,72 @@ describe('useSeriesStore watchlist state', () => {
     expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([0, 0]);
     expect(useSeriesStore.getState().watchlistBadgeCount).toBe(0);
   });
+  it('preserves the selected work and episodes when deleting another item', () => {
+    useSeriesStore.getState().setWatchlistItems([
+      {
+        novelId: 'n1',
+        title: '첫 작품',
+        site: 'syosetu',
+        workUrl: 'https://ncode.syosetu.com/n1/',
+        author: null,
+        lastKnownChapter: 1,
+        lastCheckedAt: null,
+        lastCheckStatus: 'ok',
+        lastCheckError: null,
+        newEpisodeCount: 1,
+      },
+      {
+        novelId: 'n2',
+        title: '둘째 작품',
+        site: 'syosetu',
+        workUrl: 'https://ncode.syosetu.com/n2/',
+        author: null,
+        lastKnownChapter: 2,
+        lastCheckedAt: null,
+        lastCheckStatus: 'ok',
+        lastCheckError: null,
+        newEpisodeCount: 0,
+      },
+      {
+        novelId: 'n3',
+        title: '셋째 작품',
+        site: 'syosetu',
+        workUrl: 'https://ncode.syosetu.com/n3/',
+        author: null,
+        lastKnownChapter: 3,
+        lastCheckedAt: null,
+        lastCheckStatus: 'ok',
+        lastCheckError: null,
+        newEpisodeCount: 1,
+      },
+    ]);
+    useSeriesStore.getState().setSelectedWatchlistNovelId('syosetu:n3');
+    useSeriesStore.getState().setWatchlistEpisodes([
+      {
+        chapterNumber: 3,
+        chapterUrl: 'https://ncode.syosetu.com/n3/3/',
+        title: '3화',
+        isNew: true,
+        isViewed: false,
+      },
+    ]);
+
+    useSeriesStore.getState().removeWatchlistItem('syosetu', 'n1');
+
+    expect(useSeriesStore.getState().watchlistItems.map((item) => item.novelId)).toEqual(['n2', 'n3']);
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('syosetu:n3');
+    expect(useSeriesStore.getState().watchlistEpisodes).toEqual([
+      {
+        chapterNumber: 3,
+        chapterUrl: 'https://ncode.syosetu.com/n3/3/',
+        title: '3화',
+        isNew: true,
+        isViewed: false,
+      },
+    ]);
+    expect(useSeriesStore.getState().watchlistBadgeCount).toBe(1);
+  });
+
 
   it('keeps watchlist selection scoped by site when novel ids overlap', () => {
     useSeriesStore.getState().setWatchlistItems([

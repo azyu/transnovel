@@ -4,6 +4,13 @@ export const seriesMessages = {
   add: 'Add to watchlist',
   addSuccess: 'Added to watchlist.',
   inputAriaLabel: 'Watchlist URL input',
+  remove: 'Remove from watchlist',
+  removeSuccess: 'Removed from watchlist.',
+  removeFailed: 'Failed to remove from watchlist',
+  removeConfirm: (title: string) =>
+    `Remove "${title}" from the watchlist?\n\nIts registration and new-episode tracking state will be deleted.`,
+  removeConfirmTitle: 'Remove from watchlist',
+  removeAriaLabel: (title: string) => `Remove ${title} from the watchlist`,
   loadErrorPrefix: 'There was an error while checking the watchlist:',
   loading: 'Loading watchlist...',
   emptyTitle: 'No watchlist items yet',

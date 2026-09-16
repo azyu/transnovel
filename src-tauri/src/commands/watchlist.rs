@@ -16,6 +16,11 @@ pub async fn refresh_watchlist() -> Result<Vec<WatchlistItem>, String> {
 }
 
 #[tauri::command]
+pub async fn remove_watchlist_item(site: String, novel_id: String) -> Result<(), String> {
+    crate::services::watchlist::remove_watchlist_item(&site, &novel_id).await
+}
+
+#[tauri::command]
 pub async fn get_watchlist_episodes(
     site: String,
     novel_id: String,

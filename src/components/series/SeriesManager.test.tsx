@@ -10,8 +10,20 @@ import { getWatchlistItemKey } from '../../utils/watchlist';
 
 const parseAndTranslate = vi.fn();
 const addWatchlistItem = vi.fn();
-const loadWatchlistEpisodes = vi.fn(async () => []);
+const removeWatchlistItem = vi.fn(async (site: string, novelId: string) => {
+  useSeriesStore.getState().removeWatchlistItem(site, novelId);
+});
+const loadWatchlistEpisodes = vi.fn<
+  (site: string, novelId: string, options: { shouldApply: () => boolean }) => Promise<never[]>
+>(async () => []);
 const refreshWatchlist = vi.fn(async () => {});
+const { askConfirmation } = vi.hoisted(() => ({
+  askConfirmation: vi.fn(async () => true),
+}));
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  ask: askConfirmation,
+}));
 
 vi.mock('../../hooks/useTranslation', () => ({
   useTranslation: () => ({
@@ -22,6 +34,7 @@ vi.mock('../../hooks/useTranslation', () => ({
 vi.mock('../../hooks/useWatchlist', () => ({
   useWatchlist: () => ({
     addWatchlistItem,
+    removeWatchlistItem,
     loadWatchlistEpisodes,
     refreshWatchlist,
   }),
@@ -36,6 +49,7 @@ describe('SeriesManager', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    askConfirmation.mockResolvedValue(true);
     originalSeriesMessages = messages.series;
 
     useUIStore.setState({
@@ -95,6 +109,168 @@ describe('SeriesManager', () => {
     expect(countBadges.length).toBeGreaterThan(0);
     expect(container.textContent).not.toContain('새 화 1개');
   });
+
+  it('removes a watchlist item and clears its selection after confirmation', async () => {
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const removeButton = container.querySelector(
+      'button[aria-label="테스트 작품 관심작품에서 삭제"]',
+    );
+    expect(removeButton).toBeTruthy();
+
+    await act(async () => {
+      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(askConfirmation).toHaveBeenCalledWith(
+      '"테스트 작품"을(를) 관심작품에서 삭제하시겠습니까?\n\n등록 정보와 새 화 확인 상태가 삭제됩니다.',
+      {
+        title: '관심작품 삭제',
+        kind: 'warning',
+      },
+    );
+    expect(removeWatchlistItem).toHaveBeenCalledWith('syosetu', 'n1234ab');
+    expect(useSeriesStore.getState().watchlistItems).toEqual([]);
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBeNull();
+    expect(useSeriesStore.getState().watchlistEpisodes).toEqual([]);
+  });
+  it('keeps a watchlist item when removal is cancelled', async () => {
+    askConfirmation.mockResolvedValue(false);
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const removeButton = container.querySelector(
+      'button[aria-label="테스트 작품 관심작품에서 삭제"]',
+    );
+    expect(removeButton).toBeTruthy();
+
+    await act(async () => {
+      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(removeWatchlistItem).not.toHaveBeenCalled();
+    expect(useSeriesStore.getState().watchlistItems).toHaveLength(1);
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('syosetu:n1234ab');
+  });
+
+
+
+  it('disables watchlist deletion while the list is refreshing', async () => {
+    useSeriesStore.setState({ isRefreshingWatchlist: true });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const removeButton = container.querySelector(
+      'button[aria-label="테스트 작품 관심작품에서 삭제"]',
+    ) as HTMLButtonElement | null;
+    expect(removeButton).toBeTruthy();
+    expect(removeButton?.disabled).toBe(true);
+  });
+  it('invalidates a pending episode selection when its work is deleted', async () => {
+    const otherItem = {
+      site: 'kakuyomu',
+      workUrl: 'https://kakuyomu.jp/works/123',
+      novelId: '123',
+      title: '다른 작품',
+      author: '다른 작가',
+      lastKnownChapter: 4,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 0,
+    };
+    useSeriesStore.setState({
+      watchlistItems: [useSeriesStore.getState().watchlistItems[0], otherItem],
+      selectedWatchlistNovelId: 'syosetu:n1234ab',
+    });
+
+    let resolveSelection!: () => void;
+    let pendingSelectionOptions: { shouldApply: () => boolean } | undefined;
+    const selectionPending = new Promise<void>((resolve) => {
+      resolveSelection = resolve;
+    });
+    loadWatchlistEpisodes.mockImplementationOnce(
+      async (
+        _site: string,
+        _novelId: string,
+        options: { shouldApply: () => boolean },
+      ) => {
+        pendingSelectionOptions = options;
+        await selectionPending;
+        return [];
+      },
+    );
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const otherNovelButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent?.includes('다른 작품'),
+    );
+    expect(otherNovelButton).toBeTruthy();
+    await act(async () => {
+      otherNovelButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const removeButton = container.querySelector(
+      'button[aria-label="다른 작품 관심작품에서 삭제"]',
+    );
+    expect(removeButton).toBeTruthy();
+    await act(async () => {
+      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(pendingSelectionOptions).toBeDefined();
+    expect(pendingSelectionOptions?.shouldApply()).toBe(false);
+    resolveSelection();
+    await act(async () => {
+      await selectionPending;
+    });
+  });
+
+  it('ignores an episode response after the manager unmounts', async () => {
+    useSeriesStore.setState({ selectedWatchlistNovelId: null });
+    let resolveSelection!: () => void;
+    let pendingSelectionOptions: { shouldApply: () => boolean } | undefined;
+    const selectionPending = new Promise<void>((resolve) => {
+      resolveSelection = resolve;
+    });
+    loadWatchlistEpisodes.mockImplementationOnce(
+      async (
+        _site: string,
+        _novelId: string,
+        options: { shouldApply: () => boolean },
+      ) => {
+        pendingSelectionOptions = options;
+        await selectionPending;
+        return [];
+      },
+    );
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+    expect(pendingSelectionOptions).toBeDefined();
+
+    act(() => {
+      root.unmount();
+    });
+    expect(pendingSelectionOptions?.shouldApply()).toBe(false);
+
+    resolveSelection();
+    await act(async () => {
+      await selectionPending;
+    });
+  });
+
 
   it('does not show an empty new-episode status label when there are no new episodes', async () => {
     const item = {
