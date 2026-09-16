@@ -22,6 +22,7 @@ interface SeriesState {
 
   watchlistItems: WatchlistItem[];
   setWatchlistItems: (items: WatchlistItem[]) => void;
+  removeWatchlistItem: (site: string, novelId: string) => void;
   selectedWatchlistNovelId: string | null;
   setSelectedWatchlistNovelId: (novelId: string | null) => void;
   watchlistEpisodes: WatchlistEpisode[];
@@ -70,6 +71,36 @@ export const useSeriesStore = create<SeriesState>((set) => ({
       watchlistItems: items,
       watchlistBadgeCount: countWatchlistBadgeItems(items),
     }),
+
+  removeWatchlistItem: (site, novelId) =>
+    set((state) => {
+      const itemKey = getWatchlistItemKey(site, novelId);
+      const watchlistItems = state.watchlistItems.filter(
+        (item) => getWatchlistItemKey(item) !== itemKey,
+      );
+
+      if (watchlistItems.length === state.watchlistItems.length) {
+        return state;
+      }
+
+      const wasSelected = state.selectedWatchlistNovelId === itemKey;
+      const wasImplicitlySelected =
+        state.selectedWatchlistNovelId === null &&
+        state.watchlistItems[0] !== undefined &&
+        getWatchlistItemKey(state.watchlistItems[0]) === itemKey;
+      const shouldClearEpisodes = wasSelected || wasImplicitlySelected;
+      return {
+        watchlistItems,
+        watchlistBadgeCount: countWatchlistBadgeItems(watchlistItems),
+        ...(shouldClearEpisodes
+          ? {
+              selectedWatchlistNovelId: null,
+              watchlistEpisodes: [],
+            }
+          : {}),
+      };
+    }),
+
   selectedWatchlistNovelId: null,
   setSelectedWatchlistNovelId: (novelId) => set({ selectedWatchlistNovelId: novelId }),
   watchlistEpisodes: [],

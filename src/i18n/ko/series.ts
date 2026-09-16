@@ -4,6 +4,13 @@ export const seriesMessages = {
   add: '관심작품에 추가',
   addSuccess: '관심작품에 추가했습니다.',
   inputAriaLabel: '관심작품 URL 입력',
+  remove: '관심작품에서 삭제',
+  removeSuccess: '관심작품에서 삭제했습니다.',
+  removeFailed: '관심작품 삭제 실패',
+  removeConfirm: (title: string) =>
+    `"${title}"을(를) 관심작품에서 삭제하시겠습니까?\n\n등록 정보와 새 화 확인 상태가 삭제됩니다.`,
+  removeConfirmTitle: '관심작품 삭제',
+  removeAriaLabel: (title: string) => `${title} 관심작품에서 삭제`,
   loadErrorPrefix: '관심작품 확인 중 오류가 있었습니다:',
   loading: '관심작품을 불러오는 중입니다...',
   emptyTitle: '관심작품이 없습니다',
