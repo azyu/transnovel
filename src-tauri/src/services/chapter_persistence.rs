@@ -1,7 +1,7 @@
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::{Pool, Row, Sqlite};
+use sqlx::{sqlite::SqliteConnection, Connection, Pool, Row, Sqlite, Transaction};
 
 use crate::db::get_pool;
 
@@ -148,6 +148,14 @@ pub fn extract_chapter_paragraphs(html: &str) -> Vec<String> {
     }
     paragraphs
 }
+async fn begin_write_transaction(
+    connection: &mut SqliteConnection,
+) -> Result<Transaction<'_, Sqlite>, String> {
+    connection
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| error.to_string())
+}
 
 pub async fn upsert_chapter(input: ChapterUpsert<'_>) -> Result<PersistedChapter, String> {
     upsert_chapter_with_pool(get_pool()?, input).await
@@ -159,7 +167,8 @@ pub async fn upsert_chapter_with_pool(
 ) -> Result<PersistedChapter, String> {
     let chapter_number = i64::from(input.chapter_number);
     let content_hash = chapter_content_hash(input.title, input.subtitle, input.original_content);
-    let mut transaction = pool.begin().await.map_err(|error| error.to_string())?;
+    let mut connection = pool.acquire().await.map_err(|error| error.to_string())?;
+    let mut transaction = begin_write_transaction(&mut connection).await?;
     let existing = sqlx::query(
         "SELECT chapters.id, chapters.title, chapters.subtitle,
                 chapters.original_content, chapters.content_hash, chapters.status
@@ -386,7 +395,8 @@ pub async fn persist_translations_with_pool(
     mode: TranslationWriteMode,
     writes: &[TranslationWrite],
 ) -> Result<(), String> {
-    let mut transaction = pool.begin().await.map_err(|error| error.to_string())?;
+    let mut connection = pool.acquire().await.map_err(|error| error.to_string())?;
+    let mut transaction = begin_write_transaction(&mut connection).await?;
     let chapter = sqlx::query(
         "SELECT chapters.id, chapters.title, chapters.subtitle,
                 chapters.content_hash, chapters.original_content
@@ -1112,5 +1122,67 @@ mod tests {
         .await
         .expect("read completion");
         assert_eq!(completion_count, 1);
+    }
+
+    #[tokio::test]
+    async fn write_transaction_reserves_sqlite_writer_before_reading() {
+        let database_path = std::env::temp_dir().join(format!(
+            "transnovel-persistence-race-{}.db",
+            uuid::Uuid::new_v4()
+        ));
+        let database_url = format!("sqlite:{}", database_path.display());
+        let pool = SqlitePoolOptions::new()
+            .max_connections(2)
+            .connect_with(
+                crate::db::sqlite_connect_options(&database_url)
+                    .expect("SQLite connect options"),
+            )
+            .await
+            .expect("create file-backed pool");
+        sqlx::query(include_str!("../db/migrations/001_initial.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply initial schema");
+
+        let mut persistence_connection = pool.acquire().await.expect("persistence connection");
+        let mut persistence_transaction =
+            begin_write_transaction(&mut persistence_connection)
+                .await
+                .expect("begin persistence transaction");
+        sqlx::query("SELECT COUNT(*) FROM chapters")
+            .fetch_one(&mut *persistence_transaction)
+            .await
+            .expect("read inside persistence transaction");
+
+        let mut competing_connection = pool.acquire().await.expect("competing connection");
+        sqlx::query("PRAGMA busy_timeout = 0")
+            .execute(&mut *competing_connection)
+            .await
+            .expect("disable waiting for the competing writer");
+        let competing_error = competing_connection
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .expect_err("persistence transaction must already reserve the SQLite writer");
+        assert!(
+            competing_error.to_string().contains("database is locked"),
+            "unexpected competing writer error: {competing_error}"
+        );
+
+        persistence_transaction
+            .rollback()
+            .await
+            .expect("rollback persistence transaction");
+        let competing_transaction = competing_connection
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .expect("writer lock must be released after rollback");
+        competing_transaction
+            .rollback()
+            .await
+            .expect("rollback competing transaction");
+        drop(persistence_connection);
+        drop(competing_connection);
+        pool.close().await;
+        let _ = std::fs::remove_file(database_path);
     }
 }
