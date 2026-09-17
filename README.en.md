@@ -133,7 +133,7 @@ If you want to develop or modify the app locally, run it from source.
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 24.15.0+ (24.x LTS, matching CI)
 - pnpm
 - Rust toolchain
 - Tauri build prerequisites for your OS

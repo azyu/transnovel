@@ -133,7 +133,7 @@ models:
 
 ### 준비 사항
 
-- Node.js 18+
+- Node.js 24.15.0+ (24.x LTS, CI 기준)
 - pnpm
 - Rust toolchain
 - 사용 중인 OS에 맞는 Tauri 빌드 의존성
