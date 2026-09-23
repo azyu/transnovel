@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
@@ -30,8 +30,104 @@ use crate::services::character_dictionary::{
 use crate::services::codex::CodexClient;
 use crate::services::gemini::GeminiClient;
 use crate::services::openai_compatible::OpenAICompatibleClient;
-use crate::services::paragraph::{encode_paragraph_id, TranslationChunk};
+use crate::services::paragraph::{decode_paragraph_id, encode_paragraph_id, TranslationChunk};
 use crate::services::substitution::SubstitutionService;
+
+pub struct StreamingCacheWriter {
+    cache_context: TranslationCacheContext,
+    substitution: SubstitutionService,
+    has_subtitle: bool,
+    sources: HashMap<usize, String>,
+    persisted_indices: HashSet<usize>,
+}
+
+impl StreamingCacheWriter {
+    fn new(
+        cache_context: TranslationCacheContext,
+        substitutions: &str,
+        has_subtitle: bool,
+        sources: impl IntoIterator<Item = (usize, String)>,
+    ) -> Self {
+        Self {
+            cache_context,
+            substitution: SubstitutionService::from_config(substitutions),
+            has_subtitle,
+            sources: sources.into_iter().collect(),
+            persisted_indices: HashSet::new(),
+        }
+    }
+
+    fn pending_pair(&self, chunk: &TranslationChunk) -> Option<(usize, (String, String))> {
+        let index = decode_paragraph_id(&chunk.paragraph_id, self.has_subtitle)?;
+        if self.has_persisted(index) {
+            return None;
+        }
+
+        let source = self.sources.get(&index)?.clone();
+        let translated = self.substitution.apply(&chunk.text);
+        if source.trim().is_empty() || translated.trim().is_empty() {
+            return None;
+        }
+
+        Some((index, (source, translated)))
+    }
+
+    fn has_persisted(&self, index: usize) -> bool {
+        self.persisted_indices.contains(&index)
+    }
+
+    pub async fn cache_completed_chunk(&mut self, chunk: &TranslationChunk) {
+        let Some((index, pair)) = self.pending_pair(chunk) else {
+            return;
+        };
+
+        if cache_translations(&self.cache_context, &[pair])
+            .await
+            .is_ok()
+        {
+            self.persisted_indices.insert(index);
+        }
+    }
+
+    #[cfg(test)]
+    async fn cache_completed_chunk_with_pool(
+        &mut self,
+        chunk: &TranslationChunk,
+        pool: &sqlx::Pool<sqlx::Sqlite>,
+    ) {
+        let Some((index, pair)) = self.pending_pair(chunk) else {
+            return;
+        };
+
+        if crate::services::cache::cache_translations_with_pool(pool, &self.cache_context, &[pair])
+            .await
+            .is_ok()
+        {
+            self.persisted_indices.insert(index);
+        }
+    }
+}
+
+fn needs_final_cache_write(use_streaming: bool, already_persisted: bool) -> bool {
+    !use_streaming || !already_persisted
+}
+
+fn cached_translation_chunks(
+    cached: &[Option<String>],
+    has_subtitle: bool,
+) -> Vec<TranslationChunk> {
+    cached
+        .iter()
+        .enumerate()
+        .filter_map(|(index, text)| {
+            text.as_ref().map(|text| TranslationChunk {
+                paragraph_id: encode_paragraph_id(index, has_subtitle),
+                text: text.clone(),
+                is_complete: true,
+            })
+        })
+        .collect()
+}
 
 fn build_translation_writes(
     paragraphs: &[String],
@@ -306,7 +402,7 @@ pub struct TranslatorService {
 
 struct TranslationChunkAttemptContext<'a, R: tauri::Runtime> {
     service: &'a mut TranslatorService,
-    cache_context: &'a TranslationCacheContext,
+    streaming_cache_writer: &'a mut StreamingCacheWriter,
     chunk_paragraphs: &'a [String],
     chunk_indices: &'a [usize],
     has_subtitle: bool,
@@ -650,24 +746,22 @@ impl TranslatorService {
                     .map(|c| c.clone().unwrap_or_default())
                     .collect();
 
-                for (i, cached_text) in cached.iter().enumerate() {
-                    if let Some(text) = cached_text {
-                        let postprocessed = self
-                            .substitution
-                            .apply_to_paragraphs(std::slice::from_ref(text));
-                        let _ = app_handle.emit(
-                            "translation-chunk",
-                            TranslationChunk {
-                                paragraph_id: encode_paragraph_id(i, has_subtitle),
-                                text: postprocessed.into_iter().next().unwrap_or_default(),
-                                is_complete: true,
-                            },
-                        );
-                    }
+                for chunk in cached_translation_chunks(&cached, has_subtitle) {
+                    let _ = app_handle.emit("translation-chunk", chunk);
                 }
 
                 (uncached_indices, uncached_paragraphs, results)
             };
+
+        let mut streaming_cache_writer = StreamingCacheWriter::new(
+            cache_context.clone(),
+            &self.substitutions,
+            has_subtitle,
+            uncached_indices
+                .iter()
+                .copied()
+                .zip(uncached_paragraphs.iter().cloned()),
+        );
 
         if !uncached_paragraphs.is_empty() {
             // Dynamic chunk sizing: send all at once if small enough
@@ -703,7 +797,7 @@ impl TranslatorService {
                 let retry_result = {
                     let mut attempt_context = TranslationChunkAttemptContext {
                         service: self,
-                        cache_context: &cache_context,
+                        streaming_cache_writer: &mut streaming_cache_writer,
                         chunk_paragraphs,
                         chunk_indices,
                         has_subtitle,
@@ -722,33 +816,33 @@ impl TranslatorService {
                                     match &mut context.service.client {
                                         ApiClient::Gemini(client) => {
                                             run_until_stop(client.translate_streaming(
-                                                context.cache_context,
                                                 context.chunk_paragraphs,
                                                 context.chunk_indices,
                                                 context.has_subtitle,
                                                 context.prompt,
+                                                context.streaming_cache_writer,
                                                 context.app_handle,
                                             ))
                                             .await
                                         }
                                         ApiClient::OpenAICompatible(client) => {
                                             run_until_stop(client.translate_streaming(
-                                                context.cache_context,
                                                 context.chunk_paragraphs,
                                                 context.chunk_indices,
                                                 context.has_subtitle,
                                                 context.prompt,
+                                                context.streaming_cache_writer,
                                                 context.app_handle,
                                             ))
                                             .await
                                         }
                                         ApiClient::Codex(client) => {
                                             run_until_stop(client.translate_streaming(
-                                                context.cache_context,
                                                 context.chunk_paragraphs,
                                                 context.chunk_indices,
                                                 context.has_subtitle,
                                                 context.prompt,
+                                                context.streaming_cache_writer,
                                                 context.app_handle,
                                             ))
                                             .await
@@ -860,8 +954,15 @@ impl TranslatorService {
                                         );
                                 } else if !trans.is_empty() {
                                     results[orig_idx] = trans.clone();
-                                    pairs
-                                        .push((chunk_paragraphs[local_idx].clone(), trans.clone()));
+                                    if needs_final_cache_write(
+                                        self.use_streaming,
+                                        streaming_cache_writer.has_persisted(orig_idx),
+                                    ) {
+                                        pairs.push((
+                                            chunk_paragraphs[local_idx].clone(),
+                                            trans.clone(),
+                                        ));
+                                    }
 
                                     if !self.use_streaming {
                                         let _ = app_handle.emit(
@@ -1311,6 +1412,172 @@ mod tests {
     use super::*;
     use crate::commands::series::{reset_translation_control_flags, stop_translation};
     use crate::commands::settings::Setting;
+    use sqlx::{sqlite::SqlitePoolOptions, Row};
+
+    async fn setup_streaming_cache_test_pool() -> sqlx::Pool<sqlx::Sqlite> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create sqlite memory pool");
+        sqlx::query(include_str!("../db/migrations/001_initial.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply initial migration");
+        pool
+    }
+
+    #[test]
+    fn cached_translation_chunks_preserve_stored_text_and_semantic_ids() {
+        let cached = vec![
+            Some("stored title {{verbatim}}".to_string()),
+            Some("stored subtitle -> unchanged".to_string()),
+            None,
+            Some("stored body text".to_string()),
+        ];
+
+        let chunks = cached_translation_chunks(&cached, true);
+
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].paragraph_id, "title");
+        assert_eq!(chunks[0].text, "stored title {{verbatim}}");
+        assert!(chunks[0].is_complete);
+        assert_eq!(chunks[1].paragraph_id, "subtitle");
+        assert_eq!(chunks[1].text, "stored subtitle -> unchanged");
+        assert!(chunks[1].is_complete);
+        assert_eq!(chunks[2].paragraph_id, "p-2");
+        assert_eq!(chunks[2].text, "stored body text");
+        assert!(chunks[2].is_complete);
+    }
+
+    #[test]
+    fn final_cache_fallback_skips_only_successful_streaming_writes() {
+        assert!(!needs_final_cache_write(true, true));
+        assert!(needs_final_cache_write(true, false));
+        assert!(needs_final_cache_write(false, true));
+    }
+
+    #[tokio::test]
+    async fn streaming_cache_writer_postprocesses_and_deduplicates_completed_chunks() {
+        let pool = setup_streaming_cache_test_pool().await;
+        sqlx::query("CREATE TABLE cache_write_audit (operation TEXT NOT NULL)")
+            .execute(&pool)
+            .await
+            .expect("create cache write audit");
+        sqlx::query(
+            "CREATE TRIGGER audit_cache_insert AFTER INSERT ON translation_cache
+             BEGIN INSERT INTO cache_write_audit(operation) VALUES ('insert'); END",
+        )
+        .execute(&pool)
+        .await
+        .expect("audit cache inserts");
+        sqlx::query(
+            "CREATE TRIGGER audit_cache_update AFTER UPDATE OF translated_text ON translation_cache
+             BEGIN INSERT INTO cache_write_audit(operation) VALUES ('update'); END",
+        )
+        .execute(&pool)
+        .await
+        .expect("audit cache updates");
+
+        let cache_context = TranslationCacheContext::new("syosetu", "novel-1", "model-a");
+        let mut writer = StreamingCacheWriter::new(
+            cache_context,
+            "RAW/CANONICAL",
+            true,
+            [(2, "preprocessed source".to_string())],
+        );
+        let completed = TranslationChunk {
+            paragraph_id: "p-1".to_string(),
+            text: "RAW result".to_string(),
+            is_complete: true,
+        };
+
+        writer
+            .cache_completed_chunk_with_pool(&completed, &pool)
+            .await;
+        writer
+            .cache_completed_chunk_with_pool(&completed, &pool)
+            .await;
+        writer
+            .cache_completed_chunk_with_pool(
+                &TranslationChunk {
+                    paragraph_id: "p-2".to_string(),
+                    text: "non-requested".to_string(),
+                    is_complete: true,
+                },
+                &pool,
+            )
+            .await;
+        writer
+            .cache_completed_chunk_with_pool(
+                &TranslationChunk {
+                    paragraph_id: "unknown".to_string(),
+                    text: "unknown".to_string(),
+                    is_complete: true,
+                },
+                &pool,
+            )
+            .await;
+
+        let row = sqlx::query(
+            "SELECT COUNT(*) AS row_count, original_text, translated_text, hit_count
+             FROM translation_cache",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read streaming cache row");
+        assert_eq!(row.get::<i64, _>("row_count"), 1);
+        assert_eq!(row.get::<String, _>("original_text"), "preprocessed source");
+        assert_eq!(row.get::<String, _>("translated_text"), "CANONICAL result");
+        assert_eq!(row.get::<i64, _>("hit_count"), 0);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM cache_write_audit")
+                .fetch_one(&pool)
+                .await
+                .expect("count cache writes"),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn streaming_cache_writer_retries_after_cache_failure() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create sqlite memory pool");
+        let cache_context = TranslationCacheContext::new("syosetu", "novel-1", "model-a");
+        let mut writer = StreamingCacheWriter::new(
+            cache_context,
+            "RAW/CANONICAL",
+            false,
+            [(1, "preprocessed source".to_string())],
+        );
+        let completed = TranslationChunk {
+            paragraph_id: "p-1".to_string(),
+            text: "RAW result".to_string(),
+            is_complete: true,
+        };
+
+        writer
+            .cache_completed_chunk_with_pool(&completed, &pool)
+            .await;
+        sqlx::query(include_str!("../db/migrations/001_initial.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply migration after failed cache write");
+        writer
+            .cache_completed_chunk_with_pool(&completed, &pool)
+            .await;
+
+        let translated = sqlx::query_scalar::<_, String>(
+            "SELECT translated_text FROM translation_cache WHERE original_text = 'preprocessed source'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read retried cache write");
+        assert_eq!(translated, "CANONICAL result");
+    }
 
     #[test]
     fn full_persistence_mapping_excludes_title_and_optional_subtitle() {
