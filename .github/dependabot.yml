@@ -1,5 +1,6 @@
 # Dependabot version updates for all checked-in dependency managers,
-# batched into one weekly PR (Friday 09:00 KST).
+# batched into one weekly PR (Friday 09:00 KST). Majors are skipped and
+# tracked as GitHub Issues so the weekly PR stays mergeable.
 version: 2
 multi-ecosystem-groups:
   weekly-deps:
@@ -14,13 +15,38 @@ updates:
     directory: /
     patterns: ["*"]
     multi-ecosystem-group: weekly-deps
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # 0.x minor bumps are breaking; tracked in #122.
+      - dependency-name: eslint-plugin-react-refresh
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: cargo
     directory: /src-tauri
     patterns: ["*"]
     multi-ecosystem-group: weekly-deps
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # 0.x minor bumps are breaking; tracked in #123. Remove each entry once upgraded.
+      - dependency-name: reqwest
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: sqlx
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: rand
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: sha2
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: base64
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: scraper
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /
     patterns: ["*"]
     multi-ecosystem-group: weekly-deps
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
