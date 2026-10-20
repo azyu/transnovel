@@ -1,20 +1,26 @@
-# Dependabot version updates for all checked-in dependency managers.
+# Dependabot version updates for all checked-in dependency managers,
+# batched into one weekly PR (Friday 09:00 KST).
 version: 2
+multi-ecosystem-groups:
+  weekly-deps:
+    schedule:
+      interval: weekly
+      day: friday
+      time: "09:00"
+      timezone: Asia/Seoul
+
 updates:
   - package-ecosystem: npm
     directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+    patterns: ["*"]
+    multi-ecosystem-group: weekly-deps
 
   - package-ecosystem: cargo
     directory: /src-tauri
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+    patterns: ["*"]
+    multi-ecosystem-group: weekly-deps
 
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 5
+    patterns: ["*"]
+    multi-ecosystem-group: weekly-deps
