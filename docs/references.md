@@ -189,7 +189,8 @@ src-tauri/src/
         ├── 006_watchlist_site_scope.sql       # Site-scoped watchlist identities
         ├── 007_cache_identity.sql             # Site/context-scoped cache identities
         ├── 008_completed_chapter_site.sql     # Site-scoped completion identities
-        └── 009_chapter_content_hash.sql        # Source revision guard for translations
+        ├── 009_chapter_content_hash.sql       # Source revision guard for translations
+        └── 010_canonical_translation_cache.sql # One-time cache reset; hit_count defaults to 0
 ```
 
 ### 4.2 Registered Tauri Commands
@@ -278,14 +279,14 @@ LLM output format: `<p id="title">일본어 타이틀</p>`
 
 The parser (`paragraph.rs`) handles malformed HTML gracefully:
 - Missing `</p>` before next `<p` tag
-- Missing `</p>` at end (uses `</main>` as fallback boundary)
+- A paragraph ends at the earliest `</p>` or `</main>`, else before the next `<p` tag (streaming extraction and final parsing share this rule)
 - Less-than symbols in content
 
 ### 4.7 Caching
-- **Hash:** `SHA256(novel_id + ":" + original_text)` — per-novel isolation
-- **Storage:** `translation_cache` table with `hit_count` and `last_used_at`
+- **Hash:** `SHA256` over length-prefixed `site`, `novel_id`, `context_fingerprint`, and `normalized_source` (CRLF/CR → LF, trimmed) — scoped per site, novel, and translation context
+- **Storage:** `translation_cache` table with `hit_count` (cache reads only; writes do not increment it) and `last_used_at`
 - **Batch:** Uses SQLite transactions for bulk inserts
-- **Cache invalidation:** Manual only (clear_cache, clear_cache_by_novel)
+- **Cache invalidation:** Manual (`clear_cache`, `clear_cache_by_novel`), plus one-time automatic resets on schema upgrades (`007_cache_identity.sql`, `010_canonical_translation_cache.sql`)
 
 ### 4.8 Substitution Service
 Regex-based text replacement applied before and after translation.

@@ -7,12 +7,11 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use super::api_logger;
-use super::cache::{cache_translation, TranslationCacheContext};
 use super::paragraph::{
-    decode_paragraph_id, encode_paragraph_id, extract_completed_paragraphs,
-    parse_translated_paragraphs, parse_translated_paragraphs_by_indices,
+    accept_streamed_chunk, encode_paragraph_id, extract_completed_paragraphs,
+    parse_translated_paragraphs_by_indices,
 };
-use super::translator::TokenUsage;
+use super::translator::{StreamingCacheWriter, TokenUsage};
 use crate::models::api_log::ApiLogEntry;
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
@@ -345,16 +344,16 @@ impl GeminiClient {
             .filter(|t| !t.is_empty())
             .ok_or("응답에서 텍스트를 찾을 수 없습니다.")?;
 
-        parse_translated_paragraphs(&text, paragraphs.len(), has_subtitle)
+        parse_translated_paragraphs_by_indices(&text, original_indices, has_subtitle)
     }
 
     pub async fn translate_streaming<R: tauri::Runtime>(
         &mut self,
-        cache_context: &TranslationCacheContext,
         paragraphs: &[String],
         original_indices: &[usize],
         has_subtitle: bool,
         system_prompt: &str,
+        cache_writer: &mut StreamingCacheWriter,
         app_handle: &AppHandle<R>,
     ) -> Result<(Vec<String>, Option<TokenUsage>), String> {
         let api_key = self.get_next_api_key()?.to_string();
@@ -434,14 +433,14 @@ impl GeminiClient {
         let mut full_text = String::new();
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
-        let mut emitted_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut emitted_indices = std::collections::HashSet::new();
         let mut final_usage: Option<TokenUsage> = None;
 
         while let Some(chunk) = stream.next().await {
             let chunk = match chunk {
                 Ok(chunk) => chunk,
                 Err(e) => {
-                    let prefix = if emitted_ids.is_empty() {
+                    let prefix = if emitted_indices.is_empty() {
                         "스트림 읽기 실패"
                     } else {
                         "부분 스트림 읽기 실패"
@@ -483,26 +482,13 @@ impl GeminiClient {
 
                             let chunks = extract_completed_paragraphs(&full_text);
                             for chunk in chunks {
-                                if !emitted_ids.contains(&chunk.paragraph_id) {
-                                    emitted_ids.insert(chunk.paragraph_id.clone());
-
-                                    if let Some(orig_idx) =
-                                        decode_paragraph_id(&chunk.paragraph_id, has_subtitle)
-                                    {
-                                        if let Some(pos) =
-                                            original_indices.iter().position(|&x| x == orig_idx)
-                                        {
-                                            if pos < paragraphs.len() {
-                                                let _ = cache_translation(
-                                                    cache_context,
-                                                    &paragraphs[pos],
-                                                    &chunk.text,
-                                                )
-                                                .await;
-                                            }
-                                        }
-                                    }
-
+                                if let Some(chunk) = accept_streamed_chunk(
+                                    chunk,
+                                    original_indices,
+                                    has_subtitle,
+                                    &mut emitted_indices,
+                                ) {
+                                    cache_writer.cache_completed_chunk(&chunk).await;
                                     let _ = app_handle.emit("translation-chunk", chunk);
                                 }
                             }

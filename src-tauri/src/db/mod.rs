@@ -145,6 +145,26 @@ async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
         .await?;
     }
 
+    // Tables created before migration 010 still carry `hit_count DEFAULT 1`; that
+    // default marks a cache that may hold raw streaming rows and write-inflated hits.
+    const CANONICAL_CACHE_CHECK: &str =
+        "SELECT COUNT(*) FROM pragma_table_info('translation_cache')
+         WHERE name = 'hit_count' AND dflt_value = '0'";
+    let canonical_cache: i64 = sqlx::query_scalar(CANONICAL_CACHE_CHECK)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if canonical_cache == 0 {
+        execute_migration_transaction(
+            pool,
+            include_str!("migrations/010_canonical_translation_cache.sql"),
+            CANONICAL_CACHE_CHECK,
+            1,
+        )
+        .await?;
+    }
+
     let completed_site: Vec<(String,)> = sqlx::query_as(
         "SELECT name FROM pragma_table_info('completed_chapters') WHERE name = 'site'",
     )
@@ -450,6 +470,196 @@ mod tests {
         second_pool.close().await;
         std::fs::remove_file(database_path).expect("remove temporary database");
     }
+    fn legacy_hit_count_cache_sql() -> String {
+        include_str!("migrations/010_canonical_translation_cache.sql")
+            .replace("hit_count INTEGER DEFAULT 0", "hit_count INTEGER DEFAULT 1")
+    }
+
+    async fn insert_cache_row(pool: &Pool<Sqlite>, hash: &str) {
+        sqlx::query(
+            "INSERT INTO translation_cache
+                (text_hash, site, novel_id, context_fingerprint, normalized_source,
+                 original_text, translated_text)
+             VALUES (?, 'syosetu', 'novel', 'context', 'source', 'source', 'translation')",
+        )
+        .bind(hash)
+        .execute(pool)
+        .await
+        .expect("insert cache row");
+    }
+
+    async fn count(pool: &Pool<Sqlite>, sql: &str) -> i64 {
+        sqlx::query_scalar(sql)
+            .fetch_one(pool)
+            .await
+            .expect("count rows")
+    }
+
+    #[tokio::test]
+    async fn canonical_cache_migration_clears_post_007_cache_once() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create sqlite memory pool");
+        initialize_database(&pool).await.expect("initialize schema");
+        sqlx::raw_sql(&legacy_hit_count_cache_sql())
+            .execute(&pool)
+            .await
+            .expect("recreate v0.1.5-v0.1.7 cache schema");
+        insert_cache_row(&pool, "legacy-hash").await;
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('sentinel', 'kept')")
+            .execute(&pool)
+            .await
+            .expect("insert setting");
+        sqlx::query("INSERT INTO novels (site, novel_id, title) VALUES ('syosetu', 'n', 't')")
+            .execute(&pool)
+            .await
+            .expect("insert novel");
+        sqlx::query(
+            "INSERT INTO completed_chapters (site, novel_id, chapter_number, paragraph_count)
+             VALUES ('syosetu', 'n', 1, 3)",
+        )
+        .execute(&pool)
+        .await
+        .expect("insert completion");
+        sqlx::query(
+            "INSERT INTO chapters (novel_id, chapter_number, chapter_url, original_content)
+             SELECT id, 1, 'https://example.invalid/1', '<p>src</p>' FROM novels",
+        )
+        .execute(&pool)
+        .await
+        .expect("insert chapter");
+        sqlx::query(
+            "INSERT INTO translations (chapter_id, paragraph_index, original_text, translated_text)
+             SELECT id, 0, 'src', 'kept' FROM chapters",
+        )
+        .execute(&pool)
+        .await
+        .expect("insert translation");
+
+        initialize_database(&pool)
+            .await
+            .expect("upgrade legacy cache");
+
+        assert_eq!(
+            count(&pool, "SELECT COUNT(*) FROM translation_cache").await,
+            0
+        );
+        assert_eq!(
+            count(
+                &pool,
+                "SELECT COUNT(*) FROM pragma_table_info('translation_cache')
+                 WHERE name = 'hit_count' AND dflt_value = '0'"
+            )
+            .await,
+            1
+        );
+        assert_eq!(
+            count(
+                &pool,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index'
+                 AND tbl_name = 'translation_cache'
+                 AND name IN ('idx_cache_identity', 'idx_cache_hash', 'idx_cache_novel_id')"
+            )
+            .await,
+            3
+        );
+        assert_eq!(
+            count(
+                &pool,
+                "SELECT COUNT(*) FROM settings WHERE key = 'sentinel'"
+            )
+            .await,
+            1
+        );
+        assert_eq!(count(&pool, "SELECT COUNT(*) FROM novels").await, 1);
+        assert_eq!(count(&pool, "SELECT COUNT(*) FROM chapters").await, 1);
+        assert_eq!(
+            count(
+                &pool,
+                "SELECT COUNT(*) FROM translations WHERE translated_text = 'kept'"
+            )
+            .await,
+            1
+        );
+        assert_eq!(
+            count(&pool, "SELECT COUNT(*) FROM completed_chapters").await,
+            1
+        );
+
+        insert_cache_row(&pool, "canonical-hash").await;
+        initialize_database(&pool)
+            .await
+            .expect("repeat initialization");
+        run_migrations(&pool).await.expect("repeat migrations");
+
+        assert_eq!(
+            sqlx::query_as::<_, (String, i64)>(
+                "SELECT text_hash, hit_count FROM translation_cache"
+            )
+            .fetch_all(&pool)
+            .await
+            .expect("read canonical cache"),
+            vec![("canonical-hash".to_string(), 0)]
+        );
+    }
+
+    #[tokio::test]
+    async fn canonical_cache_migration_serializes_concurrent_initializers() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time after Unix epoch")
+            .as_nanos();
+        let database_path = std::env::temp_dir().join(format!(
+            "transnovel-canonical-cache-migration-{}-{unique}.db",
+            std::process::id()
+        ));
+        let database_url = format!("sqlite:{}", database_path.display());
+        let connect = || async {
+            SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect_with(sqlite_connect_options(&database_url).expect("SQLite options"))
+                .await
+                .expect("create pool")
+        };
+        let first_pool = connect().await;
+        let second_pool = connect().await;
+        initialize_database(&first_pool)
+            .await
+            .expect("initialize schema");
+        sqlx::raw_sql(&legacy_hit_count_cache_sql())
+            .execute(&first_pool)
+            .await
+            .expect("recreate v0.1.5-v0.1.7 cache schema");
+        insert_cache_row(&first_pool, "legacy-hash").await;
+
+        let (first_result, second_result) = tokio::join!(
+            initialize_database(&first_pool),
+            initialize_database(&second_pool)
+        );
+        first_result.expect("first initializer");
+        second_result.expect("second initializer");
+
+        assert_eq!(
+            count(&first_pool, "SELECT COUNT(*) FROM translation_cache").await,
+            0
+        );
+        assert_eq!(
+            count(
+                &first_pool,
+                "SELECT COUNT(*) FROM pragma_table_info('translation_cache')
+                 WHERE name = 'hit_count' AND dflt_value = '0'"
+            )
+            .await,
+            1
+        );
+
+        first_pool.close().await;
+        second_pool.close().await;
+        std::fs::remove_file(database_path).expect("remove temporary database");
+    }
+
     #[tokio::test]
     async fn legacy_cache_and_completion_rows_are_invalidated_idempotently() {
         let pool = SqlitePoolOptions::new()

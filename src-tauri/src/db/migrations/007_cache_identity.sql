@@ -9,7 +9,7 @@ CREATE TABLE translation_cache_v2 (
     normalized_source TEXT NOT NULL,
     original_text TEXT NOT NULL,
     translated_text TEXT NOT NULL,
-    hit_count INTEGER DEFAULT 1,
+    hit_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
