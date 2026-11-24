@@ -38,7 +38,7 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 | tauri | 2.9.5 | App framework |
 | sqlx | 0.8 | SQLite async ORM |
 | tokio | 1.x | Async runtime |
-| reqwest | 0.12 | HTTP client (JSON + SSE streaming) |
+| reqwest | 0.13 | HTTP client (JSON + SSE streaming, native-tls) |
 | scraper | 0.29 | HTML DOM parsing |
 | serde/serde_json | 1.0 | Serialization |
 | sha2 + hex | 0.11/0.4 | Cache hashing |
