@@ -27,10 +27,12 @@ jobs:
       - name: Enable pnpm via Corepack
         run: |
           corepack enable
-          corepack prepare pnpm@12.4.2 --activate
+          corepack prepare pnpm@12.23.0 --activate
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -60,4 +62,8 @@ jobs:
 
       - name: Rust tests
         run: cargo test
+        working-directory: src-tauri
+
+      - name: Rust clippy
+        run: cargo clippy -- -D warnings
         working-directory: src-tauri
