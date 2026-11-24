@@ -6,7 +6,7 @@ authors = ["TransNovel Team"]
 license = "MIT"
 repository = "https://github.com/azyu/transnovel"
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.90"
 
 [lib]
 name = "app_lib"
@@ -61,7 +61,7 @@ futures = "0.3"
 async-trait = "0.1"
 open = "5"
 
-zip = { version = "=9.0.0", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 
