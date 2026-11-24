@@ -397,7 +397,10 @@ mod tests {
         let mut archive = archive(&request(false));
         let mut first = archive.by_index(0).expect("mimetype entry is missing");
 
-        assert_eq!(first.name(), "mimetype");
+        assert_eq!(
+            first.name().expect("mimetype name should decode"),
+            "mimetype"
+        );
         assert_eq!(first.compression(), CompressionMethod::Stored);
         assert_eq!(first.size(), 20);
         let mut content = Vec::new();
@@ -408,9 +411,36 @@ mod tests {
     }
 
     #[test]
+    fn mimetype_local_header_matches_ocf_layout() {
+        // EPUB OCF requires the mimetype entry first, uncompressed, with no extra field, so readers can sniff it at a fixed offset.
+        let mut cursor = Cursor::new(Vec::new());
+        write_epub(&mut cursor, &request(false)).expect("EPUB writer should succeed");
+        let bytes = cursor.into_inner();
+        let u16_at = |offset: usize| u16::from_le_bytes([bytes[offset], bytes[offset + 1]]);
+
+        assert_eq!(&bytes[0..4], b"PK\x03\x04");
+        let flags = u16_at(6);
+        assert_eq!(flags & 0x0001, 0, "mimetype must not be encrypted");
+        // Bit 3 stays unset because unencrypted entries from ZipWriter::new on a seekable writer get sizes written back into the local header.
+        assert_eq!(flags & 0x0008, 0, "mimetype must not use a data descriptor");
+        assert_eq!(u16_at(8), 0, "mimetype must be Stored");
+        let u32_at =
+            |offset: usize| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+        assert_eq!(u32_at(18), 20, "local header compressed size");
+        assert_eq!(u32_at(22), 20, "local header uncompressed size");
+        assert_eq!(u16_at(26), 8, "file name length");
+        assert_eq!(u16_at(28), 0, "extra field length");
+        assert_eq!(&bytes[30..38], b"mimetype");
+        assert_eq!(&bytes[38..58], b"application/epub+zip");
+    }
+
+    #[test]
     fn writes_required_entries_metadata_and_stylesheet() {
         let mut archive = archive(&request(false));
-        let names: Vec<String> = archive.file_names().map(str::to_owned).collect();
+        let names: Vec<String> = archive
+            .file_names()
+            .map(|name| name.expect("entry name should decode").into_owned())
+            .collect();
 
         assert_eq!(
             names,
