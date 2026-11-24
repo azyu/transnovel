@@ -11,6 +11,7 @@ use super::paragraph::{
     accept_streamed_chunk, encode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs_by_indices,
 };
+use super::sse::{parse_sse_data_line, SseLineBuffer};
 use super::translator::{StreamingCacheWriter, TokenUsage};
 use crate::models::api_log::ApiLogEntry;
 
@@ -54,7 +55,7 @@ struct OpenRouterRequest {
 mod tests {
     use super::{
         build_chat_completions_url, provider_brand_name, should_send_openrouter_headers,
-        OpenAICompatibleClient, ProviderVariant,
+        OpenAICompatibleClient, OpenAiCompatibleStreamParser, ProviderVariant,
     };
 
     #[test]
@@ -104,6 +105,89 @@ mod tests {
             .expect_err("invalid URL should fail while building request");
 
         assert!(error.starts_with("API 요청 구성 실패:"));
+    }
+
+    #[test]
+    fn decodes_multibyte_utf8_and_crlf_split_across_chunks() {
+        let payload = concat!(
+            ": keepalive\r\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"<p id=\\\"title\\\">한국어\"}}]}\r\n\r\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\" 제목 😀</p>\"}}],\"usage\":{\"prompt_tokens\":15,\"completion_tokens\":25}}\r\n\r\n",
+            "data: [DONE]\r\n",
+        )
+        .as_bytes();
+
+        let han_pos = payload
+            .windows(3)
+            .position(|w| w == "한".as_bytes())
+            .expect("korean bytes present");
+        let crlf_pos = payload
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .expect("double crlf present");
+
+        let chunks = [
+            &payload[..han_pos + 1],
+            &payload[han_pos + 1..han_pos + 2],
+            &payload[han_pos + 2..crlf_pos + 1],
+            &payload[crlf_pos + 1..crlf_pos + 3],
+            &payload[crlf_pos + 3..],
+        ];
+
+        let mut parser = OpenAiCompatibleStreamParser::new();
+        let mut full_text = String::new();
+        let mut usage = None;
+
+        for chunk in chunks {
+            for delta in parser.push_chunk(chunk) {
+                if let Some(u) = delta.usage {
+                    usage = Some(u);
+                }
+                if let Some(t) = delta.text {
+                    full_text.push_str(&t);
+                }
+            }
+        }
+        if let Some(delta) = parser.finish() {
+            if let Some(u) = delta.usage {
+                usage = Some(u);
+            }
+            if let Some(t) = delta.text {
+                full_text.push_str(&t);
+            }
+        }
+
+        assert_eq!(full_text, "<p id=\"title\">한국어 제목 😀</p>");
+        let usage = usage.expect("usage parsed");
+        assert_eq!(usage.input_tokens, 15);
+        assert_eq!(usage.output_tokens, 25);
+    }
+
+    #[test]
+    fn decodes_one_byte_chunks_and_unterminated_final_line() {
+        let payload = concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"한글\"}}]}\r\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"과 日本語\"}}]}",
+        )
+        .as_bytes();
+
+        let mut parser = OpenAiCompatibleStreamParser::new();
+        let mut full_text = String::new();
+
+        for byte in payload {
+            for delta in parser.push_chunk(&[*byte]) {
+                if let Some(t) = delta.text {
+                    full_text.push_str(&t);
+                }
+            }
+        }
+        if let Some(delta) = parser.finish() {
+            if let Some(t) = delta.text {
+                full_text.push_str(&t);
+            }
+        }
+
+        assert_eq!(full_text, "한글과 日本語");
     }
 }
 
@@ -511,7 +595,7 @@ impl OpenAICompatibleClient {
 
         let mut full_text = String::new();
         let mut stream = response.bytes_stream();
-        let mut buffer = String::new();
+        let mut parser = OpenAiCompatibleStreamParser::new();
         let mut emitted_indices = std::collections::HashSet::new();
         let mut final_usage: Option<TokenUsage> = None;
 
@@ -527,54 +611,34 @@ impl OpenAICompatibleClient {
                     return Err(format!("{}: {}", prefix, e));
                 }
             };
-            let chunk_str = String::from_utf8_lossy(&chunk);
-            buffer.push_str(&chunk_str);
 
-            while let Some(pos) = buffer.find('\n') {
-                let line = buffer[..pos].to_string();
-                buffer = buffer[pos + 1..].to_string();
-
-                if line.is_empty() || line.starts_with(':') {
-                    continue;
-                }
-
-                if let Some(data) = line.strip_prefix("data: ") {
-                    if data.trim() == "[DONE]" {
-                        continue;
-                    }
-
-                    if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
-                        if let Some(usage) = event.usage {
-                            final_usage = Some(TokenUsage {
-                                input_tokens: usage.prompt_tokens.unwrap_or(0),
-                                output_tokens: usage.completion_tokens.unwrap_or(0),
-                            });
-                        }
-                        if let Some(choices) = event.choices {
-                            if let Some(choice) = choices.into_iter().next() {
-                                if let Some(delta) = choice.delta {
-                                    if let Some(content) = delta.content {
-                                        full_text.push_str(&content);
-
-                                        let chunks = extract_completed_paragraphs(&full_text);
-                                        for chunk in chunks {
-                                            if let Some(chunk) = accept_streamed_chunk(
-                                                chunk,
-                                                original_indices,
-                                                has_subtitle,
-                                                &mut emitted_indices,
-                                            ) {
-                                                cache_writer.cache_completed_chunk(&chunk).await;
-                                                let _ = app_handle.emit("translation-chunk", chunk);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            for delta in parser.push_chunk(&chunk) {
+                apply_openai_compatible_delta(
+                    delta,
+                    &mut full_text,
+                    &mut final_usage,
+                    original_indices,
+                    has_subtitle,
+                    &mut emitted_indices,
+                    cache_writer,
+                    app_handle,
+                )
+                .await;
             }
+        }
+
+        if let Some(delta) = parser.finish() {
+            apply_openai_compatible_delta(
+                delta,
+                &mut full_text,
+                &mut final_usage,
+                original_indices,
+                has_subtitle,
+                &mut emitted_indices,
+                cache_writer,
+                app_handle,
+            )
+            .await;
         }
 
         log_entry.duration_ms = start.elapsed().as_millis() as u64;
@@ -599,5 +663,95 @@ impl OpenAICompatibleClient {
         let result =
             parse_translated_paragraphs_by_indices(&full_text, original_indices, has_subtitle)?;
         Ok((result, final_usage))
+    }
+}
+
+#[derive(Debug, Default)]
+struct OpenAiCompatibleStreamDelta {
+    text: Option<String>,
+    usage: Option<TokenUsage>,
+}
+
+#[derive(Debug, Default)]
+struct OpenAiCompatibleStreamParser {
+    line_buffer: SseLineBuffer,
+}
+
+impl OpenAiCompatibleStreamParser {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn push_chunk(&mut self, chunk: &[u8]) -> Vec<OpenAiCompatibleStreamDelta> {
+        self.line_buffer
+            .push_chunk(chunk)
+            .into_iter()
+            .filter_map(|line| Self::parse_line(&line))
+            .collect()
+    }
+
+    fn finish(&mut self) -> Option<OpenAiCompatibleStreamDelta> {
+        self.line_buffer
+            .finish()
+            .and_then(|line| Self::parse_line(&line))
+    }
+
+    fn parse_line(line: &str) -> Option<OpenAiCompatibleStreamDelta> {
+        if line.is_empty() || line.starts_with(':') {
+            return None;
+        }
+
+        let data = parse_sse_data_line(line)?;
+        if data.trim() == "[DONE]" {
+            return None;
+        }
+
+        let event = serde_json::from_str::<StreamEvent>(data).ok()?;
+        let usage = event.usage.map(|usage| TokenUsage {
+            input_tokens: usage.prompt_tokens.unwrap_or(0),
+            output_tokens: usage.completion_tokens.unwrap_or(0),
+        });
+        let text = event
+            .choices
+            .and_then(|choices| choices.into_iter().next())
+            .and_then(|choice| choice.delta)
+            .and_then(|delta| delta.content)
+            .filter(|content| !content.is_empty());
+
+        if text.is_none() && usage.is_none() {
+            return None;
+        }
+
+        Some(OpenAiCompatibleStreamDelta { text, usage })
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn apply_openai_compatible_delta<R: tauri::Runtime>(
+    delta: OpenAiCompatibleStreamDelta,
+    full_text: &mut String,
+    final_usage: &mut Option<TokenUsage>,
+    original_indices: &[usize],
+    has_subtitle: bool,
+    emitted_indices: &mut std::collections::HashSet<usize>,
+    cache_writer: &mut StreamingCacheWriter,
+    app_handle: &AppHandle<R>,
+) {
+    if let Some(usage) = delta.usage {
+        *final_usage = Some(usage);
+    }
+
+    if let Some(content) = delta.text {
+        full_text.push_str(&content);
+
+        let chunks = extract_completed_paragraphs(full_text);
+        for chunk in chunks {
+            if let Some(chunk) =
+                accept_streamed_chunk(chunk, original_indices, has_subtitle, emitted_indices)
+            {
+                cache_writer.cache_completed_chunk(&chunk).await;
+                let _ = app_handle.emit("translation-chunk", chunk);
+            }
+        }
     }
 }
