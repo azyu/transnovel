@@ -675,7 +675,8 @@ pub async fn reset_all() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
+    // Test helpers interpolate table names from test literals only.
+    use sqlx::{sqlite::SqlitePoolOptions, AssertSqlSafe, Pool, Sqlite};
 
     async fn setup_test_pool() -> Pool<Sqlite> {
         let pool = SqlitePoolOptions::new()
@@ -694,7 +695,7 @@ mod tests {
 
     async fn count_rows(pool: &Pool<Sqlite>, table: &str, novel_id: &str) -> i64 {
         let query = format!("SELECT COUNT(*) as count FROM {table} WHERE novel_id = ?");
-        let row = sqlx::query(&query)
+        let row = sqlx::query(AssertSqlSafe(query))
             .bind(novel_id)
             .fetch_one(pool)
             .await
@@ -705,7 +706,7 @@ mod tests {
 
     async fn count_all_rows(pool: &Pool<Sqlite>, table: &str) -> i64 {
         let query = format!("SELECT COUNT(*) as count FROM {table}");
-        let row = sqlx::query(&query)
+        let row = sqlx::query(AssertSqlSafe(query))
             .fetch_one(pool)
             .await
             .expect("count all rows");

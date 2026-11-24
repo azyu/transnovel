@@ -36,13 +36,12 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 | Crate | Version | Purpose |
 |-------|---------|---------|
 | tauri | 2.9.5 | App framework |
-| sqlx | 0.8 | SQLite async ORM |
+| sqlx | 0.9 | SQLite async ORM |
 | tokio | 1.x | Async runtime |
-| reqwest | 0.12 | HTTP client (JSON + SSE streaming) |
-| scraper | 0.23 | HTML DOM parsing |
+| reqwest | 0.13 | HTTP client (JSON + SSE streaming, native-tls) |
+| scraper | 0.29 | HTML DOM parsing |
 | serde/serde_json | 1.0 | Serialization |
-| thiserror | 2.0 | Error types |
-| sha2 + hex | 0.10/0.4 | Cache hashing |
+| sha2 + hex | 0.11/0.4 | Cache hashing |
 | regex | 1.11 | Text substitution, HTML parsing |
 | async-trait | 0.1 | Parser trait |
 | chrono | 0.4 | Timestamps |
@@ -54,7 +53,6 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 | tauri-plugin-http | CSP-aware HTTP requests |
 | tauri-plugin-dialog | Native file save dialogs |
 | tauri-plugin-log | Structured logging |
-| tauri-plugin-sql | SQLite (used for plugin init, actual queries via sqlx) |
 
 ## 3. Frontend Architecture
 
@@ -427,7 +425,7 @@ api_logs (id PK, timestamp, method, path, status, duration_ms, model, provider, 
 
 ### Error Handling
 - **Rust commands:** Return `Result<T, String>` — Tauri serializes errors as strings to frontend
-- **No custom error types in commands** — `thiserror` + `anyhow` available but not actively used in command layer
+- **No custom error types in commands** — errors are mapped to `String` at the command boundary
 - **Frontend:** Try/catch with `showError()` toast notifications
 
 ### State Flow

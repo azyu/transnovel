@@ -133,9 +133,9 @@ models:
 
 ### 준비 사항
 
-- Node.js 24.15.0+ (24.x LTS, CI 기준)
+- Node.js 26+ (CI 기준)
 - pnpm
-- Rust toolchain
+- Rust toolchain 1.94+
 - 사용 중인 OS에 맞는 Tauri 빌드 의존성
 
 ```bash

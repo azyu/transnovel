@@ -29,19 +29,6 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-      # 0.x minor bumps are breaking; tracked in #123. Remove each entry once upgraded.
-      - dependency-name: reqwest
-        update-types: ["version-update:semver-minor"]
-      - dependency-name: sqlx
-        update-types: ["version-update:semver-minor"]
-      - dependency-name: rand
-        update-types: ["version-update:semver-minor"]
-      - dependency-name: sha2
-        update-types: ["version-update:semver-minor"]
-      - dependency-name: base64
-        update-types: ["version-update:semver-minor"]
-      - dependency-name: scraper
-        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /

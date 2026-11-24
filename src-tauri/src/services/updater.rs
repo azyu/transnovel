@@ -79,6 +79,9 @@ pub async fn install_update<R: Runtime>(
 fn build_updater<R: Runtime>(app: &AppHandle<R>) -> Result<tauri_plugin_updater::Updater, String> {
     app.updater_builder()
         .timeout(UPDATE_CHECK_TIMEOUT)
+        // Our native-tls feature would otherwise make the shared reqwest default to native-tls.
+        // Safe: check() installs the ring provider before this runs, and every download follows a check().
+        .configure_client(|client| client.tls_backend_rustls())
         .build()
         .map_err(|error| format!("업데이트 확인 준비 실패: {error}"))
 }
@@ -107,6 +110,19 @@ mod tests {
 
         assert!(error.contains("0.1.4"));
         assert!(error.contains("0.1.5"));
+    }
+
+    #[test]
+    fn rustls_backend_builds_once_the_updater_provider_is_installed() {
+        // Mirrors tauri-plugin-updater's check(): install ring if no provider is set, then build.
+        if rustls::crypto::CryptoProvider::get_default().is_none() {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        }
+
+        reqwest::Client::builder()
+            .tls_backend_rustls()
+            .build()
+            .expect("build rustls client");
     }
 
     #[test]

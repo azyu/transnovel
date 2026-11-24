@@ -6,7 +6,7 @@ authors = ["TransNovel Team"]
 license = "MIT"
 repository = "https://github.com/azyu/transnovel"
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.94"
 
 [lib]
 name = "app_lib"
@@ -23,7 +23,6 @@ tauri-build = { version = "2.5.3", features = [] }
 # Tauri core
 tauri = { version = "2.9.5", features = [] }
 tauri-plugin-log = "2"
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-http = "2"
 tauri-plugin-dialog = "2"
 
@@ -36,37 +35,43 @@ serde_yaml = "0.9"
 tokio = { version = "1", features = ["full"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "stream"] }
+# native-tls keeps the OS TLS stack (SecureTransport/SChannel) used before 0.13 and avoids
+# reqwest 0.13's default rustls+aws-lc-rs, which needs CMake/NASM on windows-11-arm.
+# native-tls-no-alpn without http2 keeps HTTP/1.1, as 0.12's default-tls (no ALPN) did.
+# rustls-no-provider is already enabled by tauri-plugin-updater; it is listed because
+# services/updater.rs calls tls_backend_rustls() to keep the updater on rustls + ring.
+reqwest = { version = "0.13", default-features = false, features = ["native-tls-no-alpn", "rustls-no-provider", "charset", "system-proxy", "json", "stream", "form"] }
 
 # HTML parsing
-scraper = "0.23"
+scraper = "0.29"
 regex = "1.11"
 
 # Logging
 log = "0.4"
 
-# Error handling
-thiserror = "2.0"
-anyhow = "1.0"
-
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4"] }
-dirs = "6"
-sha2 = "0.10"
+dirs = "7"
+sha2 = "0.11"
 hex = "0.4"
-base64 = "0.22"
-rand = "0.9"
+base64 = "0.23"
+rand = "0.10"
 futures = "0.3"
 async-trait = "0.1"
 open = "5"
 
-zip = { version = "=9.0.0", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
-tauri-plugin-updater = "2"
+# Minor-pinned: services/updater.rs uses configure_client, whose reqwest may change in minor releases.
+tauri-plugin-updater = "~2.14"
+
+[dev-dependencies]
+# Same provider tauri-plugin-updater installs before building its client.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 [features]
 default = ["custom-protocol"]
