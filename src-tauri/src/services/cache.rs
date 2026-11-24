@@ -228,7 +228,7 @@ pub async fn cache_translations_with_pool(
     Ok(())
 }
 
-fn normalize_source(text: &str) -> String {
+pub(crate) fn normalize_source(text: &str) -> String {
     text.replace("\r\n", "\n")
         .replace('\r', "\n")
         .trim()

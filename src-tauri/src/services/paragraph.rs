@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::HashSet;
 
 #[derive(Clone, Serialize)]
 pub struct TranslationChunk {
@@ -29,7 +30,7 @@ pub fn encode_paragraph_id(n: usize, has_subtitle: bool) -> String {
 /// Decode semantic ID back to paragraph index:
 /// - "title" → 0
 /// - "subtitle" → 1 (only when has_subtitle is true)
-/// - "p-N" → N (when has_subtitle is false) or N + 1 (when has_subtitle is true)
+/// - "p-N" (N >= 1) → N (when has_subtitle is false) or N + 1 (when has_subtitle is true)
 pub fn decode_paragraph_id(id: &str, has_subtitle: bool) -> Option<usize> {
     match id {
         "title" => Some(0),
@@ -37,8 +38,11 @@ pub fn decode_paragraph_id(id: &str, has_subtitle: bool) -> Option<usize> {
         "subtitle" => None,
         _ if id.starts_with("p-") => {
             let paragraph_num = id[2..].parse::<usize>().ok()?;
+            if paragraph_num == 0 {
+                return None;
+            }
             if has_subtitle {
-                Some(paragraph_num + 1)
+                paragraph_num.checked_add(1)
             } else {
                 Some(paragraph_num)
             }
@@ -61,42 +65,57 @@ pub fn extract_completed_paragraphs(text: &str) -> Vec<TranslationChunk> {
         if let Some(next_match) = matches.get(i + 1) {
             // Next <p tag exists → this paragraph is complete
             let span = next_match.start() - content_start;
-            let content_end = if let Some(close_pos) = remaining[..span].find("</p>") {
-                content_start + close_pos
-            } else {
-                // No </p> before next <p — use boundary before next tag
-                next_match.start()
-            };
+            let content_end =
+                content_start + find_paragraph_end(&remaining[..span]).unwrap_or(span);
             let content = text[content_start..content_end].trim().to_string();
             chunks.push(TranslationChunk {
                 paragraph_id: id.to_string(),
                 text: content,
                 is_complete: true,
             });
-        } else {
-            // Last paragraph — only complete if terminated by </p> or </main>
-            if let Some(close_pos) = remaining.find("</p>") {
-                let content = remaining[..close_pos].trim().to_string();
-                chunks.push(TranslationChunk {
-                    paragraph_id: id.to_string(),
-                    text: content,
-                    is_complete: true,
-                });
-            } else if let Some(main_pos) = remaining.find("</main>") {
-                let content = remaining[..main_pos].trim().to_string();
-                chunks.push(TranslationChunk {
-                    paragraph_id: id.to_string(),
-                    text: content,
-                    is_complete: true,
-                });
-            }
-            // Neither found → paragraph still streaming, don't emit
+        } else if let Some(end) = find_paragraph_end(remaining) {
+            // Last paragraph — only complete once terminated; otherwise still streaming
+            chunks.push(TranslationChunk {
+                paragraph_id: id.to_string(),
+                text: remaining[..end].trim().to_string(),
+                is_complete: true,
+            });
         }
     }
 
     chunks
 }
 
+/// Offset of the earliest paragraph terminator (`</p>` or `</main>`), shared by streaming
+/// extraction and final parsing so both cut a paragraph at the same place.
+fn find_paragraph_end(s: &str) -> Option<usize> {
+    [s.find("</p>"), s.find("</main>")]
+        .into_iter()
+        .flatten()
+        .min()
+}
+
+/// Accepts a streamed chunk only if it is non-empty, its decoded index was requested,
+/// and no non-empty chunk for that index has been emitted yet, returning it with the
+/// canonical ID (`p-01` → `p-1`) so UI, cache, and final parse agree.
+pub fn accept_streamed_chunk(
+    mut chunk: TranslationChunk,
+    original_indices: &[usize],
+    has_subtitle: bool,
+    emitted_indices: &mut HashSet<usize>,
+) -> Option<TranslationChunk> {
+    if chunk.text.trim().is_empty() {
+        return None;
+    }
+    let index = decode_paragraph_id(&chunk.paragraph_id, has_subtitle)?;
+    if !original_indices.contains(&index) || !emitted_indices.insert(index) {
+        return None;
+    }
+    chunk.paragraph_id = encode_paragraph_id(index, has_subtitle);
+    Some(chunk)
+}
+
+#[cfg(test)]
 pub fn parse_translated_paragraphs(
     text: &str,
     expected_count: usize,
@@ -116,6 +135,11 @@ pub fn parse_translated_paragraphs_by_indices(
 
     let mut results: Vec<String> = vec![String::new(); original_indices.len()];
     let mut found_count = 0;
+    // First non-empty occurrence wins, matching streaming emission and cache
+    // (`accept_streamed_chunk`). `matched` tracks whether any requested tag was seen
+    // so an empty-only paragraph still succeeds at parse time and is reported as failed
+    // downstream rather than failing the whole chunk.
+    let mut matched = vec![false; original_indices.len()];
 
     let matches: Vec<_> = open_re.find_iter(text).collect();
     for (i, m) in matches.iter().enumerate() {
@@ -125,38 +149,32 @@ pub fn parse_translated_paragraphs_by_indices(
 
         // Find content end: either </p>, next <p, or </main>
         let remaining = &text[content_start..];
-        let content_end = if let Some(next_match) = matches.get(i + 1) {
-            // Next <p tag starts - content ends before it
-            let next_start = next_match.start();
-            // But check if there's a </p> before the next <p
-            if let Some(close_pos) = remaining[..next_start - content_start].find("</p>") {
-                content_start + close_pos
-            } else {
-                next_start
-            }
-        } else {
-            // Last paragraph - find </p> or </main>
-            if let Some(close_pos) = remaining.find("</p>") {
-                content_start + close_pos
-            } else if let Some(main_pos) = remaining.find("</main>") {
-                content_start + main_pos
-            } else {
-                text.len()
-            }
-        };
+        let content_end = content_start
+            + match matches.get(i + 1) {
+                Some(next_match) => {
+                    let span = next_match.start() - content_start;
+                    find_paragraph_end(&remaining[..span]).unwrap_or(span)
+                }
+                None => find_paragraph_end(remaining).unwrap_or(remaining.len()),
+            };
 
         let content = text[content_start..content_end].trim().to_string();
 
         if let Some(decoded_index) = decode_paragraph_id(id, has_subtitle) {
             if let Some(pos) = original_indices.iter().position(|&x| x == decoded_index) {
-                results[pos] = content;
-                found_count += 1;
+                if !matched[pos] {
+                    matched[pos] = true;
+                    found_count += 1;
+                }
+                if results[pos].is_empty() && !content.is_empty() {
+                    results[pos] = content;
+                }
             }
         }
     }
 
     if found_count == 0 {
-        let preview = if text.len() > 200 { &text[..200] } else { text };
+        let preview: String = text.chars().take(200).collect();
         return Err(format!(
             "응답에서 유효한 번역 태그를 찾을 수 없습니다. 응답 미리보기: {}...",
             preview
@@ -280,6 +298,103 @@ mod tests {
         assert_eq!(result[1], "");
         assert_eq!(result[2], "세 번째");
         assert_eq!(result[3], "네 번째");
+    }
+
+    #[test]
+    fn duplicate_paragraph_ids_keep_first_occurrence_like_streaming() {
+        let text = r#"<p id="title">제목</p><p id="p-1">OLD</p><p id="p-1">NEW</p></main>"#;
+
+        let streamed: Vec<_> = extract_completed_paragraphs(text)
+            .into_iter()
+            .filter(|chunk| chunk.paragraph_id == "p-1")
+            .collect();
+        assert_eq!(streamed[0].text, "OLD");
+
+        let result = parse_translated_paragraphs_by_indices(text, &[0, 1], false).unwrap();
+        assert_eq!(result, vec!["제목".to_string(), "OLD".to_string()]);
+    }
+
+    #[test]
+    fn duplicate_paragraph_id_with_empty_first_occurrence_keeps_first_non_empty() {
+        let text = r#"<p id="p-1"></p><p id="p-1">번역문</p><p id="p-1">후속</p></main>"#;
+        let mut emitted = HashSet::new();
+
+        let streamed: Vec<_> = extract_completed_paragraphs(text)
+            .into_iter()
+            .filter_map(|chunk| accept_streamed_chunk(chunk, &[0, 1], false, &mut emitted))
+            .map(|chunk| (chunk.paragraph_id, chunk.text))
+            .collect();
+        assert_eq!(streamed, vec![("p-1".to_string(), "번역문".to_string())]);
+
+        let result = parse_translated_paragraphs_by_indices(text, &[0, 1], false).unwrap();
+        assert_eq!(result, vec![String::new(), "번역문".to_string()]);
+    }
+
+    #[test]
+    fn empty_only_paragraph_still_returns_empty_slot_for_failure_reporting() {
+        let text = r#"<p id="p-1"></p></main>"#;
+        let mut emitted = HashSet::new();
+
+        let streamed: Vec<_> = extract_completed_paragraphs(text)
+            .into_iter()
+            .filter_map(|chunk| accept_streamed_chunk(chunk, &[1], false, &mut emitted))
+            .collect();
+        assert!(streamed.is_empty());
+
+        let result = parse_translated_paragraphs_by_indices(text, &[1], false).unwrap();
+        assert_eq!(result, vec![String::new()]);
+    }
+
+    #[test]
+    fn out_of_scope_multibyte_response_returns_err_without_panicking() {
+        let body = "가".repeat(80);
+        let text = format!(r#"<p id="p-1">{body}</p></main>"#);
+
+        let error = parse_translated_paragraphs_by_indices(&text, &[3, 7], false)
+            .expect_err("unrequested paragraph must return Err instead of panicking");
+        assert!(error.contains("응답에서 유효한 번역 태그를 찾을 수 없습니다"));
+    }
+
+    #[test]
+    fn zero_paragraph_id_is_rejected_and_does_not_shadow_title_or_subtitle() {
+        assert_eq!(decode_paragraph_id("p-0", false), None);
+        assert_eq!(decode_paragraph_id("p-0", true), None);
+        assert_eq!(decode_paragraph_id("p-00", false), None);
+        assert_eq!(decode_paragraph_id("p-00", true), None);
+
+        // Without subtitle: p-0 must not shadow title (index 0).
+        let no_sub_text = r#"<p id="p-0">잘못된 문단</p><p id="title">정상 제목</p></main>"#;
+        let mut emitted_no_sub = HashSet::new();
+        let streamed_no_sub: Vec<_> = extract_completed_paragraphs(no_sub_text)
+            .into_iter()
+            .filter_map(|chunk| accept_streamed_chunk(chunk, &[0], false, &mut emitted_no_sub))
+            .map(|chunk| (chunk.paragraph_id, chunk.text))
+            .collect();
+        assert_eq!(
+            streamed_no_sub,
+            vec![("title".to_string(), "정상 제목".to_string())]
+        );
+        assert_eq!(
+            parse_translated_paragraphs_by_indices(no_sub_text, &[0], false).unwrap(),
+            vec!["정상 제목".to_string()]
+        );
+
+        // With subtitle: p-0 must not shadow subtitle (index 1).
+        let with_sub_text = r#"<p id="p-0">잘못된 문단</p><p id="subtitle">정상 부제목</p></main>"#;
+        let mut emitted_with_sub = HashSet::new();
+        let streamed_with_sub: Vec<_> = extract_completed_paragraphs(with_sub_text)
+            .into_iter()
+            .filter_map(|chunk| accept_streamed_chunk(chunk, &[1], true, &mut emitted_with_sub))
+            .map(|chunk| (chunk.paragraph_id, chunk.text))
+            .collect();
+        assert_eq!(
+            streamed_with_sub,
+            vec![("subtitle".to_string(), "정상 부제목".to_string())]
+        );
+        assert_eq!(
+            parse_translated_paragraphs_by_indices(with_sub_text, &[1], true).unwrap(),
+            vec!["정상 부제목".to_string()]
+        );
     }
 
     #[test]
@@ -430,5 +545,61 @@ mod tests {
         assert_eq!(chunks[1].text, "부제목");
         assert_eq!(chunks[2].text, "첫 번째");
         assert_eq!(chunks[3].text, "두 번째");
+    }
+
+    #[test]
+    fn main_terminator_closes_paragraph_before_next_tag_like_streaming() {
+        let frame_1 = r#"<p id="title">T</p><p id="p-1">OLD</main>"#;
+        let frame_2 = format!(r#"{frame_1}<p id="p-1">NEW</p>"#);
+
+        assert_eq!(extract_completed_paragraphs(frame_1)[1].text, "OLD");
+        assert_eq!(extract_completed_paragraphs(&frame_2)[1].text, "OLD");
+        let result = parse_translated_paragraphs_by_indices(&frame_2, &[0, 1], false).unwrap();
+        assert_eq!(result, vec!["T".to_string(), "OLD".to_string()]);
+    }
+
+    #[test]
+    fn accept_streamed_chunk_dedups_by_index_and_drops_unrequested_ids() {
+        let text = r#"<p id="p-1">OLD</p><p id="p-01">NEW</p><p id="p-9">OUT</p><p id="subtitle">S</p></main>"#;
+        let mut emitted = HashSet::new();
+
+        let accepted: Vec<_> = extract_completed_paragraphs(text)
+            .into_iter()
+            .filter_map(|chunk| accept_streamed_chunk(chunk, &[0, 1], false, &mut emitted))
+            .map(|chunk| (chunk.paragraph_id, chunk.text))
+            .collect();
+
+        assert_eq!(accepted, vec![("p-1".to_string(), "OLD".to_string())]);
+    }
+
+    #[test]
+    fn accept_streamed_chunk_canonicalizes_padded_ids() {
+        let mut emitted = HashSet::new();
+        let chunk = TranslationChunk {
+            paragraph_id: "p-01".to_string(),
+            text: "NEW".to_string(),
+            is_complete: true,
+        };
+
+        let accepted = accept_streamed_chunk(chunk, &[2], true, &mut emitted).unwrap();
+        assert_eq!(accepted.paragraph_id, "p-1");
+    }
+
+    #[test]
+    fn non_contiguous_indices_parse_same_as_streaming() {
+        // Retry of p-7 alone (no subtitle) plus a partial-cache gap at p-3.
+        let text = r#"<p id="p-3">셋</p><p id="p-7">일곱</p></main>"#;
+        let indices = [3, 7];
+        let mut emitted = HashSet::new();
+
+        let streamed: Vec<String> = extract_completed_paragraphs(text)
+            .into_iter()
+            .filter_map(|chunk| accept_streamed_chunk(chunk, &indices, false, &mut emitted))
+            .map(|chunk| chunk.text)
+            .collect();
+        let parsed = parse_translated_paragraphs_by_indices(text, &indices, false).unwrap();
+
+        assert_eq!(parsed, vec!["셋".to_string(), "일곱".to_string()]);
+        assert_eq!(parsed, streamed);
     }
 }
