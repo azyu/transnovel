@@ -9,6 +9,7 @@ pub mod novel_metadata;
 pub mod openai_compatible;
 pub mod openai_oauth;
 pub mod paragraph;
+pub mod sse;
 pub mod substitution;
 pub mod translator;
 pub mod updater;

@@ -12,6 +12,7 @@ use super::paragraph::{
     accept_streamed_chunk, encode_paragraph_id, extract_completed_paragraphs,
     parse_translated_paragraphs_by_indices,
 };
+use super::sse::{parse_sse_data_line, SseLineBuffer};
 use super::translator::{StreamingCacheWriter, TokenUsage};
 use crate::models::api_log::ApiLogEntry;
 
@@ -548,11 +549,12 @@ impl CodexClient {
 
         let mut full_text = String::new();
         let mut stream = response.bytes_stream();
-        let mut buffer = String::new();
+        let mut parser = CodexStreamParser::new();
         let mut emitted_indices = std::collections::HashSet::new();
         let mut final_usage: Option<TokenUsage> = None;
+        let mut stream_err: Option<String> = None;
 
-        while let Some(chunk) = stream.next().await {
+        'stream: while let Some(chunk) = stream.next().await {
             let chunk = match chunk {
                 Ok(chunk) => chunk,
                 Err(e) => {
@@ -564,100 +566,60 @@ impl CodexClient {
                     return Err(format!("{}: {}", prefix, e));
                 }
             };
-            let chunk_str = String::from_utf8_lossy(&chunk);
-            buffer.push_str(&chunk_str);
 
-            while let Some(pos) = buffer.find('\n') {
-                let line = buffer[..pos].to_string();
-                buffer = buffer[pos + 1..].to_string();
-
-                if line.is_empty() || line.starts_with(':') {
-                    continue;
-                }
-
-                if let Some(data) = line.strip_prefix("data: ") {
-                    let trimmed = data.trim();
-                    if trimmed == "[DONE]" || trimmed.is_empty() {
-                        continue;
-                    }
-
-                    if let Ok(event) = serde_json::from_str::<serde_json::Value>(trimmed) {
-                        // Check for errors
-                        if let Some(err_msg) = Self::extract_error(&event) {
-                            let _ = app_handle.emit(
-                                "debug-api",
-                                serde_json::json!({
-                                    "type": "response",
-                                    "provider": "codex",
-                                    "status": 500,
-                                    "body": &err_msg
-                                }),
-                            );
-                            log_entry.duration_ms = start.elapsed().as_millis() as u64;
-                            log_entry.error = Some(err_msg.clone());
-                            let entry = log_entry;
-                            let _ = tokio::spawn(
-                                async move { api_logger::save_api_log(&entry).await },
-                            );
-                            return Err(format!("Codex API 오류: {}", err_msg));
-                        }
-
-                        let event_type =
-                            event.get("type").and_then(|v| v.as_str()).unwrap_or("");
-
-                        match event_type {
-                            "response.output_text.delta" => {
-                                if let Some(delta) =
-                                    event.get("delta").and_then(|v| v.as_str())
-                                {
-                                    full_text.push_str(delta);
-
-                                    // Check for completed paragraphs and emit chunks
-                                    let chunks = extract_completed_paragraphs(&full_text);
-                                    for chunk in chunks {
-                                        if let Some(chunk) = accept_streamed_chunk(
-                                            chunk,
-                                            original_indices,
-                                            has_subtitle,
-                                            &mut emitted_indices,
-                                        ) {
-                                            cache_writer.cache_completed_chunk(&chunk).await;
-                                            let _ = app_handle.emit("translation-chunk", chunk);
-                                        }
-                                    }
-                                }
-                            }
-                            "response.completed" | "response.done" => {
-                                if let Some(response_obj) = event.get("response") {
-                                    // Extract usage
-                                    if let Some(usage) = response_obj.get("usage") {
-                                        if let Ok(u) =
-                                            serde_json::from_value::<CodexUsageInfo>(
-                                                usage.clone(),
-                                            )
-                                        {
-                                            final_usage = Some(TokenUsage {
-                                                input_tokens: u.input_tokens.unwrap_or(0),
-                                                output_tokens: u.output_tokens.unwrap_or(0),
-                                            });
-                                        }
-                                    }
-                                    // Fallback: use output_text if no deltas received
-                                    if full_text.is_empty() {
-                                        if let Some(text) = response_obj
-                                            .get("output_text")
-                                            .and_then(|v| v.as_str())
-                                        {
-                                            full_text = text.to_string();
-                                        }
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
+            for event in parser.push_chunk(&chunk) {
+                if let Err(err_msg) = apply_codex_event(
+                    event,
+                    &mut full_text,
+                    &mut final_usage,
+                    original_indices,
+                    has_subtitle,
+                    &mut emitted_indices,
+                    cache_writer,
+                    app_handle,
+                )
+                .await
+                {
+                    stream_err = Some(err_msg);
+                    break 'stream;
                 }
             }
+        }
+
+        if stream_err.is_none() {
+            if let Some(event) = parser.finish() {
+                if let Err(err_msg) = apply_codex_event(
+                    event,
+                    &mut full_text,
+                    &mut final_usage,
+                    original_indices,
+                    has_subtitle,
+                    &mut emitted_indices,
+                    cache_writer,
+                    app_handle,
+                )
+                .await
+                {
+                    stream_err = Some(err_msg);
+                }
+            }
+        }
+
+        if let Some(err_msg) = stream_err {
+            let _ = app_handle.emit(
+                "debug-api",
+                serde_json::json!({
+                    "type": "response",
+                    "provider": "codex",
+                    "status": 500,
+                    "body": &err_msg
+                }),
+            );
+            log_entry.duration_ms = start.elapsed().as_millis() as u64;
+            log_entry.error = Some(err_msg.clone());
+            let entry = log_entry;
+            let _ = tokio::spawn(async move { api_logger::save_api_log(&entry).await });
+            return Err(format!("Codex API 오류: {}", err_msg));
         }
 
         // Final flush: emit any paragraphs not yet emitted during streaming
@@ -708,6 +670,126 @@ fn parse_codex_models_response(body: &[u8]) -> Result<Vec<CodexModelInfo>, Strin
 
     models.sort_by_key(|model| model.priority.unwrap_or(i32::MAX));
     Ok(models)
+}
+
+#[derive(Debug)]
+enum CodexStreamEvent {
+    Delta(String),
+    Completed {
+        usage: Option<TokenUsage>,
+        output_text: Option<String>,
+    },
+    Error(String),
+}
+
+#[derive(Debug, Default)]
+struct CodexStreamParser {
+    line_buffer: SseLineBuffer,
+}
+
+impl CodexStreamParser {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn push_chunk(&mut self, chunk: &[u8]) -> Vec<CodexStreamEvent> {
+        self.line_buffer
+            .push_chunk(chunk)
+            .into_iter()
+            .filter_map(|line| Self::parse_line(&line))
+            .collect()
+    }
+
+    fn finish(&mut self) -> Option<CodexStreamEvent> {
+        self.line_buffer
+            .finish()
+            .and_then(|line| Self::parse_line(&line))
+    }
+
+    fn parse_line(line: &str) -> Option<CodexStreamEvent> {
+        if line.is_empty() || line.starts_with(':') {
+            return None;
+        }
+
+        let data = parse_sse_data_line(line)?;
+        let trimmed = data.trim();
+        if trimmed == "[DONE]" || trimmed.is_empty() {
+            return None;
+        }
+
+        let event = serde_json::from_str::<serde_json::Value>(trimmed).ok()?;
+
+        if let Some(err_msg) = CodexClient::extract_error(&event) {
+            return Some(CodexStreamEvent::Error(err_msg));
+        }
+
+        let event_type = event.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        match event_type {
+            "response.output_text.delta" => event
+                .get("delta")
+                .and_then(|v| v.as_str())
+                .map(|delta| CodexStreamEvent::Delta(delta.to_string())),
+            "response.completed" | "response.done" => {
+                let response_obj = event.get("response")?;
+                let usage = response_obj
+                    .get("usage")
+                    .and_then(|usage| serde_json::from_value::<CodexUsageInfo>(usage.clone()).ok())
+                    .map(|u| TokenUsage {
+                        input_tokens: u.input_tokens.unwrap_or(0),
+                        output_tokens: u.output_tokens.unwrap_or(0),
+                    });
+                let output_text = response_obj
+                    .get("output_text")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                Some(CodexStreamEvent::Completed { usage, output_text })
+            }
+            _ => None,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn apply_codex_event<R: tauri::Runtime>(
+    event: CodexStreamEvent,
+    full_text: &mut String,
+    final_usage: &mut Option<TokenUsage>,
+    original_indices: &[usize],
+    has_subtitle: bool,
+    emitted_indices: &mut std::collections::HashSet<usize>,
+    cache_writer: &mut StreamingCacheWriter,
+    app_handle: &AppHandle<R>,
+) -> Result<(), String> {
+    match event {
+        CodexStreamEvent::Error(err_msg) => Err(err_msg),
+        CodexStreamEvent::Delta(delta) => {
+            full_text.push_str(&delta);
+
+            // Check for completed paragraphs and emit chunks
+            let chunks = extract_completed_paragraphs(full_text);
+            for chunk in chunks {
+                if let Some(chunk) =
+                    accept_streamed_chunk(chunk, original_indices, has_subtitle, emitted_indices)
+                {
+                    cache_writer.cache_completed_chunk(&chunk).await;
+                    let _ = app_handle.emit("translation-chunk", chunk);
+                }
+            }
+            Ok(())
+        }
+        CodexStreamEvent::Completed { usage, output_text } => {
+            if let Some(usage) = usage {
+                *final_usage = Some(usage);
+            }
+            // Fallback: use output_text if no deltas received
+            if full_text.is_empty() {
+                if let Some(text) = output_text {
+                    *full_text = text;
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -798,5 +880,106 @@ mod tests {
         assert_eq!(models[0].resolved_context_window(), Some(1_000_000));
         assert_eq!(models[1].slug, "gpt-5.3-codex");
         assert_eq!(models[1].resolved_context_window(), Some(400_000));
+    }
+
+    #[test]
+    fn decodes_multibyte_utf8_and_crlf_split_across_chunks() {
+        let payload = concat!(
+            "event: response.output_text.delta\r\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"<p id=\\\"title\\\">한국어\"}\r\n\r\n",
+            "event: response.output_text.delta\r\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\" 제목 😀</p>\"}\r\n\r\n",
+            "event: response.completed\r\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":21,\"output_tokens\":42}}}\r\n\r\n",
+        )
+        .as_bytes();
+
+        let han_pos = payload
+            .windows(3)
+            .position(|w| w == "한".as_bytes())
+            .expect("korean bytes present");
+        let crlf_pos = payload
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .expect("double crlf present");
+
+        let chunks = [
+            &payload[..han_pos + 1],
+            &payload[han_pos + 1..han_pos + 2],
+            &payload[han_pos + 2..crlf_pos + 1],
+            &payload[crlf_pos + 1..crlf_pos + 3],
+            &payload[crlf_pos + 3..],
+        ];
+
+        let mut parser = CodexStreamParser::new();
+        let mut full_text = String::new();
+        let mut usage = None;
+
+        for chunk in chunks {
+            for event in parser.push_chunk(chunk) {
+                match event {
+                    CodexStreamEvent::Delta(delta) => full_text.push_str(&delta),
+                    CodexStreamEvent::Completed { usage: u, .. } => usage = u,
+                    CodexStreamEvent::Error(err) => panic!("unexpected error: {err}"),
+                }
+            }
+        }
+        if let Some(event) = parser.finish() {
+            match event {
+                CodexStreamEvent::Delta(delta) => full_text.push_str(&delta),
+                CodexStreamEvent::Completed { usage: u, .. } => usage = u,
+                CodexStreamEvent::Error(err) => panic!("unexpected error: {err}"),
+            }
+        }
+
+        assert_eq!(full_text, "<p id=\"title\">한국어 제목 😀</p>");
+        let usage = usage.expect("usage parsed");
+        assert_eq!(usage.input_tokens, 21);
+        assert_eq!(usage.output_tokens, 42);
+    }
+
+    #[test]
+    fn decodes_one_byte_chunks_error_and_unterminated_completion_fallback() {
+        let fallback_payload =
+            "data: {\"type\":\"response.completed\",\"response\":{\"output_text\":\"한글 완료\",\"usage\":{\"input_tokens\":3,\"output_tokens\":4}}}"
+                .as_bytes();
+
+        let mut parser = CodexStreamParser::new();
+        let mut events = Vec::new();
+        for byte in fallback_payload {
+            events.extend(parser.push_chunk(&[*byte]));
+        }
+        if let Some(event) = parser.finish() {
+            events.push(event);
+        }
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            CodexStreamEvent::Completed { usage, output_text } => {
+                assert_eq!(output_text.as_deref(), Some("한글 완료"));
+                let usage = usage.as_ref().expect("usage present");
+                assert_eq!(usage.input_tokens, 3);
+                assert_eq!(usage.output_tokens, 4);
+            }
+            other => panic!("expected Completed event, got {other:?}"),
+        }
+
+        let err_payload =
+            "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"message\":\"요청 한도 초과\"}}}\r\n"
+                .as_bytes();
+        let mut err_parser = CodexStreamParser::new();
+        let mut err_events = Vec::new();
+        for byte in err_payload {
+            err_events.extend(err_parser.push_chunk(&[*byte]));
+        }
+        if let Some(event) = err_parser.finish() {
+            err_events.push(event);
+        }
+
+        assert_eq!(err_events.len(), 1);
+        match &err_events[0] {
+            CodexStreamEvent::Error(msg) => assert_eq!(msg, "요청 한도 초과"),
+            other => panic!("expected Error event, got {other:?}"),
+        }
     }
 }
