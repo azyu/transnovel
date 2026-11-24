@@ -24,10 +24,9 @@ jobs:
           node-version: 26
           package-manager-cache: false
 
-      - name: Enable pnpm via Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@12.23.0 --activate
+      # Node 26 no longer bundles Corepack; the version comes from package.json packageManager.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
