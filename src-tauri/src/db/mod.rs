@@ -85,8 +85,8 @@ async fn initialize_database(pool: &Pool<Sqlite>) -> Result<(), String> {
 
 async fn execute_migration_transaction(
     pool: &Pool<Sqlite>,
-    sql: &str,
-    check_query: &str,
+    sql: &'static str,
+    check_query: &'static str,
     expected_count: i64,
 ) -> Result<(), String> {
     let mut connection = pool.acquire().await.map_err(|e| e.to_string())?;
@@ -488,7 +488,7 @@ mod tests {
         .expect("insert cache row");
     }
 
-    async fn count(pool: &Pool<Sqlite>, sql: &str) -> i64 {
+    async fn count(pool: &Pool<Sqlite>, sql: &'static str) -> i64 {
         sqlx::query_scalar(sql)
             .fetch_one(pool)
             .await
@@ -503,7 +503,7 @@ mod tests {
             .await
             .expect("create sqlite memory pool");
         initialize_database(&pool).await.expect("initialize schema");
-        sqlx::raw_sql(&legacy_hit_count_cache_sql())
+        sqlx::raw_sql(sqlx::AssertSqlSafe(legacy_hit_count_cache_sql()))
             .execute(&pool)
             .await
             .expect("recreate v0.1.5-v0.1.7 cache schema");
@@ -628,7 +628,7 @@ mod tests {
         initialize_database(&first_pool)
             .await
             .expect("initialize schema");
-        sqlx::raw_sql(&legacy_hit_count_cache_sql())
+        sqlx::raw_sql(sqlx::AssertSqlSafe(legacy_hit_count_cache_sql()))
             .execute(&first_pool)
             .await
             .expect("recreate v0.1.5-v0.1.7 cache schema");

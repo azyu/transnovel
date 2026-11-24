@@ -29,9 +29,6 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-      # 0.x minor bumps are breaking; tracked in #123. Remove each entry once upgraded.
-      - dependency-name: sqlx
-        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /

@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 use crate::db::get_pool;
+use sqlx::{QueryBuilder, Sqlite};
 use crate::models::api_log::{ApiLogEntry, ApiLogSummary};
 
 pub async fn save_api_log(entry: &ApiLogEntry) -> Result<(), String> {
@@ -49,17 +50,17 @@ pub async fn get_api_logs(
         _ => "",
     };
 
-    let query = format!(
-        r#"
-        SELECT id, timestamp, method, path, status, duration_ms,
-               model, provider, protocol, input_tokens, output_tokens, error
-        FROM api_logs
-        {}
-        ORDER BY timestamp DESC
-        LIMIT ?1 OFFSET ?2
-        "#,
-        where_clause
+    let mut query = QueryBuilder::<Sqlite>::new(
+        "SELECT id, timestamp, method, path, status, duration_ms,
+                model, provider, protocol, input_tokens, output_tokens, error
+         FROM api_logs ",
     );
+    query
+        .push(where_clause)
+        .push(" ORDER BY timestamp DESC LIMIT ")
+        .push_bind(limit as i64)
+        .push(" OFFSET ")
+        .push_bind(offset as i64);
 
     let rows: Vec<(
         String,
@@ -74,9 +75,8 @@ pub async fn get_api_logs(
         Option<i64>,
         Option<i64>,
         Option<String>,
-    )> = sqlx::query_as(&query)
-        .bind(limit as i64)
-        .bind(offset as i64)
+    )> = query
+        .build_query_as()
         .fetch_all(pool)
         .await
         .map_err(|e| format!("Failed to fetch API logs: {}", e))?;
@@ -153,15 +153,13 @@ pub async fn get_api_log_detail(id: &str) -> Result<ApiLogEntry, String> {
 pub async fn get_api_logs_count(filter: &str) -> Result<u64, String> {
     let pool = get_pool()?;
 
-    let where_clause = match filter {
-        "error" => "WHERE status >= 400",
-        "success" => "WHERE status < 400",
-        _ => "",
+    let query = match filter {
+        "error" => "SELECT COUNT(*) FROM api_logs WHERE status >= 400",
+        "success" => "SELECT COUNT(*) FROM api_logs WHERE status < 400",
+        _ => "SELECT COUNT(*) FROM api_logs",
     };
 
-    let query = format!("SELECT COUNT(*) FROM api_logs {}", where_clause);
-
-    let (count,): (i64,) = sqlx::query_as(&query)
+    let (count,): (i64,) = sqlx::query_as(query)
         .fetch_one(pool)
         .await
         .map_err(|e| format!("Failed to count API logs: {}", e))?;

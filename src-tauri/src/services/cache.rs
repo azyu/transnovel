@@ -1,5 +1,5 @@
 use sha2::{Digest, Sha256};
-use sqlx::{Pool, Row, Sqlite};
+use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 
 use crate::db::get_pool;
 
@@ -113,6 +113,27 @@ pub async fn get_cached_translations(
     get_cached_translations_with_pool(pool, context, originals).await
 }
 
+/// Appends `? AND novel_id = ? AND context_fingerprint = ? AND text_hash IN (?, ...)`
+/// to a builder whose SQL ends with `WHERE site = `.
+fn push_identity_and_hashes<H: AsRef<str>>(
+    builder: &mut QueryBuilder<Sqlite>,
+    context: &TranslationCacheContext,
+    hashes: &[H],
+) {
+    builder
+        .push_bind(context.site.as_str())
+        .push(" AND novel_id = ")
+        .push_bind(context.novel_id.as_str())
+        .push(" AND context_fingerprint = ")
+        .push_bind(context.context_fingerprint.as_str())
+        .push(" AND text_hash IN (");
+    let mut separated = builder.separated(", ");
+    for hash in hashes {
+        separated.push_bind(hash.as_ref());
+    }
+    builder.push(")");
+}
+
 pub async fn get_cached_translations_with_pool(
     pool: &Pool<Sqlite>,
     context: &TranslationCacheContext,
@@ -123,24 +144,15 @@ pub async fn get_cached_translations_with_pool(
     }
 
     let hashes: Vec<String> = originals.iter().map(|o| compute_hash(context, o)).collect();
-    let placeholders = hashes.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let query = format!(
+    let mut query_builder = QueryBuilder::<Sqlite>::new(
         "SELECT text_hash, translated_text
          FROM translation_cache
-         WHERE site = ? AND novel_id = ? AND context_fingerprint = ?
-           AND text_hash IN ({})",
-        placeholders
+         WHERE site = ",
     );
-
-    let mut query_builder = sqlx::query(&query)
-        .bind(&context.site)
-        .bind(&context.novel_id)
-        .bind(&context.context_fingerprint);
-    for hash in &hashes {
-        query_builder = query_builder.bind(hash);
-    }
+    push_identity_and_hashes(&mut query_builder, context, &hashes);
 
     let rows = query_builder
+        .build()
         .fetch_all(pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -155,22 +167,13 @@ pub async fn get_cached_translations_with_pool(
         .filter(|hash| cache_map.contains_key(*hash))
         .collect();
     if !hit_hashes.is_empty() {
-        let update_placeholders = hit_hashes.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let update_query = format!(
+        let mut update_builder = QueryBuilder::<Sqlite>::new(
             "UPDATE translation_cache
              SET hit_count = hit_count + 1, last_used_at = CURRENT_TIMESTAMP
-             WHERE site = ? AND novel_id = ? AND context_fingerprint = ?
-               AND text_hash IN ({})",
-            update_placeholders
+             WHERE site = ",
         );
-        let mut update_builder = sqlx::query(&update_query)
-            .bind(&context.site)
-            .bind(&context.novel_id)
-            .bind(&context.context_fingerprint);
-        for hash in hit_hashes {
-            update_builder = update_builder.bind(hash);
-        }
-        update_builder.execute(pool).await.ok();
+        push_identity_and_hashes(&mut update_builder, context, &hit_hashes);
+        update_builder.build().execute(pool).await.ok();
     }
 
     Ok(hashes
@@ -399,6 +402,39 @@ mod tests {
         .await
         .expect("read hit count");
         assert_eq!(hit_count, 2);
+    }
+
+    #[tokio::test]
+    async fn batch_cache_read_keeps_order_and_bumps_hit_count_for_hits_only() {
+        let pool = setup_test_pool().await;
+        let ctx = context("syosetu", "novel", "model-a");
+        let other = context("syosetu", "novel", "model-b");
+        for (cache_context, source, translated) in
+            [(&ctx, "a", "A"), (&ctx, "b", "B"), (&other, "c", "C")]
+        {
+            cache_translation_with_pool(&pool, cache_context, source, translated)
+                .await
+                .expect("cache translation");
+        }
+
+        let originals = ["b", "miss", "a", "c"].map(String::from);
+        assert_eq!(
+            get_cached_translations_with_pool(&pool, &ctx, &originals)
+                .await
+                .expect("read cache"),
+            vec![Some("B".to_string()), None, Some("A".to_string()), None]
+        );
+
+        let hit_counts: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT original_text, hit_count FROM translation_cache ORDER BY original_text",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("read hit counts");
+        assert_eq!(
+            hit_counts,
+            vec![("a".into(), 1), ("b".into(), 1), ("c".into(), 0)]
+        );
     }
 
     #[test]

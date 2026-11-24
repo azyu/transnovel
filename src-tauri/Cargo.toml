@@ -6,7 +6,7 @@ authors = ["TransNovel Team"]
 license = "MIT"
 repository = "https://github.com/azyu/transnovel"
 edition = "2021"
-rust-version = "1.90"
+rust-version = "1.94"
 
 [lib]
 name = "app_lib"
@@ -63,7 +63,7 @@ open = "5"
 
 zip = { version = "9", default-features = false, features = ["deflate"] }
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 # Minor-pinned: services/updater.rs uses configure_client, whose reqwest may change in minor releases.

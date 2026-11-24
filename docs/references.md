@@ -36,7 +36,7 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 | Crate | Version | Purpose |
 |-------|---------|---------|
 | tauri | 2.9.5 | App framework |
-| sqlx | 0.8 | SQLite async ORM |
+| sqlx | 0.9 | SQLite async ORM |
 | tokio | 1.x | Async runtime |
 | reqwest | 0.13 | HTTP client (JSON + SSE streaming, native-tls) |
 | scraper | 0.29 | HTML DOM parsing |
