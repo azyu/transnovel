@@ -38,7 +38,7 @@ tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 
 # HTML parsing
-scraper = "0.23"
+scraper = "0.29"
 regex = "1.11"
 
 # Logging
