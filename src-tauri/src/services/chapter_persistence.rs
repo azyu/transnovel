@@ -109,7 +109,7 @@ pub fn chapter_content_hash(
     update_field(&mut hasher, title);
     update_field(&mut hasher, subtitle);
     update_field(&mut hasher, Some(original_content));
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 pub fn extract_chapter_paragraphs(html: &str) -> Vec<String> {
@@ -568,6 +568,15 @@ async fn delete_completion_marker(
 mod tests {
     use super::*;
     use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
+
+    #[test]
+    fn chapter_content_hash_is_stable_lowercase_hex() {
+        // Stored in chapters.content_hash; any format drift would mark every chapter as changed.
+        assert_eq!(
+            chapter_content_hash(Some("T"), None, "abc"),
+            "b4a6df6d9b8e5843c26653be53c38526f4a2401c48c5d764bc9b0c5144b6dfa7"
+        );
+    }
 
     async fn setup_test_pool() -> Pool<Sqlite> {
         let pool = SqlitePoolOptions::new()

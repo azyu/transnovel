@@ -36,8 +36,6 @@ updates:
         update-types: ["version-update:semver-minor"]
       - dependency-name: rand
         update-types: ["version-update:semver-minor"]
-      - dependency-name: sha2
-        update-types: ["version-update:semver-minor"]
       - dependency-name: scraper
         update-types: ["version-update:semver-minor"]
 

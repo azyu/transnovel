@@ -41,7 +41,7 @@ User → React UI → Tauri IPC (invoke/emit) → Rust Commands → Services →
 | reqwest | 0.12 | HTTP client (JSON + SSE streaming) |
 | scraper | 0.23 | HTML DOM parsing |
 | serde/serde_json | 1.0 | Serialization |
-| sha2 + hex | 0.10/0.4 | Cache hashing |
+| sha2 + hex | 0.11/0.4 | Cache hashing |
 | regex | 1.11 | Text substitution, HTML parsing |
 | async-trait | 0.1 | Parser trait |
 | chrono | 0.4 | Timestamps |
