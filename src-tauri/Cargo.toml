@@ -23,7 +23,6 @@ tauri-build = { version = "2.5.3", features = [] }
 # Tauri core
 tauri = { version = "2.9.5", features = [] }
 tauri-plugin-log = "2"
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-http = "2"
 tauri-plugin-dialog = "2"
 
@@ -44,10 +43,6 @@ regex = "1.11"
 
 # Logging
 log = "0.4"
-
-# Error handling
-thiserror = "2.0"
-anyhow = "1.0"
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
