@@ -57,6 +57,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '1화',
         isNew: false,
         isViewed: true,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
 
@@ -99,6 +101,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '2화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
       {
         chapterNumber: 5,
@@ -106,6 +110,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '5화',
         isNew: false,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
 
@@ -118,6 +124,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '2화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
       {
         chapterNumber: 5,
@@ -125,6 +133,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '5화',
         isNew: false,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
     expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([1, 0]);
@@ -139,6 +149,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '2화',
         isNew: false,
         isViewed: true,
+        publishedAt: null,
+        revisedAt: null,
       },
       {
         chapterNumber: 5,
@@ -146,6 +158,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '5화',
         isNew: false,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
     expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([0, 0]);
@@ -198,6 +212,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '3화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
 
@@ -212,6 +228,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '3화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
     expect(useSeriesStore.getState().watchlistBadgeCount).toBe(1);
@@ -253,6 +271,8 @@ describe('useSeriesStore watchlist state', () => {
         title: '1화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
 
@@ -264,6 +284,8 @@ describe('useSeriesStore watchlist state', () => {
       title: '1화',
       isNew: true,
       isViewed: false,
+      publishedAt: null,
+      revisedAt: null,
     });
     expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([0, 1]);
   });

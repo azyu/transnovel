@@ -27,6 +27,10 @@ export const seriesMessages = {
   translationNavigationBlocked: '현재 소설이 번역 중이므로 다른 작품이나 화로 이동할 수 없습니다.',
   refreshFailed: '관심작품 새로고침 실패',
   episodeFallbackTitle: (chapterNumber: number) => `제${chapterNumber}화`,
+  episodeDates: {
+    published: '등록일시',
+    revised: '수정일시',
+  },
   status: {
     viewed: '본 화',
     checkFailed: '확인 실패',

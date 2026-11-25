@@ -21,6 +21,8 @@ export interface WatchlistEpisode {
   title: string | null;
   isNew: boolean;
   isViewed: boolean;
+  publishedAt: string | null;
+  revisedAt: string | null;
 }
 
 export interface WatchlistViewedUpdate {

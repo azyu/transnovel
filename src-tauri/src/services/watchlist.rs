@@ -280,11 +280,13 @@ pub async fn add_watchlist_item_from_series(
     for chapter in &series.chapters {
         sqlx::query(
             "INSERT INTO watchlist_episodes (
-                site, novel_id, chapter_number, chapter_url, title, is_new, updated_at
-             ) VALUES (?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+                site, novel_id, chapter_number, chapter_url, title, published_at, revised_at, is_new, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
              ON CONFLICT(site, novel_id, chapter_number) DO UPDATE SET
                 chapter_url = excluded.chapter_url,
                 title = excluded.title,
+                published_at = COALESCE(excluded.published_at, watchlist_episodes.published_at),
+                revised_at = excluded.revised_at,
                 is_new = watchlist_episodes.is_new,
                 updated_at = CURRENT_TIMESTAMP",
         )
@@ -293,6 +295,8 @@ pub async fn add_watchlist_item_from_series(
         .bind(i64::from(chapter.number))
         .bind(&chapter.url)
         .bind(chapter.title.as_deref())
+        .bind(chapter.published_at.as_deref())
+        .bind(chapter.revised_at.as_deref())
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -330,15 +334,17 @@ pub async fn refresh_watchlist_item_from_series(
 
         sqlx::query(
             "INSERT INTO watchlist_episodes (
-                site, novel_id, chapter_number, chapter_url, title, is_new, updated_at
+                site, novel_id, chapter_number, chapter_url, title, published_at, revised_at, is_new, updated_at
              )
-             SELECT ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
              WHERE EXISTS (
                  SELECT 1 FROM watchlist_items WHERE site = ? AND novel_id = ?
              )
              ON CONFLICT(site, novel_id, chapter_number) DO UPDATE SET
                 chapter_url = excluded.chapter_url,
                 title = excluded.title,
+                published_at = COALESCE(excluded.published_at, watchlist_episodes.published_at),
+                revised_at = excluded.revised_at,
                 is_new = CASE
                     WHEN watchlist_episodes.is_new = 1 THEN 1
                     ELSE excluded.is_new
@@ -350,6 +356,8 @@ pub async fn refresh_watchlist_item_from_series(
         .bind(i64::from(chapter.number))
         .bind(&chapter.url)
         .bind(chapter.title.as_deref())
+        .bind(chapter.published_at.as_deref())
+        .bind(chapter.revised_at.as_deref())
         .bind(is_new)
         .bind(&series.site)
         .bind(novel_id)
@@ -385,6 +393,8 @@ pub async fn list_watchlist_episode_rows(
             episodes.chapter_number,
             episodes.chapter_url,
             episodes.title,
+            episodes.published_at,
+            episodes.revised_at,
             episodes.is_new,
             viewed.chapter_number IS NOT NULL AS is_viewed
          FROM watchlist_episodes AS episodes
@@ -410,6 +420,8 @@ pub async fn list_watchlist_episode_rows(
             title: row.get("title"),
             is_new: row.get::<i64, _>("is_new") != 0,
             is_viewed: row.get::<i64, _>("is_viewed") != 0,
+            published_at: row.get("published_at"),
+            revised_at: row.get("revised_at"),
         })
         .collect())
 }
@@ -573,6 +585,11 @@ mod tests {
             .await
             .expect("apply watchlist order migration");
 
+        sqlx::raw_sql(include_str!("../db/migrations/012_watchlist_episode_dates.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply watchlist episode dates migration");
+
         pool
     }
 
@@ -588,6 +605,26 @@ mod tests {
                 url: format!("https://ncode.syosetu.com/{novel_id}/1/"),
                 title: None,
                 status: "pending".into(),
+                published_at: None,
+                revised_at: None,
+            }],
+        }
+    }
+
+    fn dated_series(published_at: Option<&str>, revised_at: Option<&str>) -> SeriesInfo {
+        SeriesInfo {
+            site: "syosetu".into(),
+            novel_id: "n2000aa".into(),
+            title: "날짜 작품".into(),
+            author: Some("작가".into()),
+            total_chapters: 1,
+            chapters: vec![ChapterInfo {
+                number: 1,
+                url: "https://ncode.syosetu.com/n2000aa/1/".into(),
+                title: Some("1화".into()),
+                status: "pending".into(),
+                published_at: published_at.map(Into::into),
+                revised_at: revised_at.map(Into::into),
             }],
         }
     }
@@ -851,6 +888,66 @@ mod tests {
         assert!(viewed[0].is_viewed);
     }
 
+    async fn stored_dates(pool: &Pool<Sqlite>) -> (Option<String>, Option<String>) {
+        let episodes = list_watchlist_episode_rows(pool, "syosetu", "n2000aa")
+            .await
+            .expect("list dated episodes");
+        assert_eq!(episodes.len(), 1);
+        (episodes[0].published_at.clone(), episodes[0].revised_at.clone())
+    }
+
+    fn dates(published_at: Option<&str>, revised_at: Option<&str>) -> (Option<String>, Option<String>) {
+        (published_at.map(Into::into), revised_at.map(Into::into))
+    }
+
+    #[tokio::test]
+    async fn watchlist_episode_source_dates_round_trip_through_add_and_refresh() {
+        let pool = setup_test_pool().await;
+
+        add_watchlist_item_from_series(
+            &pool,
+            "https://ncode.syosetu.com/n2000aa/",
+            &dated_series(Some("2012/11/22 17:00"), Some("2013/11/27 13:06")),
+        )
+        .await
+        .expect("add dated watchlist item");
+        assert_eq!(
+            stored_dates(&pool).await,
+            dates(Some("2012/11/22 17:00"), Some("2013/11/27 13:06"))
+        );
+
+        refresh_watchlist_item_from_series(
+            &pool,
+            "n2000aa",
+            &dated_series(Some("2012/11/23 18:00"), Some("2014/01/02 03:04")),
+        )
+        .await
+        .expect("refresh with corrected dates");
+        assert_eq!(
+            stored_dates(&pool).await,
+            dates(Some("2012/11/23 18:00"), Some("2014/01/02 03:04"))
+        );
+
+        // A missing posting date is a parse failure, not a source fact: keep the stored
+        // value. A missing revision date means "not revised" and clears it.
+        refresh_watchlist_item_from_series(&pool, "n2000aa", &dated_series(None, None))
+            .await
+            .expect("refresh without dates");
+        assert_eq!(stored_dates(&pool).await, dates(Some("2012/11/23 18:00"), None));
+
+        add_watchlist_item_from_series(
+            &pool,
+            "https://ncode.syosetu.com/n2000aa/",
+            &dated_series(None, Some("2015/05/06 07:08")),
+        )
+        .await
+        .expect("re-add without posting date");
+        assert_eq!(
+            stored_dates(&pool).await,
+            dates(Some("2012/11/23 18:00"), Some("2015/05/06 07:08"))
+        );
+    }
+
     #[tokio::test]
     async fn remove_watchlist_item_removes_only_target_watchlist_state() {
         let pool = setup_test_pool().await;
@@ -865,6 +962,8 @@ mod tests {
                 url: "https://ncode.syosetu.com/n1000aa/1/".into(),
                 title: Some("1화".into()),
                 status: "pending".into(),
+                published_at: None,
+                revised_at: None,
             }],
         };
         let nocturne_series = SeriesInfo {
@@ -878,6 +977,8 @@ mod tests {
                 url: "https://novel18.syosetu.com/n1000aa/1/".into(),
                 title: Some("1화".into()),
                 status: "pending".into(),
+                published_at: None,
+                revised_at: None,
             }],
         };
 
@@ -1052,12 +1153,16 @@ mod tests {
                     url: "https://ncode.syosetu.com/n3645ly/1/".into(),
                     title: Some("1화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
                 ChapterInfo {
                     number: 2,
                     url: "https://ncode.syosetu.com/n3645ly/2/".into(),
                     title: Some("2화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
             ],
         };
@@ -1134,12 +1239,16 @@ mod tests {
                     url: "https://ncode.syosetu.com/n3645ly/1/".into(),
                     title: Some("1화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
                 ChapterInfo {
                     number: 2,
                     url: "https://ncode.syosetu.com/n3645ly/2/".into(),
                     title: Some("2화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
             ],
         };
@@ -1160,18 +1269,24 @@ mod tests {
                     url: "https://ncode.syosetu.com/n3645ly/1/".into(),
                     title: Some("1화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
                 ChapterInfo {
                     number: 2,
                     url: "https://ncode.syosetu.com/n3645ly/2/".into(),
                     title: Some("2화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
                 ChapterInfo {
                     number: 3,
                     url: "https://ncode.syosetu.com/n3645ly/3/".into(),
                     title: Some("3화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
             ],
         };
@@ -1207,12 +1322,16 @@ mod tests {
                     url: "https://ncode.syosetu.com/n3645ly/1/".into(),
                     title: Some("1화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
                 ChapterInfo {
                     number: 2,
                     url: "https://ncode.syosetu.com/n3645ly/2/".into(),
                     title: Some("2화".into()),
                     status: "pending".into(),
+                    published_at: None,
+                    revised_at: None,
                 },
             ],
         };
@@ -1263,6 +1382,8 @@ mod tests {
                 url: "https://ncode.syosetu.com/n3645ly/1/".into(),
                 title: Some("1화".into()),
                 status: "pending".into(),
+                published_at: None,
+                revised_at: None,
             }],
         };
 
@@ -1307,6 +1428,8 @@ mod tests {
                 url: "https://ncode.syosetu.com/n3645ly/1/".into(),
                 title: Some("1화".into()),
                 status: "pending".into(),
+                published_at: None,
+                revised_at: None,
             }],
         };
 
@@ -1362,6 +1485,8 @@ mod tests {
                 url: "https://ncode.syosetu.com/n1000aa/1/".into(),
                 title: Some("1화".into()),
                 status: "pending".into(),
+                published_at: None,
+                revised_at: None,
             }],
         };
         let nocturne_series = SeriesInfo {
@@ -1375,6 +1500,8 @@ mod tests {
                 url: "https://novel18.syosetu.com/n1000aa/1/".into(),
                 title: Some("1화".into()),
                 status: "pending".into(),
+                published_at: None,
+                revised_at: None,
             }],
         };
 

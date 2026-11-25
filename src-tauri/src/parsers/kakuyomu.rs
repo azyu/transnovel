@@ -143,6 +143,8 @@ impl KakuyomuParser {
                     url: format!("https://kakuyomu.jp/works/{novel_id}/episodes/{episode_id}"),
                     title: episode_title,
                     status: "pending".to_string(),
+                    published_at: None,
+                    revised_at: None,
                 });
             }
         }

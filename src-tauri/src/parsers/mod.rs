@@ -4,6 +4,7 @@ pub mod nocturne;
 pub mod syosetu;
 
 use async_trait::async_trait;
+use scraper::{ElementRef, Selector};
 
 use crate::models::novel::{ChapterContent, SeriesInfo};
 
@@ -82,6 +83,51 @@ pub fn normalize_author_name(value: &str) -> Option<String> {
     }
 }
 
+/// Reads the source posting and revision datetimes for one episode of a Syosetu-family
+/// index page (`ncode.syosetu.com`, `novel18.syosetu.com`).
+///
+/// The `.p-eplist__update` element follows the episode's `.p-eplist__subtitle` anchor.
+/// Its own text is the posting datetime. An optional `span[title]` carries the revision
+/// datetime as `"YYYY/MM/DD HH:MM 改稿"`. A value that is not exactly
+/// `YYYY/MM/DD HH:MM` becomes `None`, so markup drift never stores arbitrary text.
+pub fn parse_eplist_update(subtitle: ElementRef) -> (Option<String>, Option<String>) {
+    let Some(update) = subtitle
+        .next_siblings()
+        .filter_map(ElementRef::wrap)
+        .take_while(|el| !el.value().classes().any(|class| class == "p-eplist__subtitle"))
+        .find(|el| el.value().classes().any(|class| class == "p-eplist__update"))
+    else {
+        return (None, None);
+    };
+
+    let posted_text: String = update
+        .children()
+        .filter_map(|node| node.value().as_text().map(|text| text.to_string()))
+        .collect();
+    let published_at = normalize_eplist_datetime(&posted_text);
+
+    let revision_selector = Selector::parse("span[title]").unwrap();
+    let revised_at = update
+        .select(&revision_selector)
+        .next()
+        .and_then(|span| span.value().attr("title"))
+        .and_then(|title| normalize_eplist_datetime(title.trim().trim_end_matches("改稿")));
+
+    (published_at, revised_at)
+}
+
+fn normalize_eplist_datetime(value: &str) -> Option<String> {
+    let collapsed = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    let is_minute_datetime = collapsed.len() == 16
+        && collapsed.bytes().enumerate().all(|(i, byte)| match i {
+            4 | 7 => byte == b'/',
+            10 => byte == b' ',
+            13 => byte == b':',
+            _ => byte.is_ascii_digit(),
+        });
+    is_minute_datetime.then_some(collapsed)
+}
+
 pub async fn fetch_html(url: &str) -> Result<String, String> {
     let mut headers = reqwest::header::HeaderMap::new();
     
@@ -116,7 +162,77 @@ pub async fn fetch_html(url: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_author_name;
+    use super::{normalize_author_name, parse_eplist_update};
+    use scraper::{Html, Selector};
+
+    fn eplist_dates(html: &str) -> Vec<(Option<String>, Option<String>)> {
+        let document = Html::parse_document(html);
+        let selector = Selector::parse(".p-eplist__subtitle").unwrap();
+        document.select(&selector).map(parse_eplist_update).collect()
+    }
+
+    #[test]
+    fn eplist_update_reads_posted_and_optional_revised_datetime_per_episode() {
+        let dates = eplist_dates(
+            r#"<div class="p-eplist">
+              <div class="p-eplist__sublist">
+                <a href="/n0000aa/1/" class="p-eplist__subtitle">第一話</a>
+                <div class="p-eplist__update">
+                  2012/11/22 17:00
+                  <span title="2013/11/27 13:06 改稿">（改）</span>
+                </div>
+              </div>
+              <div class="p-eplist__sublist">
+                <a href="/n0000aa/2/" class="p-eplist__subtitle">第二話</a>
+                <div class="p-eplist__update">
+                  2012/12/10 10:00
+                </div>
+              </div>
+            </div>"#,
+        );
+
+        assert_eq!(
+            dates,
+            vec![
+                (
+                    Some("2012/11/22 17:00".to_string()),
+                    Some("2013/11/27 13:06".to_string())
+                ),
+                (Some("2012/12/10 10:00".to_string()), None),
+            ]
+        );
+    }
+
+    #[test]
+    fn eplist_update_does_not_borrow_the_next_episode_dates() {
+        let dates = eplist_dates(
+            r#"<div class="p-eplist">
+              <a href="/n0000aa/1/" class="p-eplist__subtitle">第一話</a>
+              <a href="/n0000aa/2/" class="p-eplist__subtitle">第二話</a>
+              <div class="p-eplist__update">2012/12/10 10:00</div>
+            </div>"#,
+        );
+
+        assert_eq!(
+            dates,
+            vec![(None, None), (Some("2012/12/10 10:00".to_string()), None)]
+        );
+    }
+
+    #[test]
+    fn eplist_update_rejects_text_that_is_not_a_minute_datetime() {
+        let dates = eplist_dates(
+            r#"<div class="p-eplist__sublist">
+              <a href="/n0000aa/1/" class="p-eplist__subtitle">第一話</a>
+              <div class="p-eplist__update">
+                2012年11月22日
+                <span title="改稿">（改）</span>
+              </div>
+            </div>"#,
+        );
+
+        assert_eq!(dates, vec![(None, None)]);
+    }
 
     #[test]
     fn strips_syosetu_author_prefix() {

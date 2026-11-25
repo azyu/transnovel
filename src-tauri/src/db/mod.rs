@@ -228,6 +228,25 @@ async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
         .await?;
     }
 
+    // Must run after 006: 006 recreates `watchlist_episodes` and would drop these columns.
+    const WATCHLIST_EPISODE_DATES_CHECK: &str =
+        "SELECT COUNT(*) FROM pragma_table_info('watchlist_episodes')
+         WHERE name IN ('published_at', 'revised_at')";
+    let watchlist_episode_dates: i64 = sqlx::query_scalar(WATCHLIST_EPISODE_DATES_CHECK)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if watchlist_episode_dates < 2 {
+        execute_migration_transaction(
+            pool,
+            include_str!("migrations/012_watchlist_episode_dates.sql"),
+            WATCHLIST_EPISODE_DATES_CHECK,
+            2,
+        )
+        .await?;
+    }
+
     let has_chapter_content_hash: Vec<(String,)> = sqlx::query_as(
         "SELECT name FROM pragma_table_info('chapters') WHERE name = 'content_hash'",
     )
@@ -460,6 +479,91 @@ mod tests {
 
         pool.close().await;
         std::fs::remove_file(&database_path).expect("remove temporary database");
+    }
+
+    #[tokio::test]
+    async fn initializer_adds_episode_dates_after_legacy_watchlist_site_rebuild() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create sqlite memory pool");
+        // Pre-006 shape: episode tables have no `site`. Index names match 005 so its
+        // `CREATE INDEX IF NOT EXISTS` statements are no-ops, as on a real legacy DB.
+        sqlx::raw_sql(
+            "CREATE TABLE watchlist_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                site TEXT NOT NULL,
+                work_url TEXT NOT NULL,
+                novel_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                author TEXT,
+                last_known_chapter INTEGER NOT NULL DEFAULT 0,
+                last_checked_at DATETIME,
+                last_check_status TEXT NOT NULL DEFAULT 'idle',
+                last_check_error TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(site, novel_id)
+            );
+            CREATE TABLE watchlist_episodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                novel_id TEXT NOT NULL,
+                chapter_number INTEGER NOT NULL,
+                chapter_url TEXT NOT NULL,
+                title TEXT,
+                is_new BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(novel_id, chapter_number)
+            );
+            CREATE TABLE viewed_episodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                novel_id TEXT NOT NULL,
+                chapter_number INTEGER NOT NULL,
+                viewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(novel_id, chapter_number)
+            );
+            CREATE INDEX idx_watchlist_episodes_novel ON watchlist_episodes(novel_id);
+            CREATE INDEX idx_viewed_episodes_novel ON viewed_episodes(novel_id);
+            INSERT INTO watchlist_items (site, work_url, novel_id, title)
+                VALUES ('nocturne', 'https://novel18.syosetu.com/n3000aa/', 'n3000aa', 'legacy');
+            INSERT INTO watchlist_episodes (novel_id, chapter_number, chapter_url, title)
+                VALUES ('n3000aa', 1, 'https://novel18.syosetu.com/n3000aa/1/', '1화');",
+        )
+        .execute(&pool)
+        .await
+        .expect("create legacy watchlist schema");
+
+        initialize_database(&pool)
+            .await
+            .expect("migrate legacy watchlist schema");
+        // Checked before the repeat run: a second run would re-add columns that a
+        // misordered 006 rebuild dropped, and hide the bug for the first app launch.
+        let date_columns: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('watchlist_episodes')
+             WHERE name IN ('published_at', 'revised_at')",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("count date columns");
+        assert_eq!(date_columns, 2);
+
+        initialize_database(&pool)
+            .await
+            .expect("repeat legacy watchlist migration");
+
+        let row = sqlx::query(
+            "SELECT site, title, published_at, revised_at FROM watchlist_episodes
+             WHERE novel_id = 'n3000aa' AND chapter_number = 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("legacy episode survives with date columns");
+        assert_eq!(row.get::<String, _>("site"), "nocturne");
+        assert_eq!(row.get::<String, _>("title"), "1화");
+        assert_eq!(row.get::<Option<String>, _>("published_at"), None);
+        assert_eq!(row.get::<Option<String>, _>("revised_at"), None);
     }
 
     #[tokio::test]
