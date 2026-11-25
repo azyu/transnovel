@@ -247,12 +247,25 @@ export const SeriesManager: React.FC = () => {
       return;
     }
 
-    // Pin the implicitly selected first item so the move does not change the selection.
-    if (selectedWatchlistNovelId === null && selectedItem) {
-      useSeriesStore.getState().setSelectedWatchlistNovelId(getWatchlistItemKey(selectedItem));
-    }
     setMovingWatchlistKey(getWatchlistItemKey(item));
     try {
+      // Confirm the implicitly selected first item (selection key and episodes together)
+      // before the move, so reordering does not switch the selection. A load discarded on
+      // unmount leaves the selection implicit, and the next mount loads it again.
+      if (selectedWatchlistNovelId === null && selectedItem) {
+        const targetKey = getWatchlistItemKey(selectedItem);
+        const requestId = selectionRequestIdRef.current + 1;
+        selectionRequestIdRef.current = requestId;
+        selectionTargetKeyRef.current = targetKey;
+        await loadWatchlistEpisodes(selectedItem.site, selectedItem.novelId, {
+          shouldApply: () =>
+            isMountedRef.current &&
+            requestId === selectionRequestIdRef.current &&
+            useSeriesStore
+              .getState()
+              .watchlistItems.some((watchlistItem) => getWatchlistItemKey(watchlistItem) === targetKey),
+        });
+      }
       await moveWatchlistItem(item.site, item.novelId, direction);
     } catch (error) {
       showError(seriesMessages.moveFailed, error instanceof Error ? error.message : String(error));
@@ -438,7 +451,7 @@ export const SeriesManager: React.FC = () => {
             <div className="mb-3 flex justify-end">
               <button
                 type="button"
-                aria-label={seriesMessages.editAriaLabel}
+                aria-label={isEditing ? seriesMessages.doneAriaLabel : seriesMessages.editAriaLabel}
                 aria-pressed={isEditing}
                 onClick={() => setIsEditing((value) => !value)}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${

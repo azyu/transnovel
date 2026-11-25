@@ -14,6 +14,7 @@ export const seriesMessages = {
   edit: '편집',
   done: '완료',
   editAriaLabel: '관심작품 목록 편집',
+  doneAriaLabel: '관심작품 목록 편집 완료',
   moveUpAriaLabel: (title: string) => `${title} 위로 이동`,
   moveDownAriaLabel: (title: string) => `${title} 아래로 이동`,
   moveFailed: '관심작품 순서 변경 실패',

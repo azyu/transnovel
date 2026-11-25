@@ -14,6 +14,7 @@ export const seriesMessages = {
   edit: 'Edit',
   done: 'Done',
   editAriaLabel: 'Edit watchlist',
+  doneAriaLabel: 'Done editing watchlist',
   moveUpAriaLabel: (title: string) => `Move ${title} up`,
   moveDownAriaLabel: (title: string) => `Move ${title} down`,
   moveFailed: 'Failed to reorder watchlist',

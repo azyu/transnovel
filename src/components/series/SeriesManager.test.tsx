@@ -54,7 +54,7 @@ describe('SeriesManager', () => {
   let originalSeriesMessages: unknown;
 
   const editToggle = () =>
-    container.querySelector('button[aria-label="관심작품 목록 편집"]') as HTMLButtonElement | null;
+    container.querySelector('button[aria-pressed]') as HTMLButtonElement | null;
   const click = async (element: Element | null | undefined) => {
     await act(async () => {
       element?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -138,6 +138,7 @@ describe('SeriesManager', () => {
 
     expect(editToggle()?.getAttribute('aria-pressed')).toBe('false');
     expect(editToggle()?.textContent).toBe('편집');
+    expect(editToggle()?.getAttribute('aria-label')).toBe('관심작품 목록 편집');
     expect(button('테스트 작품 관심작품에서 삭제')).toBeNull();
     expect(button('테스트 작품 위로 이동')).toBeNull();
     expect(button('테스트 작품 아래로 이동')).toBeNull();
@@ -145,6 +146,7 @@ describe('SeriesManager', () => {
     await enterEditMode();
     expect(editToggle()?.getAttribute('aria-pressed')).toBe('true');
     expect(editToggle()?.textContent).toBe('완료');
+    expect(editToggle()?.getAttribute('aria-label')).toBe('관심작품 목록 편집 완료');
     expect(button('테스트 작품 관심작품에서 삭제')).toBeTruthy();
     expect(button('테스트 작품 위로 이동')?.disabled).toBe(true);
     expect(button('테스트 작품 아래로 이동')?.disabled).toBe(false);
@@ -181,7 +183,15 @@ describe('SeriesManager', () => {
       watchlistItems: [useSeriesStore.getState().watchlistItems[0], secondItem],
       selectedWatchlistNovelId: null,
     });
-    loadWatchlistEpisodes.mockImplementationOnce(() => new Promise<never[]>(() => {}));
+    loadWatchlistEpisodes
+      .mockImplementationOnce(() => new Promise<never[]>(() => {}))
+      // Like loadWatchlistEpisodesFlow: apply the selection only when the guard allows it.
+      .mockImplementationOnce(async (site, novelId, options) => {
+        if (options.shouldApply()) {
+          useSeriesStore.getState().setSelectedWatchlistNovelId(getWatchlistItemKey(site, novelId));
+        }
+        return [];
+      });
     await act(async () => {
       root.render(<SeriesManager />);
     });
@@ -191,8 +201,36 @@ describe('SeriesManager', () => {
 
     expect(listedTitles()).toEqual(['다른 작품', '테스트 작품']);
     expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('syosetu:n1234ab');
-    expect(loadWatchlistEpisodes).toHaveBeenCalledTimes(1);
-    expect(loadWatchlistEpisodes).toHaveBeenCalledWith('syosetu', 'n1234ab', expect.anything());
+    expect(loadWatchlistEpisodes).toHaveBeenCalledTimes(2);
+    expect(loadWatchlistEpisodes).toHaveBeenLastCalledWith('syosetu', 'n1234ab', expect.anything());
+  });
+
+  it('reloads the implicit selection on remount when leaving the tab during a move', async () => {
+    useSeriesStore.setState({
+      watchlistItems: [useSeriesStore.getState().watchlistItems[0], secondItem],
+      selectedWatchlistNovelId: null,
+    });
+    // Both the initial load and the confirmation load before the move stay pending.
+    loadWatchlistEpisodes
+      .mockImplementationOnce(() => new Promise<never[]>(() => {}))
+      .mockImplementationOnce(() => new Promise<never[]>(() => {}));
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+    await enterEditMode();
+    await click(button('테스트 작품 아래로 이동'));
+
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBeNull();
+    expect(loadWatchlistEpisodes).toHaveBeenCalledTimes(3);
+    expect(loadWatchlistEpisodes).toHaveBeenLastCalledWith('syosetu', 'n1234ab', expect.anything());
   });
 
   it('leaves edit mode when the last item is deleted', async () => {

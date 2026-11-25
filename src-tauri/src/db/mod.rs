@@ -276,6 +276,7 @@ mod tests {
             .await
             .expect("legacy watchlist schema");
         // Legacy display order was `updated_at DESC, id DESC`: expected b, c, a.
+        // `a` gets the highest id, so ordering by id alone would put it first.
         for (novel_id, updated_at) in [
             ("a", "2026-01-01 00:00:00"),
             ("b", "2026-03-01 00:00:00"),
@@ -292,12 +293,30 @@ mod tests {
             .await
             .expect("insert legacy watchlist item");
         }
+        sqlx::query("UPDATE watchlist_items SET id = id + 20 WHERE novel_id = 'a'")
+            .execute(&pool)
+            .await
+            .expect("give a the highest id");
         sqlx::query("UPDATE watchlist_items SET id = id + 10 WHERE novel_id = 'b'")
             .execute(&pool)
             .await
-            .expect("give b the higher id");
+            .expect("give b a higher id than c");
 
         run_migrations(&pool).await.expect("run migrations");
+        let migrated: Vec<(String, i64)> =
+            sqlx::query_as("SELECT novel_id, sort_order FROM watchlist_items ORDER BY novel_id")
+                .fetch_all(&pool)
+                .await
+                .expect("read migrated ranks");
+        assert_eq!(
+            migrated,
+            [
+                ("a".to_string(), 2),
+                ("b".to_string(), 0),
+                ("c".to_string(), 1)
+            ]
+        );
+
         sqlx::query("UPDATE watchlist_items SET sort_order = 7 WHERE novel_id = 'a'")
             .execute(&pool)
             .await
