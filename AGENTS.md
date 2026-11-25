@@ -106,7 +106,7 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
   cd src-tauri && cargo clippy -- -D warnings
   ```
 - For docs-only changes, state that runtime verification was skipped because application behavior did not change.
-- `.github/workflows/ci.yml` runs on `pull_request` only for PRs whose base branch is `main`. A PR stacked on another feature branch gets no CI run, and the automatic retarget to `main` after the lower PR merges does not start one either (observed on PR #138). To get CI, merge `origin/main` into the stacked branch and push; no force-push is needed.
+- `.github/workflows/ci.yml` runs on `push` only for `main` and on `pull_request` only for PRs whose base branch is `main`. While a stacked PR targets another feature branch, a push to the stacked PR's head branch starts no CI. When the lower PR merges and its head branch is deleted, GitHub retargets the stacked PR to `main`. The retarget is an `edited` event, which the default `pull_request` types do not include, so it starts no CI (observed on PR #138). To get CI, push a new commit to the stacked PR's head branch after the retarget, for example a merge of `origin/main`. That push is a `synchronize` event. No force-push is needed.
 
 ## After Code Changes
 
