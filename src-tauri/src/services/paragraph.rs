@@ -428,7 +428,7 @@ mod tests {
         // given: same syosetu chapter (2 items: title + 1 paragraph)
         // when: backend sends [title, para1] with has_subtitle = false
         // then: IDs should be ["title", "p-1"]
-        let items = vec!["タイトル", "最初の段落"];
+        let items = ["タイトル", "最初の段落"];
         let ids: Vec<String> = items
             .iter()
             .enumerate()
@@ -451,7 +451,7 @@ mod tests {
         // given: hameln chapter (3 items: title + subtitle + 1 paragraph)
         // when: backend sends [title, subtitle, para1] with has_subtitle = true
         // then: IDs should be ["title", "subtitle", "p-1"]
-        let items = vec!["タイトル", "サブタイトル", "最初の段落"];
+        let items = ["タイトル", "サブタイトル", "最初の段落"];
         let ids: Vec<String> = items
             .iter()
             .enumerate()

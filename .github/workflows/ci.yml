@@ -64,5 +64,5 @@ jobs:
         working-directory: src-tauri
 
       - name: Rust clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
         working-directory: src-tauri
