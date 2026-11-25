@@ -55,15 +55,18 @@ const EpisodeStatusBadge: React.FC<{
 
 const EpisodeDates: React.FC<{
   episode: WatchlistEpisode;
+  isDark: boolean;
   publishedLabel: string;
   revisedLabel: string;
-}> = ({ episode, publishedLabel, revisedLabel }) => {
+}> = ({ episode, isDark, publishedLabel, revisedLabel }) => {
   if (!episode.publishedAt && !episode.revisedAt) {
     return null;
   }
 
   return (
-    <dl className="text-right text-xs leading-5 text-slate-500 tabular-nums">
+    <dl
+      className={`text-right text-xs leading-5 tabular-nums ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
+    >
       {episode.publishedAt && (
         <div>
           <dt className="inline">{publishedLabel}: </dt>
@@ -679,6 +682,7 @@ export const SeriesManager: React.FC = () => {
                       <div className="flex shrink-0 items-center gap-3">
                         <EpisodeDates
                           episode={episode}
+                          isDark={isDark}
                           publishedLabel={seriesMessages.episodeDates.published}
                           revisedLabel={seriesMessages.episodeDates.revised}
                         />
