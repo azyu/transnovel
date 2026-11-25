@@ -1,4 +1,4 @@
-use sqlx::{sqlite::SqliteConnection, Connection, Pool, Row, Sqlite, Transaction};
+use sqlx::{sqlite::SqliteConnection, Connection, Executor, Pool, Row, Sqlite, Transaction};
 
 use crate::db::get_pool;
 use crate::models::novel::{
@@ -121,18 +121,19 @@ pub async fn move_watchlist_item(
     direction: WatchlistMoveDirection,
 ) -> Result<Vec<WatchlistItem>, String> {
     let pool = get_pool()?;
-    move_watchlist_item_with_pool(pool, site, novel_id, direction).await?;
-    list_watchlist_items_with_pool(pool).await
+    move_watchlist_item_with_pool(pool, site, novel_id, direction).await
 }
 
 /// Swaps the item with its neighbor in display order and renumbers every row
 /// to a dense 0..n sequence. A move past either end leaves the order unchanged.
+/// The returned list is read before the commit, so an error means the move
+/// did not persist.
 pub async fn move_watchlist_item_with_pool(
     pool: &Pool<Sqlite>,
     site: &str,
     novel_id: &str,
     direction: WatchlistMoveDirection,
-) -> Result<(), String> {
+) -> Result<Vec<WatchlistItem>, String> {
     let mut connection = pool.acquire().await.map_err(|error| error.to_string())?;
     let mut transaction = begin_watchlist_write_transaction(&mut connection).await?;
 
@@ -161,8 +162,9 @@ pub async fn move_watchlist_item_with_pool(
         WatchlistMoveDirection::Down => Some(index + 1).filter(|next| *next < ids.len()),
     };
     let Some(neighbor) = neighbor else {
+        let items = list_watchlist_items_with_pool(&mut *transaction).await?;
         transaction.rollback().await.map_err(|e| e.to_string())?;
-        return Ok(());
+        return Ok(items);
     };
     ids.swap(index, neighbor);
 
@@ -175,8 +177,9 @@ pub async fn move_watchlist_item_with_pool(
             .map_err(|e| e.to_string())?;
     }
 
+    let items = list_watchlist_items_with_pool(&mut *transaction).await?;
     transaction.commit().await.map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(items)
 }
 
 pub async fn refresh_watchlist_items() -> Result<Vec<WatchlistItem>, String> {
@@ -411,9 +414,12 @@ pub async fn list_watchlist_episode_rows(
         .collect())
 }
 
-pub async fn list_watchlist_items_with_pool(
-    pool: &Pool<Sqlite>,
-) -> Result<Vec<WatchlistItem>, String> {
+pub async fn list_watchlist_items_with_pool<'e, E>(
+    executor: E,
+) -> Result<Vec<WatchlistItem>, String>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
     let rows = sqlx::query(
         "SELECT
             items.site,
@@ -442,7 +448,7 @@ pub async fn list_watchlist_items_with_pool(
             items.last_check_error
          ORDER BY items.sort_order ASC, items.id DESC",
     )
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await
     .map_err(|e| e.to_string())?;
 
@@ -638,6 +644,29 @@ mod tests {
             .await
             .expect("move a down");
         assert_eq!(listed_ids(&pool).await, ["c", "a", "b", "d"]);
+    }
+
+    #[tokio::test]
+    async fn move_returns_order_read_in_the_same_transaction() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b", "c"]).await;
+
+        let moved =
+            move_watchlist_item_with_pool(&pool, "syosetu", "c", WatchlistMoveDirection::Up)
+                .await
+                .expect("move c up");
+        let moved_ids: Vec<_> = moved.iter().map(|item| item.novel_id.as_str()).collect();
+        assert_eq!(moved_ids, ["a", "c", "b"]);
+
+        let unchanged =
+            move_watchlist_item_with_pool(&pool, "syosetu", "a", WatchlistMoveDirection::Up)
+                .await
+                .expect("move first up");
+        let unchanged_ids: Vec<_> = unchanged
+            .iter()
+            .map(|item| item.novel_id.as_str())
+            .collect();
+        assert_eq!(unchanged_ids, ["a", "c", "b"]);
     }
 
     #[tokio::test]
