@@ -188,7 +188,8 @@ src-tauri/src/
         ├── 007_cache_identity.sql             # Site/context-scoped cache identities
         ├── 008_completed_chapter_site.sql     # Site-scoped completion identities
         ├── 009_chapter_content_hash.sql       # Source revision guard for translations
-        └── 010_canonical_translation_cache.sql # One-time cache reset; hit_count defaults to 0
+        ├── 010_canonical_translation_cache.sql # One-time cache reset; hit_count defaults to 0
+        └── 011_watchlist_order.sql            # Persisted watchlist order (sort_order)
 ```
 
 ### 4.2 Registered Tauri Commands
@@ -205,6 +206,8 @@ commands::settings::     get_settings, set_setting, get_api_keys, add_api_key, r
                          fetch_gemini_models, fetch_openrouter_models,
                          get_cache_stats, get_cache_stats_detailed, clear_cache, clear_cache_by_novel, reset_all
 commands::api_logs::     get_api_logs, get_api_log_detail, get_api_logs_count, clear_api_logs
+commands::watchlist::    add_watchlist_item, remove_watchlist_item, move_watchlist_item,
+                         list_watchlist_items, refresh_watchlist, get_watchlist_episodes, mark_episode_viewed
 ```
 
 ### 4.3 Parser Trait

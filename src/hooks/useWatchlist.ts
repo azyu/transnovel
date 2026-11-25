@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
-import type { WatchlistEpisode, WatchlistItem } from '../types';
+import type { WatchlistEpisode, WatchlistItem, WatchlistMoveDirection } from '../types';
 import { getMessages } from '../i18n';
 import { getWatchlistItemKey } from '../utils/watchlist';
 
@@ -106,6 +106,7 @@ export const refreshWatchlistFlow = async (
 export const useWatchlist = () => {
   const setWatchlistItems = useSeriesStore((s) => s.setWatchlistItems);
   const removeWatchlistItemFromStore = useSeriesStore((s) => s.removeWatchlistItem);
+  const reorderWatchlistItems = useSeriesStore((s) => s.reorderWatchlistItems);
   const setSelectedWatchlistNovelId = useSeriesStore((s) => s.setSelectedWatchlistNovelId);
   const setWatchlistEpisodes = useSeriesStore((s) => s.setWatchlistEpisodes);
   const setIsRefreshingWatchlist = useSeriesStore((s) => s.setIsRefreshingWatchlist);
@@ -164,6 +165,15 @@ export const useWatchlist = () => {
       showToast(getMessages(language).series.removeSuccess);
     }), [language, removeWatchlistItemFromStore, showToast]);
 
+  const moveWatchlistItem = useCallback(async (
+    site: string,
+    novelId: string,
+    direction: WatchlistMoveDirection,
+  ) =>
+    enqueueWatchlistMutation(async () => {
+      const items = await invoke<WatchlistItem[]>('move_watchlist_item', { site, novelId, direction });
+      reorderWatchlistItems(items.map((item) => getWatchlistItemKey(item)));
+    }), [reorderWatchlistItems]);
 
   const loadWatchlistEpisodes = useCallback(async (
     site: string,
@@ -183,6 +193,7 @@ export const useWatchlist = () => {
   return {
     addWatchlistItem,
     removeWatchlistItem,
+    moveWatchlistItem,
     loadWatchlistEpisodes,
     loadWatchlistOnStartup,
     refreshWatchlist,

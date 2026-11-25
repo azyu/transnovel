@@ -1,4 +1,6 @@
-use crate::models::novel::{WatchlistEpisode, WatchlistItem, WatchlistViewedUpdate};
+use crate::models::novel::{
+    WatchlistEpisode, WatchlistItem, WatchlistMoveDirection, WatchlistViewedUpdate,
+};
 
 #[tauri::command]
 pub async fn add_watchlist_item(url: String) -> Result<WatchlistItem, String> {
@@ -18,6 +20,15 @@ pub async fn refresh_watchlist() -> Result<Vec<WatchlistItem>, String> {
 #[tauri::command]
 pub async fn remove_watchlist_item(site: String, novel_id: String) -> Result<(), String> {
     crate::services::watchlist::remove_watchlist_item(&site, &novel_id).await
+}
+
+#[tauri::command]
+pub async fn move_watchlist_item(
+    site: String,
+    novel_id: String,
+    direction: WatchlistMoveDirection,
+) -> Result<Vec<WatchlistItem>, String> {
+    crate::services::watchlist::move_watchlist_item(&site, &novel_id, direction).await
 }
 
 #[tauri::command]

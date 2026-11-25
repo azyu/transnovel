@@ -211,6 +211,23 @@ async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
+    const WATCHLIST_ORDER_CHECK: &str =
+        "SELECT COUNT(*) FROM pragma_table_info('watchlist_items') WHERE name = 'sort_order'";
+    let has_watchlist_order: i64 = sqlx::query_scalar(WATCHLIST_ORDER_CHECK)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if has_watchlist_order == 0 {
+        execute_migration_transaction(
+            pool,
+            include_str!("migrations/011_watchlist_order.sql"),
+            WATCHLIST_ORDER_CHECK,
+            1,
+        )
+        .await?;
+    }
+
     let has_chapter_content_hash: Vec<(String,)> = sqlx::query_as(
         "SELECT name FROM pragma_table_info('chapters') WHERE name = 'content_hash'",
     )
@@ -242,6 +259,66 @@ pub fn get_pool() -> Result<&'static Pool<Sqlite>, String> {
 mod tests {
     use super::*;
     use sqlx::{sqlite::SqlitePoolOptions, Row};
+
+    #[tokio::test]
+    async fn watchlist_order_migration_preserves_legacy_display_order_idempotently() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create sqlite memory pool");
+        sqlx::raw_sql(include_str!("migrations/001_initial.sql"))
+            .execute(&pool)
+            .await
+            .expect("initial schema");
+        sqlx::raw_sql(include_str!("migrations/005_watchlist.sql"))
+            .execute(&pool)
+            .await
+            .expect("legacy watchlist schema");
+        // Legacy display order was `updated_at DESC, id DESC`: expected b, c, a.
+        for (novel_id, updated_at) in [
+            ("a", "2026-01-01 00:00:00"),
+            ("b", "2026-03-01 00:00:00"),
+            ("c", "2026-03-01 00:00:00"),
+        ] {
+            sqlx::query(
+                "INSERT INTO watchlist_items (site, work_url, novel_id, title, updated_at)
+                 VALUES ('syosetu', 'https://example.invalid/', ?, ?, ?)",
+            )
+            .bind(novel_id)
+            .bind(novel_id)
+            .bind(updated_at)
+            .execute(&pool)
+            .await
+            .expect("insert legacy watchlist item");
+        }
+        sqlx::query("UPDATE watchlist_items SET id = id + 10 WHERE novel_id = 'b'")
+            .execute(&pool)
+            .await
+            .expect("give b the higher id");
+
+        run_migrations(&pool).await.expect("run migrations");
+        sqlx::query("UPDATE watchlist_items SET sort_order = 7 WHERE novel_id = 'a'")
+            .execute(&pool)
+            .await
+            .expect("simulate a later reorder");
+        run_migrations(&pool).await.expect("repeat migrations");
+
+        let ordered: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT novel_id, sort_order FROM watchlist_items ORDER BY sort_order ASC, id DESC",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("read ordered watchlist");
+        assert_eq!(
+            ordered,
+            [
+                ("b".to_string(), 0),
+                ("c".to_string(), 1),
+                ("a".to_string(), 7)
+            ]
+        );
+    }
 
     #[tokio::test]
     async fn configured_pool_rejects_orphan_chapter_relationships() {

@@ -7,7 +7,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useWatchlist } from '../../hooks/useWatchlist';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import type { WatchlistEpisode, WatchlistItem } from '../../types';
+import type { WatchlistEpisode, WatchlistItem, WatchlistMoveDirection } from '../../types';
 import { getMessages } from '../../i18n';
 import { formatWatchlistSiteLabel, getWatchlistItemKey } from '../../utils/watchlist';
 
@@ -68,16 +68,25 @@ export const SeriesManager: React.FC = () => {
   const isTranslating = useTranslationStore((s) => s.isTranslating);
   const setUrl = useTranslationStore((s) => s.setUrl);
   const { parseAndTranslate } = useTranslation();
-  const { addWatchlistItem, removeWatchlistItem, loadWatchlistEpisodes, refreshWatchlist } = useWatchlist();
+  const {
+    addWatchlistItem,
+    removeWatchlistItem,
+    moveWatchlistItem,
+    loadWatchlistEpisodes,
+    refreshWatchlist,
+  } = useWatchlist();
   const [registerUrl, setRegisterUrl] = useState('');
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
   const [removingWatchlistKey, setRemovingWatchlistKey] = useState<string | null>(null);
+  const [movingWatchlistKey, setMovingWatchlistKey] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const selectionRequestIdRef = useRef(0);
   const selectionTargetKeyRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
 
   const isDark = theme === 'dark';
+  const isMutating = removingWatchlistKey !== null || movingWatchlistKey !== null || registering;
   const localeMessages = getMessages(language);
   const seriesMessages = localeMessages.series;
   const translationNavigationBlockedMessage = seriesMessages.translationNavigationBlocked;
@@ -117,7 +126,7 @@ export const SeriesManager: React.FC = () => {
 
   const handleRegister = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!registerUrl.trim() || isRefreshingWatchlist || removingWatchlistKey !== null || registering) {
+    if (!registerUrl.trim() || isRefreshingWatchlist || isMutating) {
       return;
     }
 
@@ -187,7 +196,7 @@ export const SeriesManager: React.FC = () => {
       showError(translationNavigationBlockedMessage);
       return;
     }
-    if (isRefreshingWatchlist || removingWatchlistKey !== null || registering) {
+    if (isRefreshingWatchlist || isMutating) {
       return;
     }
 
@@ -223,10 +232,32 @@ export const SeriesManager: React.FC = () => {
       if (wasSelected || wasImplicitlySelected || hasPendingSelection) {
         selectionRequestIdRef.current += 1;
       }
+      if (useSeriesStore.getState().watchlistItems.length === 0) {
+        setIsEditing(false);
+      }
     } catch (error) {
       showError(seriesMessages.removeFailed, error instanceof Error ? error.message : String(error));
     } finally {
       setRemovingWatchlistKey(null);
+    }
+  };
+
+  const handleMoveItem = async (item: WatchlistItem, direction: WatchlistMoveDirection) => {
+    if (isRefreshingWatchlist || isMutating) {
+      return;
+    }
+
+    // Pin the implicitly selected first item so the move does not change the selection.
+    if (selectedWatchlistNovelId === null && selectedItem) {
+      useSeriesStore.getState().setSelectedWatchlistNovelId(getWatchlistItemKey(selectedItem));
+    }
+    setMovingWatchlistKey(getWatchlistItemKey(item));
+    try {
+      await moveWatchlistItem(item.site, item.novelId, direction);
+    } catch (error) {
+      showError(seriesMessages.moveFailed, error instanceof Error ? error.message : String(error));
+    } finally {
+      setMovingWatchlistKey(null);
     }
   };
 
@@ -235,7 +266,7 @@ export const SeriesManager: React.FC = () => {
       showError(translationNavigationBlockedMessage);
       return;
     }
-    if (removingWatchlistKey !== null || registering) {
+    if (isMutating) {
       return;
     }
 
@@ -272,7 +303,7 @@ export const SeriesManager: React.FC = () => {
   };
 
   const handleSelectItem = async (item: WatchlistItem) => {
-    if (removingWatchlistKey !== null || registering) {
+    if (isMutating) {
       return;
     }
 
@@ -304,7 +335,7 @@ export const SeriesManager: React.FC = () => {
       showError(translationNavigationBlockedMessage);
       return;
     }
-    if (removingWatchlistKey !== null || registering) {
+    if (isMutating) {
       return;
     }
 
@@ -333,7 +364,7 @@ export const SeriesManager: React.FC = () => {
             variant="secondary"
             onClick={handleRefresh}
             isLoading={isRefreshingWatchlist}
-            disabled={removingWatchlistKey !== null || registering}
+            disabled={isMutating}
           >
             {localeMessages.common.actions.refresh}
           </Button>
@@ -352,7 +383,12 @@ export const SeriesManager: React.FC = () => {
           <Button
             type="submit"
             isLoading={registering}
-            disabled={!registerUrl.trim() || isRefreshingWatchlist || removingWatchlistKey !== null}
+            disabled={
+              !registerUrl.trim() ||
+              isRefreshingWatchlist ||
+              removingWatchlistKey !== null ||
+              movingWatchlistKey !== null
+            }
           >
             {seriesMessages.add}
           </Button>
@@ -399,10 +435,30 @@ export const SeriesManager: React.FC = () => {
               isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
             }`}
           >
+            <div className="mb-3 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={seriesMessages.editAriaLabel}
+                aria-pressed={isEditing}
+                onClick={() => setIsEditing((value) => !value)}
+              >
+                {isEditing ? seriesMessages.done : seriesMessages.edit}
+              </Button>
+            </div>
             <div className="space-y-3">
-              {watchlistItems.map((item) => {
+              {watchlistItems.map((item, index) => {
                 const itemKey = getWatchlistItemKey(item);
                 const isSelected = itemKey === (selectedItem ? getWatchlistItemKey(selectedItem) : null);
+                const editControlsDisabled =
+                  isTranslating || isRefreshingWatchlist || isMutating;
+                const moveControlsDisabled = isRefreshingWatchlist || isMutating;
+                const editControlClassName = `shrink-0 border-l px-3 transition-colors focus:outline-none focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isDark ? 'border-slate-700' : 'border-slate-200'
+                }`;
+                const moveControlClassName = `${editControlClassName} focus:ring-blue-500 ${
+                  isDark ? 'text-slate-300 hover:bg-slate-700/60' : 'text-slate-600 hover:bg-slate-100'
+                }`;
 
                 return (
                   <div
@@ -418,7 +474,7 @@ export const SeriesManager: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void handleSelectItem(item)}
-                      disabled={removingWatchlistKey !== null || registering}
+                      disabled={isMutating}
                       className={`min-w-0 flex-1 cursor-pointer p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                         isSelected
                           ? 'bg-blue-500/10'
@@ -475,6 +531,42 @@ export const SeriesManager: React.FC = () => {
                         <span>{formatCheckedAt(item.lastCheckedAt, seriesMessages.notCheckedYet)}</span>
                       </div>
                     </button>
+                    {isEditing && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label={seriesMessages.moveUpAriaLabel(item.title)}
+                          title={seriesMessages.moveUpAriaLabel(item.title)}
+                          aria-busy={movingWatchlistKey === itemKey}
+                          onClick={() => void handleMoveItem(item, 'up')}
+                          disabled={moveControlsDisabled || index === 0}
+                          className={moveControlClassName}
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path
+                              fillRule="evenodd"
+                              d="M14.77 12.79a.75.75 0 0 1-1.06-.02L10 8.832 6.29 12.77a.75.75 0 1 1-1.08-1.04l4.25-4.5a.75.75 0 0 1 1.08 0l4.25 4.5a.75.75 0 0 1-.02 1.06Z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={seriesMessages.moveDownAriaLabel(item.title)}
+                          title={seriesMessages.moveDownAriaLabel(item.title)}
+                          aria-busy={movingWatchlistKey === itemKey}
+                          onClick={() => void handleMoveItem(item, 'down')}
+                          disabled={moveControlsDisabled || index === watchlistItems.length - 1}
+                          className={moveControlClassName}
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path
+                              fillRule="evenodd"
+                              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
                     <button
                       type="button"
                       aria-label={seriesMessages.removeAriaLabel(item.title)}
@@ -484,11 +576,9 @@ export const SeriesManager: React.FC = () => {
                         event.stopPropagation();
                         void handleRemoveItem(item);
                       }}
-                      disabled={isTranslating || isRefreshingWatchlist || registering || removingWatchlistKey !== null}
-                      className={`shrink-0 border-l px-3 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 ${
-                        isDark
-                          ? 'border-slate-700 text-red-300 hover:bg-red-500/10'
-                          : 'border-slate-200 text-red-600 hover:bg-red-50'
+                      disabled={editControlsDisabled}
+                      className={`${editControlClassName} focus:ring-red-500 ${
+                        isDark ? 'text-red-300 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'
                       }`}
                     >
                       <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -500,6 +590,8 @@ export const SeriesManager: React.FC = () => {
                       </svg>
                       <span className="sr-only">{seriesMessages.remove}</span>
                     </button>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -519,7 +611,7 @@ export const SeriesManager: React.FC = () => {
                       key={episode.chapterNumber}
                       type="button"
                       onClick={() => void handleOpenEpisode(episode)}
-                      disabled={removingWatchlistKey !== null || registering}
+                      disabled={isMutating}
                       className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
                         isDark
                           ? 'border-slate-700 bg-slate-900/40 hover:border-slate-500'

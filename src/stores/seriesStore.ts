@@ -23,6 +23,7 @@ interface SeriesState {
   watchlistItems: WatchlistItem[];
   setWatchlistItems: (items: WatchlistItem[]) => void;
   removeWatchlistItem: (site: string, novelId: string) => void;
+  reorderWatchlistItems: (orderedKeys: string[]) => void;
   selectedWatchlistNovelId: string | null;
   setSelectedWatchlistNovelId: (novelId: string | null) => void;
   watchlistEpisodes: WatchlistEpisode[];
@@ -99,6 +100,18 @@ export const useSeriesStore = create<SeriesState>((set) => ({
             }
           : {}),
       };
+    }),
+
+  // Applies only the order, so per-item state updated meanwhile (e.g. new-episode counts) is kept.
+  reorderWatchlistItems: (orderedKeys) =>
+    set((state) => {
+      const rank = new Map(orderedKeys.map((key, index) => [key, index]));
+      const watchlistItems = [...state.watchlistItems].sort(
+        (left, right) =>
+          (rank.get(getWatchlistItemKey(left)) ?? orderedKeys.length) -
+          (rank.get(getWatchlistItemKey(right)) ?? orderedKeys.length),
+      );
+      return { watchlistItems };
     }),
 
   selectedWatchlistNovelId: null,
