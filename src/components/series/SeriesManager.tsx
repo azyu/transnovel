@@ -53,6 +53,33 @@ const EpisodeStatusBadge: React.FC<{
   return null;
 };
 
+const EpisodeDates: React.FC<{
+  episode: WatchlistEpisode;
+  publishedLabel: string;
+  revisedLabel: string;
+}> = ({ episode, publishedLabel, revisedLabel }) => {
+  if (!episode.publishedAt && !episode.revisedAt) {
+    return null;
+  }
+
+  return (
+    <dl className="text-right text-xs leading-5 text-slate-500 tabular-nums">
+      {episode.publishedAt && (
+        <div>
+          <dt className="inline">{publishedLabel}: </dt>
+          <dd className="inline">{episode.publishedAt}</dd>
+        </div>
+      )}
+      {episode.revisedAt && (
+        <div>
+          <dt className="inline">{revisedLabel}: </dt>
+          <dd className="inline">{episode.revisedAt}</dd>
+        </div>
+      )}
+    </dl>
+  );
+};
+
 export const SeriesManager: React.FC = () => {
   const theme = useUIStore((s) => s.theme);
   const language = useUIStore((s) => s.language);
@@ -649,11 +676,18 @@ export const SeriesManager: React.FC = () => {
                           {episode.title ?? seriesMessages.episodeFallbackTitle(episode.chapterNumber)}
                         </p>
                       </div>
-                      <EpisodeStatusBadge
-                        episode={episode}
-                        viewedLabel={seriesMessages.status.viewed}
-                        newLabel={seriesMessages.status.new}
-                      />
+                      <div className="flex shrink-0 items-center gap-3">
+                        <EpisodeDates
+                          episode={episode}
+                          publishedLabel={seriesMessages.episodeDates.published}
+                          revisedLabel={seriesMessages.episodeDates.revised}
+                        />
+                        <EpisodeStatusBadge
+                          episode={episode}
+                          viewedLabel={seriesMessages.status.viewed}
+                          newLabel={seriesMessages.status.new}
+                        />
+                      </div>
                     </button>
                   ))}
                 </div>

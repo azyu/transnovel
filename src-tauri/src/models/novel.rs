@@ -42,6 +42,8 @@ pub struct ChapterInfo {
     pub url: String,
     pub title: Option<String>,
     pub status: String,
+    pub published_at: Option<String>,
+    pub revised_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +95,8 @@ pub struct WatchlistEpisode {
     pub title: Option<String>,
     pub is_new: bool,
     pub is_viewed: bool,
+    pub published_at: Option<String>,
+    pub revised_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

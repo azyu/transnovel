@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use regex::Regex;
 use scraper::{Html, Selector};
 
-use super::{fetch_html, normalize_author_name, NovelParser, ParsedUrl};
+use super::{fetch_html, normalize_author_name, parse_eplist_update, NovelParser, ParsedUrl};
 use crate::models::novel::{ChapterContent, ChapterInfo, SeriesInfo};
 
 pub struct SyosetuParser {
@@ -38,6 +38,7 @@ impl SyosetuParser {
             .map(|(i, el)| {
                 let href = el.value().attr("href").unwrap_or("");
                 let title = el.text().collect::<String>().trim().to_string();
+                let (published_at, revised_at) = parse_eplist_update(el);
 
                 ChapterInfo {
                     number: (i + 1) as u32,
@@ -48,6 +49,8 @@ impl SyosetuParser {
                     },
                     title: Some(title),
                     status: "pending".to_string(),
+                    published_at,
+                    revised_at,
                 }
             })
             .collect()
@@ -200,6 +203,26 @@ mod tests {
         assert!(!parser.matches_url("https://kakuyomu.jp/works/123"));
     }
 
+    #[test]
+    fn chapter_list_carries_source_dates_per_episode() {
+        let document = Html::parse_document(
+            r#"<div class="p-eplist__sublist">
+              <a href="/n0000aa/1/" class="p-eplist__subtitle">第一話</a>
+              <div class="p-eplist__update">
+                2012/11/22 17:00
+                <span title="2013/11/27 13:06 改稿">（改）</span>
+              </div>
+            </div>"#,
+        );
+
+        let chapters = SyosetuParser::parse_chapter_list(&document);
+
+        assert_eq!(chapters.len(), 1);
+        assert_eq!(chapters[0].url, "https://ncode.syosetu.com/n0000aa/1/");
+        assert_eq!(chapters[0].published_at.as_deref(), Some("2012/11/22 17:00"));
+        assert_eq!(chapters[0].revised_at.as_deref(), Some("2013/11/27 13:06"));
+    }
+
     #[tokio::test]
     #[ignore = "requires network - run with: cargo test -- --ignored"]
     async fn test_get_chapter_selectors() {
@@ -243,5 +266,9 @@ mod tests {
         assert!(!info.title.is_empty(), "Title should not be empty");
         assert!(info.total_chapters > 0, "Should have at least one chapter");
         assert!(!info.chapters.is_empty(), "Chapters list should not be empty");
+        assert!(
+            info.chapters.iter().all(|chapter| chapter.published_at.is_some()),
+            "Every episode should carry a source posting datetime"
+        );
     }
 }

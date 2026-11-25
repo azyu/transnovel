@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use regex::Regex;
 use scraper::{Html, Selector};
 
-use super::{fetch_html, normalize_author_name, NovelParser, ParsedUrl};
+use super::{fetch_html, normalize_author_name, parse_eplist_update, NovelParser, ParsedUrl};
 use crate::models::novel::{ChapterContent, ChapterInfo, SeriesInfo};
 
 pub struct NocturneParser {
@@ -137,6 +137,7 @@ impl NovelParser for NocturneParser {
             .map(|(i, el)| {
                 let href = el.value().attr("href").unwrap_or("");
                 let chapter_title = el.text().collect::<String>().trim().to_string();
+                let (published_at, revised_at) = parse_eplist_update(el);
 
                 ChapterInfo {
                     number: (i + 1) as u32,
@@ -147,6 +148,8 @@ impl NovelParser for NocturneParser {
                     },
                     title: Some(chapter_title),
                     status: "pending".to_string(),
+                    published_at,
+                    revised_at,
                 }
             })
             .collect();

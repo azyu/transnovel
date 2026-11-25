@@ -127,6 +127,8 @@ impl NovelParser for HamelnParser {
                     url: format!("https://syosetu.org/novel/{}/{}", parsed.novel_id, href),
                     title: Some(chapter_title),
                     status: "pending".to_string(),
+                    published_at: None,
+                    revised_at: None,
                 })
             })
             .collect();
