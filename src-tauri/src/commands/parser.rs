@@ -295,12 +295,16 @@ mod tests {
                     url: "https://kakuyomu.jp/works/822139846571948770/episodes/100".to_string(),
                     title: Some("첫 화".to_string()),
                     status: "pending".to_string(),
+                    published_at: None,
+                    revised_at: None,
                 },
                 ChapterInfo {
                     number: 2,
                     url: "https://kakuyomu.jp/works/822139846571948770/episodes/101".to_string(),
                     title: Some("둘째 화".to_string()),
                     status: "pending".to_string(),
+                    published_at: None,
+                    revised_at: None,
                 },
                 ChapterInfo {
                     number: 3,
@@ -309,6 +313,8 @@ mod tests {
                             .to_string(),
                     title: Some("셋째 화".to_string()),
                     status: "pending".to_string(),
+                    published_at: None,
+                    revised_at: None,
                 },
             ],
         };

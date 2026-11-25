@@ -28,6 +28,10 @@ export const seriesMessages = {
     'You cannot move to another work or episode while the current novel is translating.',
   refreshFailed: 'Failed to refresh watchlist',
   episodeFallbackTitle: (chapterNumber: number) => `Episode ${chapterNumber}`,
+  episodeDates: {
+    published: 'Posted',
+    revised: 'Revised',
+  },
   status: {
     viewed: 'Viewed',
     checkFailed: 'Check failed',

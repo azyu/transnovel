@@ -608,6 +608,8 @@ describe('SeriesManager', () => {
           title: '2화',
           isNew: false,
           isViewed: false,
+          publishedAt: null,
+          revisedAt: null,
         },
       ],
       isRefreshingWatchlist: false,
@@ -835,6 +837,63 @@ describe('SeriesManager', () => {
     expect(options.shouldApply()).toBe(false);
   });
 
+  it('renders source posting and revision datetimes next to the episode status', async () => {
+    const { published, revised } = messages.series.episodeDates;
+    const item = {
+      site: 'syosetu',
+      workUrl: 'https://ncode.syosetu.com/n1234ab/',
+      novelId: 'n1234ab',
+      title: '테스트 작품',
+      author: '테스트 작가',
+      lastKnownChapter: 3,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount: 1,
+    };
+    const episode = (chapterNumber: number, publishedAt: string | null, revisedAt: string | null) => ({
+      chapterNumber,
+      chapterUrl: `https://ncode.syosetu.com/n1234ab/${chapterNumber}/`,
+      title: `${chapterNumber}화`,
+      isNew: chapterNumber === 1,
+      isViewed: false,
+      publishedAt,
+      revisedAt,
+    });
+
+    useSeriesStore.setState({
+      watchlistItems: [item],
+      selectedWatchlistNovelId: getWatchlistItemKey(item),
+      watchlistEpisodes: [
+        episode(1, '2026/09/10 12:00', '2026/09/11 13:06'),
+        episode(2, '2026/09/12 08:30', null),
+        episode(3, null, null),
+      ],
+      isRefreshingWatchlist: false,
+      watchlistLoaded: true,
+      watchlistError: null,
+      watchlistBadgeCount: 1,
+    });
+
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    const episodeButton = (title: string) =>
+      Array.from(container.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes(title),
+      ) as HTMLButtonElement;
+
+    const revisedDates = episodeButton('1화').querySelector('dl');
+    expect(revisedDates?.textContent).toBe(`${published}: 2026/09/10 12:00${revised}: 2026/09/11 13:06`);
+    expect(revisedDates?.parentElement?.textContent).toContain(messages.series.status.new);
+
+    const postedOnlyDates = episodeButton('2화').querySelector('dl');
+    expect(postedOnlyDates?.textContent).toBe(`${published}: 2026/09/12 08:30`);
+
+    expect(episodeButton('3화').querySelector('dl')).toBeNull();
+  });
+
   it('renders fallback episode titles from series i18n messages', async () => {
     const originalSeries = originalSeriesMessages as typeof messages.series;
     (messages as { series: unknown }).series = {
@@ -865,6 +924,8 @@ describe('SeriesManager', () => {
           title: null,
           isNew: false,
           isViewed: false,
+          publishedAt: null,
+          revisedAt: null,
         },
       ],
       isRefreshingWatchlist: false,

@@ -189,7 +189,8 @@ src-tauri/src/
         ├── 008_completed_chapter_site.sql     # Site-scoped completion identities
         ├── 009_chapter_content_hash.sql       # Source revision guard for translations
         ├── 010_canonical_translation_cache.sql # One-time cache reset; hit_count defaults to 0
-        └── 011_watchlist_order.sql            # Persisted watchlist order (sort_order)
+        ├── 011_watchlist_order.sql            # Persisted watchlist order (sort_order)
+        └── 012_watchlist_episode_dates.sql    # Source posting/revision datetime per episode
 ```
 
 ### 4.2 Registered Tauri Commands

@@ -83,6 +83,8 @@ describe('loadWatchlistEpisodesFlow', () => {
         title: '2화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
 
@@ -96,6 +98,8 @@ describe('loadWatchlistEpisodesFlow', () => {
           title: '1화',
           isNew: false,
           isViewed: true,
+          publishedAt: null,
+          revisedAt: null,
         },
       ],
       isRefreshingWatchlist: false,
@@ -126,6 +130,8 @@ describe('loadWatchlistEpisodesFlow', () => {
         title: '1화',
         isNew: false,
         isViewed: true,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
   });
@@ -138,6 +144,8 @@ describe('loadWatchlistEpisodesFlow', () => {
         title: '2화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
 
@@ -172,6 +180,8 @@ describe('loadWatchlistEpisodesFlow', () => {
         title: '2화',
         isNew: true,
         isViewed: false,
+        publishedAt: null,
+        revisedAt: null,
       },
     ]);
   });
