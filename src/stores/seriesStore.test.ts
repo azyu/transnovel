@@ -267,4 +267,34 @@ describe('useSeriesStore watchlist state', () => {
     });
     expect(useSeriesStore.getState().watchlistItems.map((item) => item.newEpisodeCount)).toEqual([0, 1]);
   });
+  it('reorders by key without overwriting per-item state', () => {
+    const makeItem = (site: string, novelId: string, newEpisodeCount: number) => ({
+      novelId,
+      title: novelId,
+      site,
+      workUrl: `https://example.invalid/${novelId}/`,
+      author: null,
+      lastKnownChapter: 1,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount,
+    });
+    useSeriesStore.getState().setWatchlistItems([
+      makeItem('syosetu', 'n1', 0),
+      makeItem('nocturne', 'n1', 2),
+      makeItem('syosetu', 'n2', 1),
+    ]);
+
+    useSeriesStore.getState().reorderWatchlistItems(['nocturne:n1', 'syosetu:n1', 'syosetu:n2']);
+
+    const state = useSeriesStore.getState();
+    expect(state.watchlistItems.map((item) => `${item.site}:${item.novelId}`)).toEqual([
+      'nocturne:n1',
+      'syosetu:n1',
+      'syosetu:n2',
+    ]);
+    expect(state.watchlistItems[0].newEpisodeCount).toBe(2);
+    expect(state.watchlistBadgeCount).toBe(2);
+  });
 });

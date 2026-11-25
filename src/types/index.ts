@@ -13,6 +13,8 @@ export interface WatchlistItem {
   newEpisodeCount: number;
 }
 
+export type WatchlistMoveDirection = 'up' | 'down';
+
 export interface WatchlistEpisode {
   chapterNumber: number;
   chapterUrl: string;

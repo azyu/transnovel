@@ -1,7 +1,9 @@
-use sqlx::{sqlite::SqliteConnection, Connection, Pool, Row, Sqlite, Transaction};
+use sqlx::{sqlite::SqliteConnection, Connection, Executor, Pool, Row, Sqlite, Transaction};
 
 use crate::db::get_pool;
-use crate::models::novel::{SeriesInfo, WatchlistEpisode, WatchlistItem, WatchlistViewedUpdate};
+use crate::models::novel::{
+    SeriesInfo, WatchlistEpisode, WatchlistItem, WatchlistMoveDirection, WatchlistViewedUpdate,
+};
 use crate::parsers::{get_parser_for_url, ParsedUrl};
 
 #[allow(dead_code)]
@@ -113,11 +115,78 @@ pub async fn remove_watchlist_item_with_pool(
     Ok(())
 }
 
+pub async fn move_watchlist_item(
+    site: &str,
+    novel_id: &str,
+    direction: WatchlistMoveDirection,
+) -> Result<Vec<WatchlistItem>, String> {
+    let pool = get_pool()?;
+    move_watchlist_item_with_pool(pool, site, novel_id, direction).await
+}
+
+/// Swaps the item with its neighbor in display order and renumbers every row
+/// to a dense 0..n sequence. A move past either end leaves the order unchanged.
+/// The returned list is read before the commit, so an error means the move
+/// did not persist.
+pub async fn move_watchlist_item_with_pool(
+    pool: &Pool<Sqlite>,
+    site: &str,
+    novel_id: &str,
+    direction: WatchlistMoveDirection,
+) -> Result<Vec<WatchlistItem>, String> {
+    let mut connection = pool.acquire().await.map_err(|error| error.to_string())?;
+    let mut transaction = begin_watchlist_write_transaction(&mut connection).await?;
+
+    let mut ids: Vec<i64> = Vec::new();
+    let mut target_index = None;
+    for row in sqlx::query(
+        "SELECT id, site, novel_id FROM watchlist_items ORDER BY sort_order ASC, id DESC",
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| e.to_string())?
+    {
+        if row.get::<String, _>("site") == site && row.get::<String, _>("novel_id") == novel_id {
+            target_index = Some(ids.len());
+        }
+        ids.push(row.get("id"));
+    }
+
+    let Some(index) = target_index else {
+        transaction.rollback().await.map_err(|e| e.to_string())?;
+        return Err("이동할 관심작품을 찾을 수 없습니다.".to_string());
+    };
+
+    let neighbor = match direction {
+        WatchlistMoveDirection::Up => index.checked_sub(1),
+        WatchlistMoveDirection::Down => Some(index + 1).filter(|next| *next < ids.len()),
+    };
+    let Some(neighbor) = neighbor else {
+        let items = list_watchlist_items_with_pool(&mut *transaction).await?;
+        transaction.rollback().await.map_err(|e| e.to_string())?;
+        return Ok(items);
+    };
+    ids.swap(index, neighbor);
+
+    for (position, id) in ids.iter().enumerate() {
+        sqlx::query("UPDATE watchlist_items SET sort_order = ? WHERE id = ?")
+            .bind(position as i64)
+            .bind(id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    let items = list_watchlist_items_with_pool(&mut *transaction).await?;
+    transaction.commit().await.map_err(|e| e.to_string())?;
+    Ok(items)
+}
+
 pub async fn refresh_watchlist_items() -> Result<Vec<WatchlistItem>, String> {
     let pool = get_pool()?;
 
     let rows = sqlx::query(
-        "SELECT site, work_url, novel_id FROM watchlist_items ORDER BY updated_at DESC, id DESC",
+        "SELECT site, work_url, novel_id FROM watchlist_items ORDER BY sort_order ASC, id DESC",
     )
     .fetch_all(pool)
     .await
@@ -183,8 +252,11 @@ pub async fn add_watchlist_item_from_series(
 ) -> Result<(), String> {
     sqlx::query(
         "INSERT INTO watchlist_items (
-            site, work_url, novel_id, title, author, last_known_chapter, last_checked_at, last_check_status, last_check_error, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'ok', NULL, CURRENT_TIMESTAMP)
+            site, work_url, novel_id, title, author, last_known_chapter, last_checked_at, last_check_status, last_check_error, updated_at, sort_order
+         ) VALUES (
+            ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'ok', NULL, CURRENT_TIMESTAMP,
+            (SELECT COALESCE(MIN(sort_order), 0) - 1 FROM watchlist_items)
+         )
          ON CONFLICT(site, novel_id) DO UPDATE SET
             work_url = excluded.work_url,
             title = excluded.title,
@@ -342,9 +414,12 @@ pub async fn list_watchlist_episode_rows(
         .collect())
 }
 
-pub async fn list_watchlist_items_with_pool(
-    pool: &Pool<Sqlite>,
-) -> Result<Vec<WatchlistItem>, String> {
+pub async fn list_watchlist_items_with_pool<'e, E>(
+    executor: E,
+) -> Result<Vec<WatchlistItem>, String>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
     let rows = sqlx::query(
         "SELECT
             items.site,
@@ -371,9 +446,9 @@ pub async fn list_watchlist_items_with_pool(
             items.last_checked_at,
             items.last_check_status,
             items.last_check_error
-         ORDER BY items.updated_at DESC, items.id DESC",
+         ORDER BY items.sort_order ASC, items.id DESC",
     )
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await
     .map_err(|e| e.to_string())?;
 
@@ -469,12 +544,12 @@ mod tests {
     use super::{
         add_watchlist_item_from_series, begin_watchlist_write_transaction, find_watchlist_item,
         is_watchlist_supported_site, list_watchlist_episode_rows, list_watchlist_items_with_pool,
-        mark_episode_viewed_with_pool, refresh_watchlist_item_from_series,
-        remove_watchlist_item_with_pool,
+        mark_episode_viewed_with_pool, move_watchlist_item_with_pool,
+        refresh_watchlist_item_from_series, remove_watchlist_item_with_pool,
     };
     use sqlx::{sqlite::SqlitePoolOptions, Connection, Pool, Sqlite};
 
-    use crate::models::novel::{ChapterInfo, SeriesInfo, WatchlistItem};
+    use crate::models::novel::{ChapterInfo, SeriesInfo, WatchlistItem, WatchlistMoveDirection};
 
     async fn setup_test_pool() -> Pool<Sqlite> {
         let pool = SqlitePoolOptions::new()
@@ -493,7 +568,287 @@ mod tests {
             .await
             .expect("apply watchlist migration");
 
+        sqlx::raw_sql(include_str!("../db/migrations/011_watchlist_order.sql"))
+            .execute(&pool)
+            .await
+            .expect("apply watchlist order migration");
+
         pool
+    }
+
+    fn single_chapter_series(site: &str, novel_id: &str) -> SeriesInfo {
+        SeriesInfo {
+            site: site.into(),
+            novel_id: novel_id.into(),
+            title: format!("{novel_id} 작품"),
+            author: None,
+            total_chapters: 1,
+            chapters: vec![ChapterInfo {
+                number: 1,
+                url: format!("https://ncode.syosetu.com/{novel_id}/1/"),
+                title: None,
+                status: "pending".into(),
+            }],
+        }
+    }
+
+    async fn seed_in_order(pool: &Pool<Sqlite>, novel_ids: &[&str]) {
+        // Each add lands on top, so seed in reverse to get `novel_ids` as display order.
+        for novel_id in novel_ids.iter().rev() {
+            add_watchlist_item_from_series(
+                pool,
+                &format!("https://ncode.syosetu.com/{novel_id}/"),
+                &single_chapter_series("syosetu", novel_id),
+            )
+            .await
+            .expect("seed watchlist item");
+        }
+    }
+
+    async fn listed_ids(pool: &Pool<Sqlite>) -> Vec<String> {
+        list_watchlist_items_with_pool(pool)
+            .await
+            .expect("list watchlist items")
+            .into_iter()
+            .map(|item| item.novel_id)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn newly_added_item_is_listed_first_and_readding_keeps_position() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b", "c"]).await;
+        assert_eq!(listed_ids(&pool).await, ["a", "b", "c"]);
+
+        add_watchlist_item_from_series(
+            &pool,
+            "https://ncode.syosetu.com/b/",
+            &single_chapter_series("syosetu", "b"),
+        )
+        .await
+        .expect("re-add existing item");
+        assert_eq!(listed_ids(&pool).await, ["a", "b", "c"]);
+    }
+
+    #[tokio::test]
+    async fn move_swaps_only_with_neighbor() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b", "c", "d"]).await;
+
+        move_watchlist_item_with_pool(&pool, "syosetu", "c", WatchlistMoveDirection::Up)
+            .await
+            .expect("move c up");
+        assert_eq!(listed_ids(&pool).await, ["a", "c", "b", "d"]);
+
+        move_watchlist_item_with_pool(&pool, "syosetu", "a", WatchlistMoveDirection::Down)
+            .await
+            .expect("move a down");
+        assert_eq!(listed_ids(&pool).await, ["c", "a", "b", "d"]);
+    }
+
+    #[tokio::test]
+    async fn move_returns_order_read_in_the_same_transaction() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b", "c"]).await;
+
+        let moved =
+            move_watchlist_item_with_pool(&pool, "syosetu", "c", WatchlistMoveDirection::Up)
+                .await
+                .expect("move c up");
+        let moved_ids: Vec<_> = moved.iter().map(|item| item.novel_id.as_str()).collect();
+        assert_eq!(moved_ids, ["a", "c", "b"]);
+
+        let unchanged =
+            move_watchlist_item_with_pool(&pool, "syosetu", "a", WatchlistMoveDirection::Up)
+                .await
+                .expect("move first up");
+        let unchanged_ids: Vec<_> = unchanged
+            .iter()
+            .map(|item| item.novel_id.as_str())
+            .collect();
+        assert_eq!(unchanged_ids, ["a", "c", "b"]);
+    }
+
+    #[tokio::test]
+    async fn move_past_either_end_keeps_order() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b", "c"]).await;
+
+        move_watchlist_item_with_pool(&pool, "syosetu", "a", WatchlistMoveDirection::Up)
+            .await
+            .expect("move first up");
+        move_watchlist_item_with_pool(&pool, "syosetu", "c", WatchlistMoveDirection::Down)
+            .await
+            .expect("move last down");
+
+        assert_eq!(listed_ids(&pool).await, ["a", "b", "c"]);
+    }
+
+    #[tokio::test]
+    async fn move_rejects_unknown_item_and_matches_site() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b"]).await;
+
+        assert!(
+            move_watchlist_item_with_pool(&pool, "nocturne", "b", WatchlistMoveDirection::Up)
+                .await
+                .is_err()
+        );
+        assert_eq!(listed_ids(&pool).await, ["a", "b"]);
+    }
+
+    #[tokio::test]
+    async fn moved_order_survives_refresh_and_removal() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b", "c"]).await;
+        move_watchlist_item_with_pool(&pool, "syosetu", "c", WatchlistMoveDirection::Up)
+            .await
+            .expect("move c up");
+
+        // Refresh rewrites updated_at; it must not reshuffle the persisted order.
+        sqlx::query(
+            "UPDATE watchlist_items SET updated_at = '2000-01-01 00:00:00' WHERE novel_id = 'a'",
+        )
+        .execute(&pool)
+        .await
+        .expect("age first item");
+        for novel_id in ["c", "b"] {
+            refresh_watchlist_item_from_series(
+                &pool,
+                novel_id,
+                &single_chapter_series("syosetu", novel_id),
+            )
+            .await
+            .expect("refresh item");
+        }
+        assert_eq!(listed_ids(&pool).await, ["a", "c", "b"]);
+
+        remove_watchlist_item_with_pool(&pool, "syosetu", "c")
+            .await
+            .expect("remove middle item");
+        assert_eq!(listed_ids(&pool).await, ["a", "b"]);
+        move_watchlist_item_with_pool(&pool, "syosetu", "b", WatchlistMoveDirection::Up)
+            .await
+            .expect("move after removal");
+        assert_eq!(listed_ids(&pool).await, ["b", "a"]);
+    }
+
+    #[tokio::test]
+    async fn move_targets_the_site_scoped_item_when_novel_ids_collide() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["x", "shared"]).await;
+        add_watchlist_item_from_series(
+            &pool,
+            "https://novel18.syosetu.com/shared/",
+            &single_chapter_series("nocturne", "shared"),
+        )
+        .await
+        .expect("seed nocturne item");
+        // Display order: nocturne:shared, syosetu:x, syosetu:shared.
+
+        move_watchlist_item_with_pool(&pool, "syosetu", "shared", WatchlistMoveDirection::Up)
+            .await
+            .expect("move syosetu item up");
+
+        let keys: Vec<String> = list_watchlist_items_with_pool(&pool)
+            .await
+            .expect("list items")
+            .into_iter()
+            .map(|item| format!("{}:{}", item.site, item.novel_id))
+            .collect();
+        assert_eq!(keys, ["nocturne:shared", "syosetu:shared", "syosetu:x"]);
+
+        move_watchlist_item_with_pool(&pool, "nocturne", "shared", WatchlistMoveDirection::Down)
+            .await
+            .expect("move nocturne item down");
+        let keys: Vec<String> = list_watchlist_items_with_pool(&pool)
+            .await
+            .expect("list items")
+            .into_iter()
+            .map(|item| format!("{}:{}", item.site, item.novel_id))
+            .collect();
+        assert_eq!(keys, ["syosetu:shared", "nocturne:shared", "syosetu:x"]);
+    }
+
+    #[tokio::test]
+    async fn move_and_remove_keep_translation_data() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b"]).await;
+        for novel_id in ["a", "b"] {
+            sqlx::query(
+                "INSERT INTO translation_cache
+                    (text_hash, site, novel_id, context_fingerprint, normalized_source, original_text, translated_text)
+                 VALUES (?, 'syosetu', ?, 'ctx', 'src', 'src', '번역')",
+            )
+            .bind(format!("hash-{novel_id}"))
+            .bind(novel_id)
+            .execute(&pool)
+            .await
+            .expect("seed translation cache");
+            sqlx::query(
+                "INSERT INTO completed_chapters (site, novel_id, chapter_number, paragraph_count)
+                 VALUES ('syosetu', ?, 1, 10)",
+            )
+            .bind(novel_id)
+            .execute(&pool)
+            .await
+            .expect("seed completed chapter");
+        }
+
+        move_watchlist_item_with_pool(&pool, "syosetu", "b", WatchlistMoveDirection::Up)
+            .await
+            .expect("move b up");
+        remove_watchlist_item_with_pool(&pool, "syosetu", "a")
+            .await
+            .expect("remove a");
+
+        let cache: Vec<(String, String)> = sqlx::query_as(
+            "SELECT novel_id, translated_text FROM translation_cache ORDER BY novel_id",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("read cache");
+        assert_eq!(
+            cache,
+            [
+                ("a".to_string(), "번역".to_string()),
+                ("b".to_string(), "번역".to_string())
+            ]
+        );
+        let completed: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT novel_id, paragraph_count FROM completed_chapters ORDER BY novel_id",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("read completed chapters");
+        assert_eq!(completed, [("a".to_string(), 10), ("b".to_string(), 10)]);
+    }
+
+    #[tokio::test]
+    async fn move_preserves_episode_and_viewed_state() {
+        let pool = setup_test_pool().await;
+        seed_in_order(&pool, &["a", "b"]).await;
+        sqlx::query("UPDATE watchlist_episodes SET is_new = 1 WHERE novel_id = 'b'")
+            .execute(&pool)
+            .await
+            .expect("mark new episode");
+        mark_episode_viewed_with_pool(&pool, "syosetu", "a", 1)
+            .await
+            .expect("mark viewed");
+
+        move_watchlist_item_with_pool(&pool, "syosetu", "b", WatchlistMoveDirection::Up)
+            .await
+            .expect("move b up");
+
+        let items = list_watchlist_items_with_pool(&pool)
+            .await
+            .expect("list items");
+        assert_eq!(items[0].novel_id, "b");
+        assert_eq!(items[0].new_episode_count, 1);
+        let viewed = list_watchlist_episode_rows(&pool, "syosetu", "a")
+            .await
+            .expect("list episodes");
+        assert!(viewed[0].is_viewed);
     }
 
     #[tokio::test]

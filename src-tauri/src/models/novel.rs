@@ -78,6 +78,13 @@ pub struct WatchlistItem {
     pub new_episode_count: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WatchlistMoveDirection {
+    Up,
+    Down,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchlistEpisode {

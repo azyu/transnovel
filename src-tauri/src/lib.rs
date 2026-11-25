@@ -63,6 +63,7 @@ pub fn run() {
             commands::settings::reset_all,
             commands::watchlist::add_watchlist_item,
             commands::watchlist::remove_watchlist_item,
+            commands::watchlist::move_watchlist_item,
             commands::watchlist::list_watchlist_items,
             commands::watchlist::refresh_watchlist,
             commands::watchlist::get_watchlist_episodes,

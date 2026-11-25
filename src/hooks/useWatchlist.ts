@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSeriesStore } from '../stores/seriesStore';
 import { useUIStore } from '../stores/uiStore';
-import type { WatchlistEpisode, WatchlistItem } from '../types';
+import type { WatchlistEpisode, WatchlistItem, WatchlistMoveDirection } from '../types';
 import { getMessages } from '../i18n';
 import { getWatchlistItemKey } from '../utils/watchlist';
 
@@ -103,9 +103,22 @@ export const refreshWatchlistFlow = async (
   }
 });
 
+export const moveWatchlistItemFlow = (
+  invokeFn: typeof invoke,
+  actions: { reorderWatchlistItems: (orderedKeys: string[]) => void },
+  site: string,
+  novelId: string,
+  direction: WatchlistMoveDirection,
+) => enqueueWatchlistMutation(async () => {
+  const items = await invokeFn<WatchlistItem[]>('move_watchlist_item', { site, novelId, direction });
+  // Apply only the order so per-item state updated during the move is kept.
+  actions.reorderWatchlistItems(items.map((item) => getWatchlistItemKey(item)));
+});
+
 export const useWatchlist = () => {
   const setWatchlistItems = useSeriesStore((s) => s.setWatchlistItems);
   const removeWatchlistItemFromStore = useSeriesStore((s) => s.removeWatchlistItem);
+  const reorderWatchlistItems = useSeriesStore((s) => s.reorderWatchlistItems);
   const setSelectedWatchlistNovelId = useSeriesStore((s) => s.setSelectedWatchlistNovelId);
   const setWatchlistEpisodes = useSeriesStore((s) => s.setWatchlistEpisodes);
   const setIsRefreshingWatchlist = useSeriesStore((s) => s.setIsRefreshingWatchlist);
@@ -164,6 +177,13 @@ export const useWatchlist = () => {
       showToast(getMessages(language).series.removeSuccess);
     }), [language, removeWatchlistItemFromStore, showToast]);
 
+  const moveWatchlistItem = useCallback(async (
+    site: string,
+    novelId: string,
+    direction: WatchlistMoveDirection,
+  ) =>
+    moveWatchlistItemFlow(invoke, { reorderWatchlistItems }, site, novelId, direction),
+  [reorderWatchlistItems]);
 
   const loadWatchlistEpisodes = useCallback(async (
     site: string,
@@ -183,6 +203,7 @@ export const useWatchlist = () => {
   return {
     addWatchlistItem,
     removeWatchlistItem,
+    moveWatchlistItem,
     loadWatchlistEpisodes,
     loadWatchlistOnStartup,
     refreshWatchlist,

@@ -17,6 +17,13 @@ const loadWatchlistEpisodes = vi.fn<
   (site: string, novelId: string, options: { shouldApply: () => boolean }) => Promise<never[]>
 >(async () => []);
 const refreshWatchlist = vi.fn(async () => {});
+const moveWatchlistItem = vi.fn(async (site: string, novelId: string, direction: 'up' | 'down') => {
+  const items = [...useSeriesStore.getState().watchlistItems];
+  const index = items.findIndex((item) => item.site === site && item.novelId === novelId);
+  const neighbor = direction === 'up' ? index - 1 : index + 1;
+  [items[index], items[neighbor]] = [items[neighbor], items[index]];
+  useSeriesStore.getState().reorderWatchlistItems(items.map((item) => getWatchlistItemKey(item)));
+});
 const { askConfirmation } = vi.hoisted(() => ({
   askConfirmation: vi.fn(async () => true),
 }));
@@ -35,6 +42,7 @@ vi.mock('../../hooks/useWatchlist', () => ({
   useWatchlist: () => ({
     addWatchlistItem,
     removeWatchlistItem,
+    moveWatchlistItem,
     loadWatchlistEpisodes,
     refreshWatchlist,
   }),
@@ -44,6 +52,30 @@ describe('SeriesManager', () => {
   let container: HTMLDivElement;
   let root: Root;
   let originalSeriesMessages: unknown;
+
+  const editToggle = () =>
+    container.querySelector('button[aria-pressed]') as HTMLButtonElement | null;
+  const click = async (element: Element | null | undefined) => {
+    await act(async () => {
+      element?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  };
+  const enterEditMode = () => click(editToggle());
+  const button = (label: string) =>
+    container.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement | null;
+  const listedTitles = () => useSeriesStore.getState().watchlistItems.map((item) => item.title);
+  const secondItem = {
+    site: 'kakuyomu',
+    workUrl: 'https://kakuyomu.jp/works/123',
+    novelId: '123',
+    title: '다른 작품',
+    author: '다른 작가',
+    lastKnownChapter: 4,
+    lastCheckedAt: null,
+    lastCheckStatus: 'ok',
+    lastCheckError: null,
+    newEpisodeCount: 0,
+  };
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -96,6 +128,127 @@ describe('SeriesManager', () => {
     vi.clearAllMocks();
   });
 
+  it('hides edit controls in normal mode and shows them only in edit mode', async () => {
+    useSeriesStore.setState({
+      watchlistItems: [useSeriesStore.getState().watchlistItems[0], secondItem],
+    });
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    expect(editToggle()?.getAttribute('aria-pressed')).toBe('false');
+    expect(editToggle()?.textContent).toBe('편집');
+    expect(editToggle()?.getAttribute('aria-label')).toBe('관심작품 목록 편집');
+    expect(button('테스트 작품 관심작품에서 삭제')).toBeNull();
+    expect(button('테스트 작품 위로 이동')).toBeNull();
+    expect(button('테스트 작품 아래로 이동')).toBeNull();
+
+    await enterEditMode();
+    expect(editToggle()?.getAttribute('aria-pressed')).toBe('true');
+    expect(editToggle()?.textContent).toBe('완료');
+    expect(editToggle()?.getAttribute('aria-label')).toBe('관심작품 목록 편집 완료');
+    expect(button('테스트 작품 관심작품에서 삭제')).toBeTruthy();
+    expect(button('테스트 작품 위로 이동')?.disabled).toBe(true);
+    expect(button('테스트 작품 아래로 이동')?.disabled).toBe(false);
+    expect(button('다른 작품 위로 이동')?.disabled).toBe(false);
+    expect(button('다른 작품 아래로 이동')?.disabled).toBe(true);
+
+    await click(editToggle());
+    expect(button('테스트 작품 관심작품에서 삭제')).toBeNull();
+    expect(button('다른 작품 위로 이동')).toBeNull();
+  });
+
+  it('moves items up and down in edit mode without changing the selection', async () => {
+    useSeriesStore.setState({
+      watchlistItems: [useSeriesStore.getState().watchlistItems[0], secondItem],
+    });
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+    await enterEditMode();
+
+    await click(button('테스트 작품 아래로 이동'));
+    expect(moveWatchlistItem).toHaveBeenCalledWith('syosetu', 'n1234ab', 'down');
+    expect(listedTitles()).toEqual(['다른 작품', '테스트 작품']);
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('syosetu:n1234ab');
+    expect(button('테스트 작품 아래로 이동')?.disabled).toBe(true);
+
+    await click(button('테스트 작품 위로 이동'));
+    expect(moveWatchlistItem).toHaveBeenLastCalledWith('syosetu', 'n1234ab', 'up');
+    expect(listedTitles()).toEqual(['테스트 작품', '다른 작품']);
+  });
+
+  it('keeps an implicitly selected first item selected after moving it', async () => {
+    useSeriesStore.setState({
+      watchlistItems: [useSeriesStore.getState().watchlistItems[0], secondItem],
+      selectedWatchlistNovelId: null,
+    });
+    loadWatchlistEpisodes
+      .mockImplementationOnce(() => new Promise<never[]>(() => {}))
+      // Like loadWatchlistEpisodesFlow: apply the selection only when the guard allows it.
+      .mockImplementationOnce(async (site, novelId, options) => {
+        if (options.shouldApply()) {
+          useSeriesStore.getState().setSelectedWatchlistNovelId(getWatchlistItemKey(site, novelId));
+        }
+        return [];
+      });
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+    await enterEditMode();
+
+    await click(button('테스트 작품 아래로 이동'));
+
+    expect(listedTitles()).toEqual(['다른 작품', '테스트 작품']);
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBe('syosetu:n1234ab');
+    expect(loadWatchlistEpisodes).toHaveBeenCalledTimes(2);
+    expect(loadWatchlistEpisodes).toHaveBeenLastCalledWith('syosetu', 'n1234ab', expect.anything());
+  });
+
+  it('reloads the implicit selection on remount when leaving the tab during a move', async () => {
+    useSeriesStore.setState({
+      watchlistItems: [useSeriesStore.getState().watchlistItems[0], secondItem],
+      selectedWatchlistNovelId: null,
+    });
+    // Both the initial load and the confirmation load before the move stay pending.
+    loadWatchlistEpisodes
+      .mockImplementationOnce(() => new Promise<never[]>(() => {}))
+      .mockImplementationOnce(() => new Promise<never[]>(() => {}));
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+    await enterEditMode();
+    await click(button('테스트 작품 아래로 이동'));
+
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+
+    expect(useSeriesStore.getState().selectedWatchlistNovelId).toBeNull();
+    expect(loadWatchlistEpisodes).toHaveBeenCalledTimes(3);
+    expect(loadWatchlistEpisodes).toHaveBeenLastCalledWith('syosetu', 'n1234ab', expect.anything());
+  });
+
+  it('leaves edit mode when the last item is deleted', async () => {
+    await act(async () => {
+      root.render(<SeriesManager />);
+    });
+    await enterEditMode();
+
+    await click(button('테스트 작품 관심작품에서 삭제'));
+    expect(useSeriesStore.getState().watchlistItems).toEqual([]);
+
+    await act(async () => {
+      useSeriesStore.setState({ watchlistItems: [secondItem] });
+    });
+    expect(editToggle()?.getAttribute('aria-pressed')).toBe('false');
+    expect(button('다른 작품 관심작품에서 삭제')).toBeNull();
+  });
+
   it('shows the count badge without duplicating a new-episode status label on the card', async () => {
     await act(async () => {
       root.render(<SeriesManager />);
@@ -115,6 +268,7 @@ describe('SeriesManager', () => {
       root.render(<SeriesManager />);
     });
 
+    await enterEditMode();
     const removeButton = container.querySelector(
       'button[aria-label="테스트 작품 관심작품에서 삭제"]',
     );
@@ -143,6 +297,7 @@ describe('SeriesManager', () => {
       root.render(<SeriesManager />);
     });
 
+    await enterEditMode();
     const removeButton = container.querySelector(
       'button[aria-label="테스트 작품 관심작품에서 삭제"]',
     );
@@ -166,6 +321,7 @@ describe('SeriesManager', () => {
       root.render(<SeriesManager />);
     });
 
+    await enterEditMode();
     const removeButton = container.querySelector(
       'button[aria-label="테스트 작품 관심작품에서 삭제"]',
     ) as HTMLButtonElement | null;
@@ -220,6 +376,7 @@ describe('SeriesManager', () => {
       await Promise.resolve();
     });
 
+    await enterEditMode();
     const removeButton = container.querySelector(
       'button[aria-label="다른 작품 관심작품에서 삭제"]',
     );
