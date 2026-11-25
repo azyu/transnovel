@@ -27,6 +27,33 @@ impl NocturneParser {
             chapter: caps.get(2).and_then(|m| m.as_str().parse().ok()),
         })
     }
+
+    fn parse_chapter_list(document: &Html) -> Vec<ChapterInfo> {
+        let chapter_selector = Selector::parse(".p-eplist__subtitle").unwrap();
+
+        document
+            .select(&chapter_selector)
+            .enumerate()
+            .map(|(i, el)| {
+                let href = el.value().attr("href").unwrap_or("");
+                let chapter_title = el.text().collect::<String>().trim().to_string();
+                let (published_at, revised_at) = parse_eplist_update(el);
+
+                ChapterInfo {
+                    number: (i + 1) as u32,
+                    url: if href.starts_with("http") {
+                        href.to_string()
+                    } else {
+                        format!("https://novel18.syosetu.com{}", href)
+                    },
+                    title: Some(chapter_title),
+                    status: "pending".to_string(),
+                    published_at,
+                    revised_at,
+                }
+            })
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -130,29 +157,7 @@ impl NovelParser for NocturneParser {
             .next()
             .and_then(|el| normalize_author_name(&el.text().collect::<String>()));
 
-        let chapter_selector = Selector::parse(".p-eplist__subtitle").unwrap();
-        let chapters: Vec<ChapterInfo> = document
-            .select(&chapter_selector)
-            .enumerate()
-            .map(|(i, el)| {
-                let href = el.value().attr("href").unwrap_or("");
-                let chapter_title = el.text().collect::<String>().trim().to_string();
-                let (published_at, revised_at) = parse_eplist_update(el);
-
-                ChapterInfo {
-                    number: (i + 1) as u32,
-                    url: if href.starts_with("http") {
-                        href.to_string()
-                    } else {
-                        format!("https://novel18.syosetu.com{}", href)
-                    },
-                    title: Some(chapter_title),
-                    status: "pending".to_string(),
-                    published_at,
-                    revised_at,
-                }
-            })
-            .collect();
+        let chapters = Self::parse_chapter_list(&document);
 
         Ok(SeriesInfo {
             site: "nocturne".to_string(),
@@ -168,6 +173,31 @@ impl NovelParser for NocturneParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chapter_list_carries_source_dates_per_episode() {
+        let document = Html::parse_document(
+            r#"<div class="p-eplist__sublist">
+              <a href="/n3000aa/1/" class="p-eplist__subtitle">第一話</a>
+            </div>
+            <div class="p-eplist__sublist">
+              <a href="/n3000aa/2/" class="p-eplist__subtitle">第二話</a>
+              <div class="p-eplist__update">
+                2020/01/02 03:04
+                <span title="2021/05/06 07:08 改稿">（改）</span>
+              </div>
+            </div>"#,
+        );
+
+        let chapters = NocturneParser::parse_chapter_list(&document);
+
+        assert_eq!(chapters.len(), 2);
+        assert_eq!(chapters[0].url, "https://novel18.syosetu.com/n3000aa/1/");
+        assert_eq!(chapters[0].published_at, None);
+        assert_eq!(chapters[0].revised_at, None);
+        assert_eq!(chapters[1].published_at.as_deref(), Some("2020/01/02 03:04"));
+        assert_eq!(chapters[1].revised_at.as_deref(), Some("2021/05/06 07:08"));
+    }
 
     #[test]
     fn test_parse_url_with_chapter() {
