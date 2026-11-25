@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadWatchlistEpisodesFlow, loadWatchlistOnStartupFlow, refreshWatchlistFlow } from './useWatchlist';
+import {
+  loadWatchlistEpisodesFlow,
+  loadWatchlistOnStartupFlow,
+  moveWatchlistItemFlow,
+  refreshWatchlistFlow,
+} from './useWatchlist';
 import { useSeriesStore } from '../stores/seriesStore';
 import { getWatchlistItemKey } from '../utils/watchlist';
 
@@ -240,5 +245,45 @@ describe('refreshWatchlistFlow', () => {
       },
     ]);
     expect(useSeriesStore.getState().isRefreshingWatchlist).toBe(false);
+  });
+});
+
+describe('moveWatchlistItemFlow', () => {
+  it('applies only the returned order and keeps newer per-item state', async () => {
+    const makeItem = (novelId: string, newEpisodeCount: number) => ({
+      site: 'syosetu',
+      workUrl: `https://ncode.syosetu.com/${novelId}/`,
+      novelId,
+      title: novelId,
+      author: null,
+      lastKnownChapter: 1,
+      lastCheckedAt: null,
+      lastCheckStatus: 'ok',
+      lastCheckError: null,
+      newEpisodeCount,
+    });
+    useSeriesStore.getState().setWatchlistItems([makeItem('a', 0), makeItem('b', 0)]);
+    // The response carries a stale count for b; the store already has a newer value.
+    const invokeMock = vi.fn(async () => {
+      useSeriesStore.getState().setWatchlistItems([makeItem('a', 0), makeItem('b', 3)]);
+      return [makeItem('b', 0), makeItem('a', 0)];
+    });
+
+    await moveWatchlistItemFlow(
+      invokeMock as never,
+      { reorderWatchlistItems: useSeriesStore.getState().reorderWatchlistItems },
+      'syosetu',
+      'b',
+      'up',
+    );
+
+    expect(invokeMock).toHaveBeenCalledWith('move_watchlist_item', {
+      site: 'syosetu',
+      novelId: 'b',
+      direction: 'up',
+    });
+    const items = useSeriesStore.getState().watchlistItems;
+    expect(items.map((item) => item.novelId)).toEqual(['b', 'a']);
+    expect(items[0].newEpisodeCount).toBe(3);
   });
 });

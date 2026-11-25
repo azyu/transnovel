@@ -103,6 +103,18 @@ export const refreshWatchlistFlow = async (
   }
 });
 
+export const moveWatchlistItemFlow = (
+  invokeFn: typeof invoke,
+  actions: { reorderWatchlistItems: (orderedKeys: string[]) => void },
+  site: string,
+  novelId: string,
+  direction: WatchlistMoveDirection,
+) => enqueueWatchlistMutation(async () => {
+  const items = await invokeFn<WatchlistItem[]>('move_watchlist_item', { site, novelId, direction });
+  // Apply only the order so per-item state updated during the move is kept.
+  actions.reorderWatchlistItems(items.map((item) => getWatchlistItemKey(item)));
+});
+
 export const useWatchlist = () => {
   const setWatchlistItems = useSeriesStore((s) => s.setWatchlistItems);
   const removeWatchlistItemFromStore = useSeriesStore((s) => s.removeWatchlistItem);
@@ -170,10 +182,8 @@ export const useWatchlist = () => {
     novelId: string,
     direction: WatchlistMoveDirection,
   ) =>
-    enqueueWatchlistMutation(async () => {
-      const items = await invoke<WatchlistItem[]>('move_watchlist_item', { site, novelId, direction });
-      reorderWatchlistItems(items.map((item) => getWatchlistItemKey(item)));
-    }), [reorderWatchlistItems]);
+    moveWatchlistItemFlow(invoke, { reorderWatchlistItems }, site, novelId, direction),
+  [reorderWatchlistItems]);
 
   const loadWatchlistEpisodes = useCallback(async (
     site: string,

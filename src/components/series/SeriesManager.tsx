@@ -436,15 +436,21 @@ export const SeriesManager: React.FC = () => {
             }`}
           >
             <div className="mb-3 flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
+                type="button"
                 aria-label={seriesMessages.editAriaLabel}
                 aria-pressed={isEditing}
                 onClick={() => setIsEditing((value) => !value)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isEditing
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : isDark
+                      ? 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
               >
                 {isEditing ? seriesMessages.done : seriesMessages.edit}
-              </Button>
+              </button>
             </div>
             <div className="space-y-3">
               {watchlistItems.map((item, index) => {
