@@ -106,6 +106,7 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
   cd src-tauri && cargo clippy -- -D warnings
   ```
 - For docs-only changes, state that runtime verification was skipped because application behavior did not change.
+- `.github/workflows/ci.yml` runs on `pull_request` only for PRs whose base branch is `main`. A PR stacked on another feature branch gets no CI run, and the automatic retarget to `main` after the lower PR merges does not start one either (observed on PR #138). To get CI, merge `origin/main` into the stacked branch and push; no force-push is needed.
 
 ## After Code Changes
 
