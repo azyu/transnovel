@@ -118,6 +118,13 @@ export const settingsMessages = {
     clearCacheSuccessTitle: '완료',
     clearCacheFailed: (detail: string) => `캐시 삭제 실패: ${detail}`,
     clearCacheFailedTitle: '오류',
+    confirmClearNovelCache: (target: string, count: number) =>
+      `이 작품의 번역 캐시 ${count}개를 삭제하시겠습니까?\n\n${target}\n\n이 작품의 회차 번역 완료 기록도 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`,
+    confirmClearNovelCacheTitle: '작품 캐시 삭제',
+    clearNovelCacheSuccess: (target: string, deleted: number) =>
+      `${target}\n\n번역 캐시 ${deleted}개가 삭제되었습니다.`,
+    clearNovelCacheFailed: (target: string, count: number, detail: string) =>
+      `${target} (삭제 요청 전 번역 캐시 ${count}개)\n\n캐시 삭제 실패: ${detail}`,
     confirmResetAll:
       '정말로 모든 데이터를 초기화하시겠습니까?\n\n다음 항목이 삭제됩니다:\n- 번역 캐시\n- 작품별 고유명사 사전\n- 모든 설정\n- API 키\n\n이 작업은 되돌릴 수 없습니다.',
     confirmResetAllTitle: '전체 초기화',
