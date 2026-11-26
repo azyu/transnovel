@@ -38,6 +38,9 @@ const formatNovelCacheLabel = (
   return `${title} | ${domain} | ${novel.novel_id}`;
 };
 
+const getNovelCacheKey = (novel: NovelCacheStats): string =>
+  `${novel.site ?? ''}:${novel.novel_id}`;
+
 export const AdvancedSettings: React.FC = () => {
   const [cacheStats, setCacheStats] = useState<CacheStatsDetailed | null>(null);
   const [isClearing, setIsClearing] = useState(false);
@@ -89,6 +92,58 @@ export const AdvancedSettings: React.FC = () => {
       });
     } finally {
       setIsClearing(false);
+    }
+  };
+
+  const handleClearNovelCache = async (e: React.MouseEvent, novel: NovelCacheStats) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (clearingNovelId) return;
+
+    const target = formatNovelCacheLabel(novel, settingsMessages);
+    // Lock every per-novel delete button from the confirmation onward,
+    // so a second dialog or request cannot start for another row.
+    setClearingNovelId(getNovelCacheKey(novel));
+    try {
+      const confirmed = await ask(
+        settingsMessages.advanced.confirmClearNovelCache(target, novel.count),
+        {
+          title: settingsMessages.advanced.confirmClearNovelCacheTitle,
+          kind: 'warning',
+        },
+      );
+      if (!confirmed) return;
+
+      let deleted: number | null = null;
+      let failure: unknown = null;
+      try {
+        deleted = await invoke<number>('clear_cache_by_novel', {
+          site: novel.site,
+          novelId: novel.novel_id,
+        });
+      } catch (error) {
+        failure = error;
+      }
+
+      // Reload after either outcome: the command can fail after deleting some rows.
+      await loadCacheStats();
+
+      if (deleted !== null) {
+        await message(settingsMessages.advanced.clearNovelCacheSuccess(target, deleted), {
+          title: settingsMessages.advanced.clearCacheSuccessTitle,
+        });
+      } else {
+        await message(
+          settingsMessages.advanced.clearNovelCacheFailed(target, novel.count, String(failure)),
+          {
+            title: settingsMessages.advanced.clearCacheFailedTitle,
+            kind: 'error',
+          },
+        );
+      }
+    } finally {
+      setClearingNovelId(null);
     }
   };
 
@@ -189,25 +244,8 @@ export const AdvancedSettings: React.FC = () => {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (clearingNovelId) return;
-                          const cacheKey = `${novel.site ?? ''}:${novel.novel_id}`;
-                          setClearingNovelId(cacheKey);
-                          try {
-                            await invoke<number>('clear_cache_by_novel', { site: novel.site, novelId: novel.novel_id });
-                            await loadCacheStats();
-                          } catch (error) {
-                            await message(settingsMessages.advanced.clearCacheFailed(String(error)), {
-                              title: settingsMessages.advanced.clearCacheFailedTitle,
-                              kind: 'error',
-                            });
-                          } finally {
-                            setClearingNovelId(null);
-                          }
-                        }}
-                        isLoading={clearingNovelId === `${novel.site ?? ''}:${novel.novel_id}`}
+                        onClick={(e) => handleClearNovelCache(e, novel)}
+                        isLoading={clearingNovelId === getNovelCacheKey(novel)}
                         disabled={clearingNovelId !== null}
                       >
                         {settingsMessages.advanced.cache.deleteAction}
