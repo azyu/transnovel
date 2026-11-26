@@ -4,6 +4,7 @@ import { ask, message } from '@tauri-apps/plugin-dialog';
 import { Button } from '../common/Button';
 import { useUIStore } from '../../stores/uiStore';
 import { useDebugStore } from '../../stores/debugStore';
+import { useCacheDeletionStore } from '../../stores/cacheDeletionStore';
 import { useSettingsMessages } from './useSettingsMessages';
 
 interface NovelCacheStats {
@@ -43,8 +44,8 @@ const getNovelCacheKey = (novel: NovelCacheStats): string =>
 
 export const AdvancedSettings: React.FC = () => {
   const [cacheStats, setCacheStats] = useState<CacheStatsDetailed | null>(null);
-  const [isClearing, setIsClearing] = useState(false);
-  const [clearingNovelId, setClearingNovelId] = useState<string | null>(null);
+  const isClearing = useCacheDeletionStore((s) => s.isClearingAll);
+  const clearingNovelId = useCacheDeletionStore((s) => s.clearingNovelKey);
   const [isResetting, setIsResetting] = useState(false);
   const theme = useUIStore((s) => s.theme);
   const { debugMode, setDebugMode } = useDebugStore();
@@ -70,16 +71,19 @@ export const AdvancedSettings: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (isClearing) return;
-    
-    const confirmed = await ask(settingsMessages.advanced.confirmClearCache, {
-      title: settingsMessages.advanced.confirmClearCacheTitle,
-      kind: 'warning',
-    });
-    if (!confirmed) return;
-    
-    setIsClearing(true);
+    const { isClearingAll, setClearingAll } = useCacheDeletionStore.getState();
+    if (isClearingAll) return;
+
+    // Lock from the confirmation onward, so a remounted screen cannot open
+    // a second dialog and start another clear.
+    setClearingAll(true);
     try {
+      const confirmed = await ask(settingsMessages.advanced.confirmClearCache, {
+        title: settingsMessages.advanced.confirmClearCacheTitle,
+        kind: 'warning',
+      });
+      if (!confirmed) return;
+
       const deleted = await invoke<number>('clear_cache');
       await message(settingsMessages.advanced.clearCacheSuccess(deleted), {
         title: settingsMessages.advanced.clearCacheSuccessTitle,
@@ -91,7 +95,7 @@ export const AdvancedSettings: React.FC = () => {
         kind: 'error',
       });
     } finally {
-      setIsClearing(false);
+      setClearingAll(false);
     }
   };
 
@@ -99,12 +103,13 @@ export const AdvancedSettings: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (clearingNovelId) return;
+    const { clearingNovelKey, setClearingNovelKey } = useCacheDeletionStore.getState();
+    if (clearingNovelKey) return;
 
     const target = formatNovelCacheLabel(novel, settingsMessages);
     // Lock every per-novel delete button from the confirmation onward,
     // so a second dialog or request cannot start for another row.
-    setClearingNovelId(getNovelCacheKey(novel));
+    setClearingNovelKey(getNovelCacheKey(novel));
     try {
       const confirmed = await ask(
         settingsMessages.advanced.confirmClearNovelCache(target, novel.count),
@@ -143,7 +148,7 @@ export const AdvancedSettings: React.FC = () => {
         );
       }
     } finally {
-      setClearingNovelId(null);
+      setClearingNovelKey(null);
     }
   };
 
