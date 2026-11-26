@@ -46,6 +46,9 @@ export const AdvancedSettings: React.FC = () => {
   const [cacheStats, setCacheStats] = useState<CacheStatsDetailed | null>(null);
   const isClearing = useCacheDeletionStore((s) => s.isClearingAll);
   const clearingNovelId = useCacheDeletionStore((s) => s.clearingNovelKey);
+  // One cache deletion request at a time: a full clear and a per-novel
+  // deletion lock each other out, from the confirmation onward.
+  const isCacheDeletionBusy = isClearing || clearingNovelId !== null;
   const [isResetting, setIsResetting] = useState(false);
   const theme = useUIStore((s) => s.theme);
   const { debugMode, setDebugMode } = useDebugStore();
@@ -71,8 +74,8 @@ export const AdvancedSettings: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    const { isClearingAll, setClearingAll } = useCacheDeletionStore.getState();
-    if (isClearingAll) return;
+    const { isClearingAll, clearingNovelKey, setClearingAll } = useCacheDeletionStore.getState();
+    if (isClearingAll || clearingNovelKey !== null) return;
 
     // Lock from the confirmation onward, so a remounted screen cannot open
     // a second dialog and start another clear.
@@ -103,8 +106,8 @@ export const AdvancedSettings: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    const { clearingNovelKey, setClearingNovelKey } = useCacheDeletionStore.getState();
-    if (clearingNovelKey) return;
+    const { isClearingAll, clearingNovelKey, setClearingNovelKey } = useCacheDeletionStore.getState();
+    if (isClearingAll || clearingNovelKey !== null) return;
 
     const target = formatNovelCacheLabel(novel, settingsMessages);
     // Lock every per-novel delete button from the confirmation onward,
@@ -218,7 +221,7 @@ export const AdvancedSettings: React.FC = () => {
                 size="sm"
                 onClick={handleClearCache}
                 isLoading={isClearing}
-                disabled={!cacheStats || cacheStats.total_count === 0}
+                disabled={isCacheDeletionBusy || !cacheStats || cacheStats.total_count === 0}
               >
                 {settingsMessages.advanced.cache.clearAction}
               </Button>
@@ -251,7 +254,7 @@ export const AdvancedSettings: React.FC = () => {
                         size="sm"
                         onClick={(e) => handleClearNovelCache(e, novel)}
                         isLoading={clearingNovelId === getNovelCacheKey(novel)}
-                        disabled={clearingNovelId !== null}
+                        disabled={isCacheDeletionBusy}
                       >
                         {settingsMessages.advanced.cache.deleteAction}
                       </Button>
