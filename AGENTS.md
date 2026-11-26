@@ -89,6 +89,7 @@ Tauri 2.0 desktop app for translating Japanese web novels into Korean. The React
 - Create or update a GitHub Issue before starting non-trivial work. Prefer one Issue per independently shippable task; reuse an existing Issue when it already covers the work.
 - Keep Issue bodies short but sufficient: background, goal, scope, exclusions, and verification. Put lightweight multi-step plans and subsequent progress in the Issue body or comments.
 - Record blockers, consequential decisions, verification evidence, commit/PR links, and follow-up Issue links in the active Issue.
+- Write PR bodies to the structure of `.github/pull_request_template.md`. This rule also applies when the PR is opened with `gh pr create --body`, which does not load the template.
 - Close an Issue only after its acceptance criteria and verification pass. If work stops incomplete, leave the Issue open and record the exact blocker or remaining scope.
 - Work too trivial to merit durable tracking does not need an Issue, but must not be added to a local tracker.
 - Completed history migrated from `.context/TASKS.md` is archived in GitHub Issue #35. Do not recreate `.context/TASKS.md`.
