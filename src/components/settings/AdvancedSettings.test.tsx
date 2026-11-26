@@ -7,6 +7,7 @@ import { AdvancedSettings } from './AdvancedSettings';
 import { getMessages, messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useDebugStore } from '../../stores/debugStore';
+import { useCacheDeletionStore } from '../../stores/cacheDeletionStore';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -31,6 +32,7 @@ describe('AdvancedSettings', () => {
     root = createRoot(container);
     useUIStore.setState({ theme: 'dark' });
     useDebugStore.setState({ debugMode: false });
+    useCacheDeletionStore.setState({ isClearingAll: false, clearingNovelKey: null });
     originalSettingsMessages = messages.settings;
     invokeMock.mockImplementation(async (command: string) => {
       if (command === 'get_cache_stats_detailed') {
@@ -115,10 +117,12 @@ describe('AdvancedSettings', () => {
     };
 
     let clearImpl: () => Promise<number>;
+    let clearAllImpl: () => Promise<number>;
     let statsAfterClear: typeof novels | null;
 
     beforeEach(() => {
       clearImpl = async () => 3;
+      clearAllImpl = async () => 11;
       statsAfterClear = null;
       invokeMock.mockImplementation(async (command: string) => {
         if (command === 'get_cache_stats_detailed') {
@@ -131,6 +135,9 @@ describe('AdvancedSettings', () => {
         }
         if (command === 'clear_cache_by_novel') {
           return clearImpl();
+        }
+        if (command === 'clear_cache') {
+          return clearAllImpl();
         }
         return undefined;
       });
@@ -255,6 +262,154 @@ describe('AdvancedSettings', () => {
       });
       await flush();
       expect(deleteButtons().every((button) => !button.disabled)).toBe(true);
+    });
+
+    describe('across a remount of the settings screen', () => {
+      const clearAllButton = () => {
+        const clearLabel = messages.settings.advanced.cache.clearAction;
+        const button = Array.from(container.querySelectorAll('button')).find(
+          (candidate) => candidate.textContent?.trim().endsWith(clearLabel),
+        );
+        if (!button) throw new Error('clear-all button not rendered');
+        return button;
+      };
+
+      const clearAllCalls = () =>
+        invokeMock.mock.calls.filter(([command]) => command === 'clear_cache');
+
+      // Unmount and mount a fresh tree, then wait until the stats load, so the
+      // assertions run against rendered rows and a loaded clear-all button.
+      const remount = async () => {
+        act(() => {
+          root.unmount();
+        });
+        root = createRoot(container);
+        await renderWithNovels();
+        expect(deleteButtons()).toHaveLength(2);
+      };
+
+      it('keeps per-novel deletion locked until the pending request resolves', async () => {
+        const request = deferred<number>();
+        askMock.mockResolvedValueOnce(true);
+        clearImpl = () => request.promise;
+        await renderWithNovels();
+
+        await click(deleteButtons()[0]);
+        await flush();
+        expect(clearCalls()).toHaveLength(1);
+
+        await remount();
+        expect(deleteButtons().every((button) => button.disabled)).toBe(true);
+        expect(deleteButtons()[0].getAttribute('aria-busy')).toBe('true');
+        expect(deleteButtons()[1].getAttribute('aria-busy')).toBe('false');
+        await click(deleteButtons()[1]);
+        expect(askMock).toHaveBeenCalledTimes(1);
+        expect(clearCalls()).toHaveLength(1);
+
+        await act(async () => {
+          request.resolve(3);
+        });
+        await flush();
+        expect(deleteButtons().every((button) => !button.disabled)).toBe(true);
+      });
+
+      it('releases the per-novel lock after a failed request', async () => {
+        const request = deferred<number>();
+        askMock.mockResolvedValueOnce(true);
+        clearImpl = () => request.promise;
+        await renderWithNovels();
+
+        await click(deleteButtons()[0]);
+        await flush();
+        await remount();
+        expect(deleteButtons().every((button) => button.disabled)).toBe(true);
+
+        await act(async () => {
+          request.reject('db locked');
+        });
+        await flush();
+        expect(deleteButtons().every((button) => !button.disabled)).toBe(true);
+      });
+
+      it('keeps per-novel deletion locked while the confirmation is still open', async () => {
+        const confirmation = deferred<boolean>();
+        askMock.mockReturnValueOnce(confirmation.promise);
+        await renderWithNovels();
+
+        await click(deleteButtons()[0]);
+        await remount();
+        expect(deleteButtons().every((button) => button.disabled)).toBe(true);
+        await click(deleteButtons()[1]);
+        expect(askMock).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          confirmation.resolve(false);
+        });
+        await flush();
+        expect(clearCalls()).toHaveLength(0);
+        expect(deleteButtons().every((button) => !button.disabled)).toBe(true);
+      });
+
+      it('keeps full clear locked until the pending request resolves', async () => {
+        const request = deferred<number>();
+        askMock.mockResolvedValueOnce(true);
+        clearAllImpl = () => request.promise;
+        await renderWithNovels();
+
+        await click(clearAllButton());
+        await flush();
+        expect(clearAllCalls()).toHaveLength(1);
+
+        await remount();
+        expect(clearAllButton().disabled).toBe(true);
+        expect(clearAllButton().getAttribute('aria-busy')).toBe('true');
+        await click(clearAllButton());
+        expect(askMock).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          request.resolve(11);
+        });
+        await flush();
+        expect(clearAllButton().disabled).toBe(false);
+        expect(clearAllButton().getAttribute('aria-busy')).toBe('false');
+      });
+
+      it('releases the full-clear lock after a failed request', async () => {
+        const request = deferred<number>();
+        askMock.mockResolvedValueOnce(true);
+        clearAllImpl = () => request.promise;
+        await renderWithNovels();
+
+        await click(clearAllButton());
+        await flush();
+        await remount();
+        expect(clearAllButton().disabled).toBe(true);
+
+        await act(async () => {
+          request.reject('db locked');
+        });
+        await flush();
+        expect(clearAllButton().disabled).toBe(false);
+      });
+
+      it('keeps full clear locked while the confirmation is still open', async () => {
+        const confirmation = deferred<boolean>();
+        askMock.mockReturnValueOnce(confirmation.promise);
+        await renderWithNovels();
+
+        await click(clearAllButton());
+        await remount();
+        expect(clearAllButton().disabled).toBe(true);
+        await click(clearAllButton());
+        expect(askMock).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          confirmation.resolve(false);
+        });
+        await flush();
+        expect(clearAllCalls()).toHaveLength(0);
+        expect(clearAllButton().disabled).toBe(false);
+      });
     });
   });
 
