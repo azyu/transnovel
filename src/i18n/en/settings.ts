@@ -1,3 +1,6 @@
+const enPluralRules = new Intl.PluralRules('en');
+const entryNoun = (count: number) => (enPluralRules.select(count) === 'one' ? 'entry' : 'entries');
+
 export const settingsMessages = {
   tabs: {
     llm: 'LLM',
@@ -114,17 +117,17 @@ Example:
     confirmClearCache:
       'Delete all translation cache entries?\n\nThis action cannot be undone.',
     confirmClearCacheTitle: 'Clear cache',
-    clearCacheSuccess: (deleted: number) => `Deleted ${deleted} cache entries.`,
+    clearCacheSuccess: (deleted: number) => `Deleted ${deleted} cache ${entryNoun(deleted)}.`,
     clearCacheSuccessTitle: 'Done',
     clearCacheFailed: (detail: string) => `Failed to clear cache: ${detail}`,
     clearCacheFailedTitle: 'Error',
     confirmClearNovelCache: (target: string, count: number) =>
-      `Delete ${count} translation cache entries for this work?\n\n${target}\n\nThis also deletes the work's chapter translation completion records.\nThis action cannot be undone.`,
+      `Delete ${count} translation cache ${entryNoun(count)} for this work?\n\n${target}\n\nThis also deletes the work's chapter translation completion records.\nThis action cannot be undone.`,
     confirmClearNovelCacheTitle: 'Delete work cache',
     clearNovelCacheSuccess: (target: string, deleted: number) =>
-      `${target}\n\nDeleted ${deleted} translation cache entries.`,
+      `${target}\n\nDeleted ${deleted} translation cache ${entryNoun(deleted)}.`,
     clearNovelCacheFailed: (target: string, count: number, detail: string) =>
-      `${target} (${count} translation cache entries before the request)\n\nFailed to delete cache: ${detail}`,
+      `${target} (${count} translation cache ${entryNoun(count)} before the request)\n\nFailed to delete cache: ${detail}`,
     confirmResetAll:
       'Reset all data?\n\nThis will delete:\n- Translation cache\n- Per-novel proper noun dictionaries\n- All settings\n- API keys\n\nThis action cannot be undone.',
     confirmResetAllTitle: 'Reset all data',
