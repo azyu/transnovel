@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { ask, message } from '@tauri-apps/plugin-dialog';
 import { AdvancedSettings } from './AdvancedSettings';
-import { messages } from '../../i18n';
+import { getMessages, messages } from '../../i18n';
 import { useUIStore } from '../../stores/uiStore';
 import { useDebugStore } from '../../stores/debugStore';
 
@@ -210,10 +210,12 @@ describe('AdvancedSettings', () => {
         throw 'db locked';
       };
       await renderWithNovels();
+      statsAfterClear = [novels[1]];
 
       await click(deleteButtons()[0]);
       await flush();
 
+      expect(container.textContent).not.toContain('Target Work');
       expect(mutatingCalls()).toEqual([
         ['clear_cache_by_novel', { site: 'syosetu', novelId: 'n1111' }],
       ]);
@@ -254,5 +256,23 @@ describe('AdvancedSettings', () => {
       await flush();
       expect(deleteButtons().every((button) => !button.disabled)).toBe(true);
     });
+  });
+
+  it.each(['ko', 'en'] as const)('puts the target and counts into %s per-novel cache texts', (language) => {
+    const advanced = getMessages(language).settings.advanced;
+    const target = 'Sample Work | kakuyomu.jp | 1177354055';
+
+    const confirmText = advanced.confirmClearNovelCache(target, 17);
+    expect(confirmText).toContain(target);
+    expect(confirmText).toContain('17');
+
+    const successText = advanced.clearNovelCacheSuccess(target, 23);
+    expect(successText).toContain(target);
+    expect(successText).toContain('23');
+
+    const failureText = advanced.clearNovelCacheFailed(target, 29, 'db locked');
+    expect(failureText).toContain(target);
+    expect(failureText).toContain('29');
+    expect(failureText).toContain('db locked');
   });
 });
