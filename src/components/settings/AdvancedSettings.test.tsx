@@ -430,4 +430,24 @@ describe('AdvancedSettings', () => {
     expect(failureText).toContain('29');
     expect(failureText).toContain('db locked');
   });
+
+  it.each([
+    [0, 'entries'],
+    [1, 'entry'],
+    [2, 'entries'],
+  ] as const)('renders English cache count %i with "%s"', (count, noun) => {
+    const advanced = getMessages('en').settings.advanced;
+    const target = 'Sample Work';
+
+    expect(advanced.clearCacheSuccess(count)).toBe(`Deleted ${count} cache ${noun}.`);
+    expect(advanced.confirmClearNovelCache(target, count)).toBe(
+      `Delete ${count} translation cache ${noun} for this work?\n\n${target}\n\nThis also deletes the work's chapter translation completion records.\nThis action cannot be undone.`,
+    );
+    expect(advanced.clearNovelCacheSuccess(target, count)).toBe(
+      `${target}\n\nDeleted ${count} translation cache ${noun}.`,
+    );
+    expect(advanced.clearNovelCacheFailed(target, count, 'db locked')).toBe(
+      `${target} (${count} translation cache ${noun} before the request)\n\nFailed to delete cache: db locked`,
+    );
+  });
 });
